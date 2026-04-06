@@ -258,6 +258,90 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .modal-actions .btn { flex: 1; }
 .import-result { margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 0.85rem; }
 
+/* ===== VARIANT PILLS ===== */
+.variant-pills { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.variant-pill {
+  padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;
+  border: 2px solid var(--border); background: var(--bg-card); color: var(--text2);
+  cursor: pointer; min-height: 36px;
+}
+.variant-pill.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+/* ===== TIMER ===== */
+.timer-block { margin-bottom: 16px; }
+.timer-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+}
+.timer-side { font-weight: 600; font-size: 0.85rem; color: var(--text2); min-width: 44px; }
+.timer-display { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; flex: 1; text-align: center; }
+.timer-btn {
+  padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;
+  border: none; cursor: pointer; min-height: 40px; min-width: 72px;
+}
+.timer-btn-start { background: var(--green); color: #fff; }
+.timer-btn-pause { background: var(--amber); color: #fff; }
+.timer-btn-done { background: var(--green-bg); color: var(--green); }
+
+/* ===== COMPLETION TOGGLES ===== */
+.completion-row {
+  display: flex; align-items: center; gap: 16px; justify-content: center;
+  padding: 16px; margin-bottom: 12px;
+}
+.completion-toggle {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer;
+}
+.completion-toggle .check-box {
+  width: 56px; height: 56px; border-radius: 12px; font-size: 1.5rem;
+  display: flex; align-items: center; justify-content: center;
+  border: 3px solid var(--border); background: var(--bg-card); transition: all 0.15s;
+}
+.completion-toggle.done .check-box { border-color: var(--green); background: var(--green-bg); }
+.completion-toggle .check-label { font-size: 0.8rem; font-weight: 600; color: var(--text2); }
+
+/* ===== UNILATERAL SETS ===== */
+.uni-set-group { margin-bottom: 12px; }
+.uni-set-label { font-size: 0.85rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; padding-left: 4px; }
+.uni-side-row {
+  display: grid; grid-template-columns: 28px 1fr 24px 1fr; gap: 6px;
+  align-items: center; margin-bottom: 4px;
+}
+.uni-side-label { font-size: 0.75rem; font-weight: 700; color: var(--text3); text-align: center; }
+
+/* Split reps: shared weight + L/R reps */
+.split-reps-weight { margin-bottom: 12px; }
+.split-reps-weight label { font-size: 0.8rem; font-weight: 600; color: var(--text2); display: block; margin-bottom: 4px; }
+.split-reps-row {
+  display: grid; grid-template-columns: 50px 28px 1fr 28px 1fr; gap: 6px;
+  align-items: center; margin-bottom: 8px;
+}
+
+/* ===== SLED TRACKING ===== */
+.sled-persistent {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; margin-bottom: 12px;
+}
+.sled-persistent label { font-size: 0.85rem; font-weight: 600; color: var(--text2); }
+.sled-persistent input { width: 80px; margin: 0 8px; }
+.sled-set-row {
+  display: grid; grid-template-columns: 50px 1fr 1fr 1fr; gap: 6px;
+  align-items: center; margin-bottom: 8px;
+}
+.sled-derived { font-size: 0.8rem; color: var(--text3); padding-left: 54px; margin-top: -4px; margin-bottom: 8px; }
+.stopwatch-btn {
+  padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700;
+  border: 1px solid var(--border); background: var(--bg-card); cursor: pointer;
+  min-height: 36px;
+}
+.stopwatch-btn.running { background: var(--red); color: #fff; border-color: var(--red); }
+
+/* ===== WEIGHT/DISTANCE ===== */
+.wd-set-row {
+  display: grid; grid-template-columns: 50px 1fr 30px 1fr; gap: 8px;
+  align-items: center; margin-bottom: 8px;
+}
+
 /* ===== WORKOUT NOTES ===== */
 .workout-notes { margin-top: 20px; padding-top: 16px; border-top: 2px solid var(--border); }
 .workout-notes label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; color: var(--text2); }
@@ -271,31 +355,67 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 // PROGRAMME DATA — ATG 6-Workout Rotation (5 Apr 2026)
 // Exercise IDs are the stable contract across workouts.
 // Do NOT add workout suffixes to IDs.
+//
+// NEW FIELDS (Amendment #1):
+//   trackingType: 'weight_reps'|'reps_only'|'duration'|'completion'|'sled'|'weight_distance'
+//   unilateral: 'split_weight'|'split_reps'|false  (L/R tracking mode)
+//   prefillReps: number|null  (auto-populate reps input)
+//   variants: [{id,label,trackingType,isDefault}]|null
+//   timerSeconds: number|null  (countdown duration)
+//   repsLabel: 'reps'|'meters'|'steps'|'lengths'  (default: 'reps')
+//   weightLabel: 'kg'|'kg/hand'|null  (default: 'kg', null = no weight input)
 // =====================================================
+
+// Variant definitions (shared across workouts)
+const VARIANTS = {
+  tibialis: [
+    { id: 'wall', label: 'Wall (BW)', trackingType: 'reps_only', isDefault: true },
+    { id: 'tib-bar', label: 'Tib Bar', trackingType: 'weight_reps', isDefault: false }
+  ],
+  backExtension: [
+    { id: '45deg', label: '45° back ext', trackingType: 'weight_reps', isDefault: true },
+    { id: 'reverse-hyper', label: 'Reverse hyper', trackingType: 'weight_reps', isDefault: false }
+  ],
+  reverseSquat: [
+    { id: 'cable', label: 'Cable + straps', trackingType: 'weight_reps', isDefault: true },
+    { id: 'garhammer', label: 'Garhammer (bars)', trackingType: 'reps_only', isDefault: false }
+  ],
+  hamCurl: [
+    { id: 'seated', label: 'Seated', trackingType: 'weight_reps', isDefault: true },
+    { id: 'prone', label: 'Prone (lying)', trackingType: 'weight_reps', isDefault: false }
+  ]
+};
+
+// ID alias map for backward compatibility with old session data
+const ID_ALIASES = {
+  'reverse-sled': 'sled',
+  'push-pull-sled': 'sled'
+};
+
 const PROGRAMME = [
   {
     id: 1,
     name: "Back Health + Posterior Chain",
     subtitle: "~115 min",
     exercises: [
-      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'reverse-sled', name: 'Reverse sled / deadmilling', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Stay low. Knees forward. VMO engagement requires bent-knee position throughout.', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent). Fixed: W1+W4 seated, W3+W6 SL standing (gastrocnemius).', notes: 'Mar 25: standing on squat machine didn\'t work well, couldn\'t get right impulse. Only 25kg. Go harder.' },
-      { id: 'couch-stretch', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
-      { id: 'pullover', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
-      { id: 'trap-3-raise', name: 'Trap-3 raise', sets: 3, reps: '8', flow: 'SS', supersetWith: 'pullover', repRange: null, progressionType: 'atg', formCues: '', notes: '' },
-      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', repRange: null, progressionType: 'atg', formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.', isNew: true },
-      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', repRange: null, progressionType: 'atg', formCues: 'Check that spine is NOT in imprint — should feel lower back muscles, not abs. If abs dominate, drop weight.', notes: 'Mar 17: Started 18kg too much, 15kg also hard, 13kg still good impulse. Accept weakness, build from scratch. Mar 28: Struggled again, had to go to 13kg. Be careful.', isNew: true },
-      { id: 'glute-bridge', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Shoulders on bench. Drive up through heels. 2-second squeeze at top. Source: Novotný #4.', notes: '', isNew: true },
-      { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Bottom foot must be fully settled, not lifting. Torso drops below horizontal — must be pre-fence.', notes: 'Mar 25: Beautiful work. First round harder than second. Always check bottom foot. Mar 30: 8 reps maybe too much — moving lumbar. Try 7 next time.' },
+      { id: 'couch-stretch', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 60, formCues: '', notes: '' },
+      { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
+      { id: 'pullover', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
+      { id: 'trap-3-raise', name: 'Trap-3 raise', sets: 3, reps: '8', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', prefillReps: 8, formCues: '', notes: '' },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.', isNew: true },
+      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'Check that spine is NOT in imprint — should feel lower back muscles, not abs. If abs dominate, drop weight.', notes: 'Mar 17: Started 18kg too much, 15kg also hard, 13kg still good impulse. Accept weakness, build from scratch. Mar 28: Struggled again, had to go to 13kg. Be careful.', isNew: true },
+      { id: 'glute-bridge', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Shoulders on bench. Drive up through heels. 2-second squeeze at top. Source: Novotný #4.', notes: '', isNew: true },
+      { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot must be fully settled, not lifting. Torso drops below horizontal — must be pre-fence.', notes: 'Mar 25: Beautiful work. First round harder than second. Always check bottom foot. Mar 30: 8 reps maybe too much — moving lumbar. Try 7 next time.' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
-      { id: 'nordic-curl', name: 'Nordic curl', sets: 5, reps: '5', flow: 'SS', supersetWith: 'back-squat', repRange: [5, 5], progressionType: 'compound', formCues: 'Try actual nordics at Max Fitness Flora — look for anchor point. Ham curl (seated) is fallback only.', notes: 'Mar 30: Ham curl sub — barely feeling impulse. Need to try actual nordics.' },
+      { id: 'nordic-curl', name: 'Nordic curl', sets: 5, reps: '5', flow: 'SS', supersetWith: 'back-squat', repRange: [5, 5], progressionType: 'compound', prefillReps: 5, formCues: 'Try actual nordics at Max Fitness Flora — look for anchor point. Ham curl (seated) is fallback only.', notes: 'Mar 30: Ham curl sub — barely feeling impulse. Need to try actual nordics.' },
       { id: 'back-squat', name: 'Back squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'nordic-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Double progression: all sets at 8 reps → add 1-2.5kg → drop to 6.', notes: 'Mar 30: Only got to 50kg. Even empty bar (20kg) was feeling quads. Going careful — glad I put in the work.' },
-      { id: 'farmers-carry', name: "Farmer's carry", sets: 3, reps: '40m', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Heavy DBs, shoulders packed, tall spine. 20-25kg/hand to start. Source: Dan John.', notes: '', isNew: true }
+      { id: 'farmers-carry', name: "Farmer's carry", sets: 3, reps: '40m', flow: 'SEQ', trackingType: 'weight_distance', repsLabel: 'meters', weightLabel: 'kg/hand', formCues: 'Heavy DBs, shoulders packed, tall spine. 20-25kg/hand to start. Source: Dan John.', notes: '', isNew: true }
     ]
   },
   {
@@ -303,15 +423,15 @@ const PROGRAMME = [
     name: "Push/Pull + Biceps",
     subtitle: "~105 min",
     exercises: [
-      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'reverse-sled', name: 'Reverse sled / deadmilling', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Stay low. Knees forward. VMO engagement requires bent-knee position throughout.', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
-      { id: 'patrick-step-up', name: 'Patrick step-up', sets: 2, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: '', notes: '' },
-      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Both straight + bent knee.', notes: '' },
-      { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Use slant! Not first thing AM.', notes: '' },
-      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'atg-split-squat', name: 'ATG split squat', sets: 5, reps: '6-8/6-8', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', formCues: 'Double progression 6-8/side.', notes: '' },
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
+      { id: 'patrick-step-up', name: 'Patrick step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'completion', timerSeconds: 45, formCues: '', notes: '' },
+      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 45, formCues: 'Both straight + bent knee.', notes: '' },
+      { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
+      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'atg-split-squat', name: 'ATG split squat (no walking)', sets: 5, reps: '6-8/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', formCues: 'Stationary — no walking. Same DBs both hands. Full set one leg, then switch. Double progression 6-8/side.', notes: '' },
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: 'Hip hinge, soft knees, FLAT BACK. Stop before lumbar rounds. Form priority — maintain lordosis.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'weighted-pull-ups', name: 'Weighted pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Over/under/neutral grip rotation.', notes: '' },
@@ -324,16 +444,16 @@ const PROGRAMME = [
     name: "Shoulder Health + Frontal Plane + Triceps",
     subtitle: "~100 min",
     exercises: [
-      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'reverse-sled', name: 'Reverse sled / deadmilling', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Stay low. Knees forward. VMO engagement requires bent-knee position throughout.', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
-      { id: 'sl-calf-raise', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
-      { id: 'petersen-step-up', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
-      { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15 steps', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Mini-band above ankles. Slight squat position. 15 steps each way. (Novotný #12)', notes: '', isNew: true },
-      { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Wide stance. Shift laterally. Full depth one side. BW to start.', notes: '', isNew: true },
-      { id: 'hack-squat', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Barbell Hackenschmidt. Can lift heels off ground. Don\'t need steep slant board.', notes: '' },
-      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', repRange: null, progressionType: 'atg', formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
-      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', repRange: null, progressionType: 'atg', formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
+      { id: 'sl-calf-raise', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
+      { id: 'petersen-step-up', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 15, formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
+      { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15 steps', flow: 'SEQ', trackingType: 'completion', formCues: 'Mini-band above ankles. Slight squat position. 15 steps each way. (Novotný #12)', notes: '', isNew: true },
+      { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 8, formCues: 'Wide stance. Shift laterally. Full depth one side. BW to start.', notes: '', isNew: true },
+      { id: 'hack-squat', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Barbell Hackenschmidt. Can lift heels off ground. Don\'t need steep slant board.', notes: '' },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
+      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
       { id: 'powell-raise', name: 'Powell raise', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'FORM RESET: 1-2kg, strict, 3s eccentric. Brief prone post-fence — pause malto sipping.', notes: '' },
@@ -346,20 +466,20 @@ const PROGRAMME = [
     name: "Front Squat + Pull Block",
     subtitle: "~110 min",
     exercises: [
-      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'push-pull-sled', name: 'Push-pull sled', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent).', notes: '' },
-      { id: 'reverse-nordics', name: 'Reverse nordics', sets: 3, reps: '10', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Kneeling on mat. Tips of feet up. No equipment needed.', notes: '' },
-      { id: 'ham-curl-activation', name: 'Ham curl (activation)', sets: 1, reps: '12', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Quick activation before main work.', notes: '' },
-      { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'pullover', name: 'Pullover', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'ql-extension', repRange: [10, 12], progressionType: 'atg', formCues: 'Put plates under bench for more range.', notes: '' },
-      { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SS', supersetWith: 'pullover', repRange: null, progressionType: 'atg', formCues: 'Bottom foot fully settled. Torso drops below horizontal.', notes: '' },
+      { id: 'reverse-nordics', name: 'Reverse nordics', sets: 3, reps: '10', flow: 'SEQ', progressionType: 'atg', prefillReps: 10, formCues: 'Kneeling on mat. Tips of feet up. No equipment needed.', notes: '' },
+      { id: 'ham-curl-activation', name: 'Ham curl (activation)', sets: 1, reps: '12', flow: 'SEQ', prefillReps: 12, formCues: 'Quick activation before main work.', notes: '' },
+      { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', formCues: '', notes: '' },
+      { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'pullover', name: 'Pullover', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'ql-extension', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: '' },
+      { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot fully settled. Torso drops below horizontal.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'front-squat', name: 'Front squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'ham-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Wrist CARs during rest! Figure out foot positioning if using Smith machine. Try without Smith next time.', notes: '' },
-      { id: 'ham-curl', name: 'Ham curl (seated)', sets: 5, reps: '8-10', flow: 'SS', supersetWith: 'front-squat', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'ham-curl', name: 'Ham curl (seated)', sets: 5, reps: '8-10', flow: 'SS', supersetWith: 'front-squat', repRange: [8, 10], progressionType: 'compound', variants: VARIANTS.hamCurl, formCues: '', notes: '' },
       { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
       { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'pull-ups', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence. Rest back properly on bench for stable push.', notes: '' },
       { id: 'hammer-curls', name: 'Hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Standing, neutral grip throughout. 7-9kg start.', notes: '', isNew: true }
@@ -370,15 +490,15 @@ const PROGRAMME = [
     name: "Lunge Day + Push/Pull + Biceps",
     subtitle: "~105 min",
     exercises: [
-      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'push-pull-sled', name: 'Push-pull sled', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
-      { id: 'poliquin-step-up', name: 'Poliquin step-up', sets: 2, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: '3 plates height. Put leg further away. Go down with bum to feel it around knee.', notes: '' },
-      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Both straight + bent knee.', notes: '' },
-      { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Use slant! Not first thing AM.', notes: '' },
-      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6m', flow: 'SEQ', repRange: null, progressionType: 'compound', formCues: 'Double progression on load. Don\'t rush. Stay in stretches. Control matters.', notes: '' },
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
+      { id: 'poliquin-step-up', name: 'Poliquin step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '3 plates height. Put leg further away. Go down with bum to feel it around knee.', notes: '' },
+      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'completion', timerSeconds: 45, formCues: '', notes: '' },
+      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 45, formCues: 'Both straight + bent knee.', notes: '' },
+      { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
+      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6-8 steps/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', repsLabel: 'steps', formCues: 'Walking. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. All sets at 8/side → add weight.', notes: '' },
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: 'Hip hinge, soft knees, FLAT BACK. Stop before lumbar rounds. Form priority — maintain lordosis.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'full-range-row', name: 'Full range row', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'incline-press', repRange: [8, 12], progressionType: 'isolation', formCues: 'Form is tricky — back curls up. May need different version. Brief prone — pause malto.', notes: '' },
@@ -391,21 +511,21 @@ const PROGRAMME = [
     name: "Rhythm/KOT + Shoulder Health + Push + Rotation",
     subtitle: "~108 min",
     exercises: [
-      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'push-pull-sled', name: 'Push-pull sled', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
-      { id: 'sl-calf-raise', name: 'SL calf raise (standing)', sets: 1, reps: '12/12', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
-      { id: 'rhythm-squat', name: 'Rhythm squat', sets: 4, reps: '50', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: '35kg sweet spot. 40kg = trouble getting bar up/down.', notes: '' },
-      { id: 'kot-sissy-squat', name: 'KOT/Sissy squat', sets: 3, reps: '10', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Watch form video first!', notes: '' },
-      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '8/8', flow: 'SS', supersetWith: 'reverse-squat', repRange: null, progressionType: 'atg', formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings.', notes: '' },
-      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', repRange: null, progressionType: 'atg', formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
+      { id: 'sl-calf-raise', name: 'SL calf raise (standing)', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', formCues: 'Gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
+      { id: 'rhythm-squat', name: 'Rhythm squat', sets: 4, reps: '50', flow: 'SEQ', progressionType: 'atg', prefillReps: 50, formCues: '35kg sweet spot. 40kg = trouble getting bar up/down.', notes: '' },
+      { id: 'kot-sissy-squat', name: 'KOT/Sissy squat', sets: 3, reps: '10', flow: 'SEQ', progressionType: 'atg', prefillReps: 10, formCues: 'Watch form video first!', notes: '' },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings.', notes: '' },
+      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
-      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', repRange: null, progressionType: null, formCues: 'Face height. Elbows out+back. Squeeze scaps.', notes: '' },
+      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', prefillReps: 12, formCues: 'Face height. Elbows out+back. Squeeze scaps.', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'band-pull-apart', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
       { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'dips', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
       { id: 'dips', name: 'Dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pull-ups', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
-      { id: 'cable-chop', name: 'Half-kneel cable chop', sets: 3, reps: '10/side', flow: 'SS', supersetWith: 'oh-tricep-ext', repRange: null, progressionType: null, formCues: 'One knee down. Cable high. Diagonal across body. Alternate high→low / low→high each session. (Novotný #3 / Galpin)', notes: '', isNew: true },
+      { id: 'cable-chop', name: 'Half-kneel cable chop', sets: 3, reps: '10/side', flow: 'SS', supersetWith: 'oh-tricep-ext', unilateral: 'split_weight', prefillReps: 10, formCues: 'One knee down. Cable high. Diagonal across body. Alternate high→low / low→high each session. (Novotný #3 / Galpin)', notes: '', isNew: true },
       { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'cable-chop', repRange: [8, 12], progressionType: 'isolation', formCues: 'Cable rope, face away, extend overhead, 3s eccentric. ~10kg start.', notes: '', isNew: true }
     ]
   }
@@ -417,6 +537,8 @@ const PROGRAMME = [
 const Data = (function() {
   const SESSIONS_KEY = 'gym-sessions';
   const WIP_KEY = 'gym-session-wip';
+  const SLED_LENGTH_KEY = 'gym-sled-length-distance';
+  const VARIANT_PREFIX = 'gym-variant-';
 
   function getSessions() {
     try {
@@ -468,7 +590,25 @@ const Data = (function() {
     return getSessions().filter(s => !s.exported);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions };
+  // Sled length distance (meters per length, persists across sessions)
+  function getSledLength() {
+    return parseFloat(localStorage.getItem(SLED_LENGTH_KEY)) || 15;
+  }
+
+  function setSledLength(meters) {
+    localStorage.setItem(SLED_LENGTH_KEY, String(meters));
+  }
+
+  // Variant selection per exercise (persists across sessions)
+  function getVariant(exerciseId) {
+    return localStorage.getItem(VARIANT_PREFIX + exerciseId) || null;
+  }
+
+  function setVariant(exerciseId, variantId) {
+    localStorage.setItem(VARIANT_PREFIX + exerciseId, variantId);
+  }
+
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant };
 })();
 
 // =====================================================
@@ -498,9 +638,9 @@ const State = (function() {
 
   function hasWIP() { return wip !== null; }
 
-  function logExercise(exIndex, sets, notes) {
+  function logExercise(exIndex, data) {
     if (!wip) return;
-    wip.exercises[exIndex] = { sets, notes };
+    wip.exercises[exIndex] = data;
     Data.saveWIP(wip);
   }
 
@@ -519,7 +659,19 @@ const State = (function() {
   function isExerciseLogged(exIndex) {
     if (!wip || !wip.exercises[exIndex]) return false;
     const data = wip.exercises[exIndex];
-    return data.sets && data.sets.some(s => s.reps !== null && s.reps !== undefined && s.reps !== '');
+    // Completion type: check if done/doneL/doneR is set
+    if (data.done || data.doneL || data.doneR) return true;
+    // Sled: check if any set has lengths
+    if (data.sets && data.sets.some(s => s.lengths)) return true;
+    // Weight/distance: check if any set has distance
+    if (data.sets && data.sets.some(s => s.distance)) return true;
+    // Standard/unilateral: check reps
+    if (data.sets && data.sets.some(s => {
+      if (s.reps !== null && s.reps !== undefined && s.reps !== '') return true;
+      if (s.repsL !== null && s.repsL !== undefined && s.repsL !== '') return true;
+      return false;
+    })) return true;
+    return false;
   }
 
   function finishSession() {
@@ -537,8 +689,15 @@ const State = (function() {
     Data.clearWIP();
   }
 
+  // Resolve an exercise ID through the alias map
+  function resolveId(id) {
+    return ID_ALIASES[id] || id;
+  }
+
   // Find last entry for a given exercise ID across all sessions
+  // Checks both current ID and any aliases (for backward compat with old sled IDs etc.)
   function getLastEntry(exerciseId) {
+    const targetId = resolveId(exerciseId);
     const sessions = Data.getSessions();
     for (let i = sessions.length - 1; i >= 0; i--) {
       const s = sessions[i];
@@ -546,7 +705,12 @@ const State = (function() {
       if (!workout) continue;
       for (const [idx, data] of Object.entries(s.exercises)) {
         const ex = workout.exercises[parseInt(idx)];
-        if (ex && ex.id === exerciseId && data.sets && data.sets.length > 0) {
+        if (!ex) continue;
+        const exResolved = resolveId(ex.id);
+        if (exResolved === targetId && (
+          (data.sets && data.sets.length > 0) ||
+          data.done || data.doneL || data.doneR
+        )) {
           return { date: s.date, workoutId: s.workoutId, ...data };
         }
       }
@@ -568,9 +732,16 @@ const Progression = (function() {
     return 0;
   }
 
-  function shouldAutoBump(lastSets, repRange) {
+  function shouldAutoBump(lastSets, repRange, unilateral) {
     if (!repRange || !lastSets || lastSets.length === 0) return false;
     const top = repRange[1];
+    if (unilateral === 'split_reps') {
+      // Both sides must hit top on ALL sets
+      return lastSets.every(s => {
+        const l = parseInt(s.repsL); const r = parseInt(s.repsR);
+        return !isNaN(l) && l >= top && !isNaN(r) && r >= top;
+      });
+    }
     return lastSets.every(s => {
       const r = parseInt(s.reps);
       return !isNaN(r) && r >= top;
@@ -579,16 +750,34 @@ const Progression = (function() {
 
   function getPreFill(exerciseId, exercise) {
     const last = State.getLastEntry(exerciseId);
-    if (!last || !last.sets || last.sets.length === 0) return { weight: '', bumped: false, from: null };
+    const result = { weight: '', weightL: '', weightR: '', bumped: false, from: null };
+    if (!last || !last.sets || last.sets.length === 0) return result;
+
+    if (exercise.unilateral === 'split_weight') {
+      result.weightL = last.sets[0].weightL || '';
+      result.weightR = last.sets[0].weightR || '';
+      return result;
+    }
+
+    if (exercise.unilateral === 'split_reps') {
+      const lastWeight = last.weight || last.sets[0]?.weight || 0;
+      if (exercise.repRange && shouldAutoBump(last.sets, exercise.repRange, 'split_reps')) {
+        const step = getWeightStep(exercise.progressionType);
+        if (step > 0) {
+          return { ...result, weight: lastWeight + step, bumped: true, from: lastWeight };
+        }
+      }
+      return { ...result, weight: lastWeight || '' };
+    }
 
     const lastWeight = last.sets[0].weight || 0;
     if (exercise.repRange && shouldAutoBump(last.sets, exercise.repRange)) {
       const step = getWeightStep(exercise.progressionType);
       if (step > 0) {
-        return { weight: lastWeight + step, bumped: true, from: lastWeight };
+        return { ...result, weight: lastWeight + step, bumped: true, from: lastWeight };
       }
     }
-    return { weight: lastWeight || '', bumped: false, from: null };
+    return { ...result, weight: lastWeight || '' };
   }
 
   function getBanner(sets, exercise) {
@@ -598,10 +787,33 @@ const Progression = (function() {
     }
     if (!exercise.repRange) return null;
 
+    const [low, high] = exercise.repRange;
+
+    // Unilateral split_reps: check both sides
+    if (exercise.unilateral === 'split_reps') {
+      const validSets = sets.filter(s => s.repsL !== undefined && s.repsL !== '' && s.repsR !== undefined && s.repsR !== '');
+      if (validSets.length === 0) return null;
+      const lAllTop = validSets.every(s => parseInt(s.repsL) >= high);
+      const rAllTop = validSets.every(s => parseInt(s.repsR) >= high);
+      const lAnyBelow = validSets.some(s => parseInt(s.repsL) < low);
+      const rAnyBelow = validSets.some(s => parseInt(s.repsR) < low);
+
+      if (lAllTop && rAllTop) {
+        const step = getWeightStep(exercise.progressionType);
+        const label = step > 0 ? `+${step}kg` : '';
+        return { type: 'green', text: `Both sides at ${high} — add ${label} next session` };
+      }
+      if (lAnyBelow || rAnyBelow) {
+        const lStatus = lAllTop ? 'All at ' + high : 'Below';
+        const rStatus = rAllTop ? 'All at ' + high : 'Below';
+        return { type: 'amber', text: `L: ${lStatus} · R: ${rStatus} — stay at this weight` };
+      }
+      return null;
+    }
+
     const validSets = sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '');
     if (validSets.length === 0) return null;
 
-    const [low, high] = exercise.repRange;
     const allAtTop = validSets.every(s => parseInt(s.reps) >= high);
     const anyBelowBottom = validSets.some(s => parseInt(s.reps) < low);
 
@@ -643,15 +855,69 @@ const Markdown = (function() {
       const ex = workout.exercises[parseInt(idx)];
       if (!ex || ex.isFence) continue;
 
+      const variantStr = data.variant ? ` [${data.variant}]` : '';
+
+      // Duration/completion exercises
+      if (data.done !== undefined || data.doneL !== undefined) {
+        if (data.doneL !== undefined) {
+          md += `- **${ex.name}**${variantStr} — L${data.doneL ? '✅' : '—'} R${data.doneR ? '✅' : '—'}\n`;
+        } else {
+          md += `- **${ex.name}**${variantStr} — ${data.done ? '✅' : '—'}\n`;
+        }
+        if (data.notes) md += `  - ${data.notes}\n`;
+        continue;
+      }
+
+      if (!data.sets || data.sets.length === 0) continue;
+      const s0 = data.sets[0];
+
+      // Sled
+      if (s0.lengths !== undefined) {
+        const sledLength = Data.getSledLength();
+        for (const s of data.sets) {
+          const dist = s.lengths * sledLength;
+          md += `- **${ex.name}**${variantStr} — 1×[${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}] @ ${s.weight||0}kg (length = ${sledLength}m, total ~${Math.round(dist)}m)\n`;
+        }
+        if (data.notes) md += `  - ${data.notes}\n`;
+        continue;
+      }
+
+      // Weight/distance (farmer's carry)
+      if (s0.distance !== undefined) {
+        const setsStr = data.sets.filter(s => s.distance).map(s => s.distance + 'm').join(',');
+        const weight = s0.weight || 0;
+        md += `- **${ex.name}**${variantStr} — ${data.sets.length}×[${setsStr}] @ ${weight}${ex.weightLabel || 'kg'}\n`;
+        if (data.notes) md += `  - ${data.notes}\n`;
+        continue;
+      }
+
+      // Unilateral split_weight
+      if (s0.weightL !== undefined) {
+        const setsStr = data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L${s.repsL}/R${s.repsR}`).join(',');
+        md += `- **${ex.name}**${variantStr} — ${ex.sets}×[${setsStr}] @ L:${s0.weightL}kg R:${s0.weightR}kg\n`;
+        if (data.notes) md += `  - ${data.notes}\n`;
+        continue;
+      }
+
+      // Unilateral split_reps
+      if (s0.repsL !== undefined) {
+        const setsStr = data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L${s.repsL}/R${s.repsR}`).join(',');
+        const weight = data.weight || s0.weight || 0;
+        md += `- **${ex.name}**${variantStr} — ${ex.sets}×[${setsStr}] @ ${weight}kg\n`;
+        if (data.notes) md += `  - ${data.notes}\n`;
+        continue;
+      }
+
+      // Standard weight×reps or reps_only
       const setsStr = data.sets
         .filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '')
         .map(s => s.reps)
         .join(',');
 
-      const weight = data.sets[0]?.weight;
+      const weight = s0.weight;
       const weightStr = weight ? ` @ ${weight}kg` : ' @ BW';
 
-      md += `- **${ex.name}** — ${ex.sets}×[${setsStr}]${weightStr}\n`;
+      md += `- **${ex.name}**${variantStr} — ${ex.sets}×[${setsStr}]${weightStr}\n`;
       if (data.notes) md += `  - ${data.notes}\n`;
     }
 
@@ -672,7 +938,7 @@ const Markdown = (function() {
     return md;
   }
 
-  // Build lookup map for fuzzy matching
+  // Build lookup map for fuzzy matching (includes old names via aliases)
   function buildLookup() {
     const map = {};
     for (const w of PROGRAMME) {
@@ -681,6 +947,24 @@ const Markdown = (function() {
         if (ex.isFence) continue;
         const norm = ex.name.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!map[norm]) map[norm] = { id: ex.id, name: ex.name };
+      }
+    }
+    // Add old names that map to new IDs
+    const oldNames = {
+      'reversesleddedmilling': 'sled',
+      'reversesled': 'sled',
+      'pushpullsled': 'sled',
+      'atgsplitsquat': 'atg-split-squat',
+      'atglunge': 'atg-lunge',
+      'atglungewalking': 'atg-lunge',
+      'singlelegcalfraise': 'sl-calf-raise',
+      'slcalfraise': 'sl-calf-raise',
+      'slcalfraisestanding': 'sl-calf-raise',
+    };
+    for (const [norm, id] of Object.entries(oldNames)) {
+      if (!map[norm]) {
+        const ex = PROGRAMME.flatMap(w => w.exercises).find(e => e.id === id);
+        if (ex) map[norm] = { id: ex.id, name: ex.name };
       }
     }
     return map;
@@ -775,6 +1059,134 @@ const Markdown = (function() {
   }
 
   return { exportSession, exportAll, importMarkdown, formatDate };
+})();
+
+// =====================================================
+// TIMER MODULE — countdown + stopwatch
+// =====================================================
+const Timer = (function() {
+  let audioCtx = null;
+  const timers = {}; // keyed by element ID
+
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function beep() {
+    try {
+      ensureAudio();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.value = 0.3;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      setTimeout(() => osc.stop(), 200);
+    } catch (e) { /* audio not available */ }
+  }
+
+  function vibrate() {
+    if (navigator.vibrate) navigator.vibrate(200);
+  }
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  // Countdown timer for duration/completion exercises
+  function startCountdown(id, totalSeconds, onComplete) {
+    ensureAudio();
+    if (timers[id]) clearInterval(timers[id].interval);
+
+    const el = document.getElementById(id);
+    const btn = document.getElementById(id + '-btn');
+    if (!el) return;
+
+    let remaining = totalSeconds;
+    el.textContent = formatTime(remaining);
+    if (btn) { btn.textContent = 'PAUSE'; btn.className = 'timer-btn timer-btn-pause'; }
+
+    timers[id] = {
+      remaining,
+      paused: false,
+      interval: setInterval(() => {
+        if (timers[id].paused) return;
+        timers[id].remaining--;
+        el.textContent = formatTime(timers[id].remaining);
+        if (timers[id].remaining <= 0) {
+          clearInterval(timers[id].interval);
+          delete timers[id];
+          el.textContent = '0:00';
+          if (btn) { btn.textContent = 'DONE'; btn.className = 'timer-btn timer-btn-done'; }
+          beep();
+          vibrate();
+          if (onComplete) onComplete();
+        }
+      }, 1000)
+    };
+  }
+
+  function togglePause(id) {
+    if (!timers[id]) return false;
+    timers[id].paused = !timers[id].paused;
+    const btn = document.getElementById(id + '-btn');
+    if (btn) {
+      btn.textContent = timers[id].paused ? 'RESUME' : 'PAUSE';
+      btn.className = timers[id].paused ? 'timer-btn timer-btn-start' : 'timer-btn timer-btn-pause';
+    }
+    return true;
+  }
+
+  function isRunning(id) { return !!timers[id] && !timers[id].paused; }
+  function isActive(id) { return !!timers[id]; }
+
+  // Stopwatch for sled time tracking
+  const stopwatches = {};
+
+  function toggleStopwatch(id, timeInputId) {
+    ensureAudio();
+    const btn = document.getElementById(id);
+    if (!btn) return;
+
+    if (stopwatches[id]) {
+      // Stop
+      const elapsed = Math.round((Date.now() - stopwatches[id].start) / 1000);
+      clearInterval(stopwatches[id].interval);
+      delete stopwatches[id];
+      btn.textContent = '⏱️';
+      btn.classList.remove('running');
+      // Fill the time input
+      const timeInput = document.getElementById(timeInputId);
+      if (timeInput) timeInput.value = formatTime(elapsed);
+      // Trigger autosave
+      timeInput?.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      // Start
+      const start = Date.now();
+      btn.textContent = 'STOP';
+      btn.classList.add('running');
+      stopwatches[id] = {
+        start,
+        interval: setInterval(() => {
+          const elapsed = Math.round((Date.now() - start) / 1000);
+          btn.textContent = formatTime(elapsed);
+        }, 1000)
+      };
+    }
+  }
+
+  function cleanup() {
+    Object.values(timers).forEach(t => clearInterval(t.interval));
+    Object.values(stopwatches).forEach(s => clearInterval(s.interval));
+    Object.keys(timers).forEach(k => delete timers[k]);
+    Object.keys(stopwatches).forEach(k => delete stopwatches[k]);
+  }
+
+  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, formatTime, cleanup, ensureAudio };
 })();
 
 // =====================================================
@@ -918,40 +1330,361 @@ const Views = (function() {
     const logged = State.isExerciseLogged(index);
     const statusIcon = logged ? '✅' : '';
     const lastEntry = State.getLastEntry(ex.id);
-    const lastStr = lastEntry ? `Last: ${lastEntry.sets[0]?.weight || 'BW'}kg` : '';
+    const trackingType = getEffectiveTrackingType(ex);
+
+    let metaStr = '';
+    if (trackingType === 'duration' || trackingType === 'completion') {
+      metaStr = ex.reps;
+    } else if (trackingType === 'sled') {
+      metaStr = 'Sled';
+    } else if (trackingType === 'weight_distance') {
+      metaStr = `${ex.sets}×${ex.reps}`;
+    } else {
+      metaStr = `${ex.sets}×${ex.reps}`;
+    }
+
+    let lastStr = '';
+    if (lastEntry) {
+      if (lastEntry.sets?.[0]?.weight) lastStr = `Last: ${lastEntry.sets[0].weight}kg`;
+      else if (lastEntry.sets?.[0]?.weightL) lastStr = `Last: L${lastEntry.sets[0].weightL}/R${lastEntry.sets[0].weightR}kg`;
+      else if (lastEntry.weight) lastStr = `Last: ${lastEntry.weight}kg`;
+    }
 
     return `
       <div class="ex-row" onclick="Router.go('/w/${workoutId}/e/${index}')">
         <span class="ex-num">${num}</span>
         <div class="ex-info">
           <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}</span>
-          <span class="ex-meta">${ex.sets}×${ex.reps}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${lastStr ? ' · ' + lastStr : ''}</span>
+          <span class="ex-meta">${metaStr}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${lastStr ? ' · ' + lastStr : ''}</span>
         </div>
         <span class="ex-status">${statusIcon}</span>
       </div>`;
   }
 
+  // ---- Variant helpers ----
+  function getActiveVariant(ex) {
+    if (!ex.variants) return null;
+    const savedId = Data.getVariant(ex.id);
+    if (savedId) {
+      const found = ex.variants.find(v => v.id === savedId);
+      if (found) return found;
+    }
+    return ex.variants.find(v => v.isDefault) || ex.variants[0];
+  }
+
+  function getEffectiveTrackingType(ex) {
+    const variant = getActiveVariant(ex);
+    return variant?.trackingType || ex.trackingType || 'weight_reps';
+  }
+
+  // ---- Last session display ----
+  function formatLastEntry(lastEntry, ex) {
+    if (!lastEntry) return '';
+    let detail = '';
+    if (lastEntry.done || lastEntry.doneL !== undefined) {
+      detail = lastEntry.doneL !== undefined ? `L: ${lastEntry.doneL ? '✅' : '—'} R: ${lastEntry.doneR ? '✅' : '—'}` : (lastEntry.done ? '✅' : '—');
+    } else if (lastEntry.sets && lastEntry.sets.length > 0) {
+      const s0 = lastEntry.sets[0];
+      if (s0.weightL !== undefined) {
+        detail = lastEntry.sets.map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(', ');
+      } else if (s0.repsL !== undefined) {
+        detail = `${lastEntry.weight||0}kg — ` + lastEntry.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+      } else if (s0.lengths !== undefined) {
+        detail = lastEntry.sets.map(s => `${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}`).join(', ');
+      } else if (s0.distance !== undefined) {
+        detail = lastEntry.sets.map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(', ');
+      } else {
+        detail = lastEntry.sets.map(s => `${s.weight || 'BW'}kg × ${s.reps}`).join(', ');
+      }
+    }
+    return `
+      <div class="last-session">
+        <div class="last-session-title">Last session (${lastEntry.date}, W${lastEntry.workoutId})</div>
+        <div>${detail}</div>
+        ${lastEntry.notes ? `<div style="margin-top:4px;font-style:italic;color:var(--text3);">${lastEntry.notes}</div>` : ''}
+      </div>`;
+  }
+
+  // ---- Type-specific renderers ----
+
+  function renderWeightRepsSets(ex, existingData, preFill) {
+    const wLabel = ex.weightLabel || 'kg';
+    const rLabel = ex.repsLabel || 'reps';
+    let html = `<div class="sets-header"><span></span><span>${wLabel}</span><span></span><span>${rLabel}</span></div>`;
+    for (let s = 0; s < ex.sets; s++) {
+      const existing = existingData?.sets?.[s];
+      const weight = existing?.weight ?? (preFill.weight || '');
+      const reps = existing?.reps ?? (ex.prefillReps || '');
+      html += `
+        <div class="set-row">
+          <span class="set-label">Set ${s + 1}</span>
+          <input type="number" class="set-input weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${weight}" data-set="${s}">
+          <span class="set-x">×</span>
+          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${reps}" data-set="${s}">
+        </div>
+        ${s === 0 && preFill.bumped && !existingData ? `<div class="bump-note">Auto-bumped from ${preFill.from}kg</div>` : ''}`;
+    }
+    return html;
+  }
+
+  function renderRepsOnlySets(ex, existingData, preFill) {
+    const rLabel = ex.repsLabel || 'reps';
+    let html = `<div class="sets-header" style="grid-template-columns:50px 1fr;"><span></span><span>${rLabel}</span></div>`;
+    for (let s = 0; s < ex.sets; s++) {
+      const existing = existingData?.sets?.[s];
+      const reps = existing?.reps ?? (ex.prefillReps || '');
+      html += `
+        <div class="set-row" style="grid-template-columns:50px 1fr;">
+          <span class="set-label">Set ${s + 1}</span>
+          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${reps}" data-set="${s}">
+        </div>`;
+    }
+    return html;
+  }
+
+  function renderSplitWeightSets(ex, existingData, preFill) {
+    const rLabel = ex.repsLabel || 'reps';
+    let html = '';
+    for (let s = 0; s < ex.sets; s++) {
+      const existing = existingData?.sets?.[s];
+      const wL = existing?.weightL ?? (preFill.weightL || '');
+      const rL = existing?.repsL ?? (ex.prefillReps || '');
+      const wR = existing?.weightR ?? (preFill.weightR || '');
+      const rR = existing?.repsR ?? (ex.prefillReps || '');
+      html += `
+        <div class="uni-set-group">
+          <div class="uni-set-label">Set ${s + 1}</div>
+          <div class="uni-side-row">
+            <span class="uni-side-label">L</span>
+            <input type="number" class="set-input wl-input" inputmode="decimal" step="0.5" placeholder="kg" value="${wL}" data-set="${s}">
+            <span class="set-x">×</span>
+            <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rL}" data-set="${s}">
+          </div>
+          <div class="uni-side-row">
+            <span class="uni-side-label">R</span>
+            <input type="number" class="set-input wr-input" inputmode="decimal" step="0.5" placeholder="kg" value="${wR}" data-set="${s}">
+            <span class="set-x">×</span>
+            <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rR}" data-set="${s}">
+          </div>
+        </div>`;
+    }
+    return html;
+  }
+
+  function renderSplitRepsSets(ex, existingData, preFill) {
+    const rLabel = ex.repsLabel || 'reps';
+    const sharedWeight = existingData?.weight ?? (preFill.weight || '');
+    let html = `
+      <div class="split-reps-weight">
+        <label>Weight (both sides)</label>
+        <input type="number" class="set-input shared-weight-input" inputmode="decimal" step="0.5" placeholder="kg" value="${sharedWeight}" style="max-width:140px;">
+        ${preFill.bumped && !existingData ? `<div class="bump-note" style="padding-left:0;">Auto-bumped from ${preFill.from}kg</div>` : ''}
+      </div>`;
+    for (let s = 0; s < ex.sets; s++) {
+      const existing = existingData?.sets?.[s];
+      const rL = existing?.repsL ?? (ex.prefillReps || '');
+      const rR = existing?.repsR ?? (ex.prefillReps || '');
+      html += `
+        <div class="split-reps-row">
+          <span class="set-label">Set ${s + 1}</span>
+          <span class="uni-side-label">L</span>
+          <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rL}" data-set="${s}">
+          <span class="uni-side-label">R</span>
+          <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rR}" data-set="${s}">
+        </div>`;
+    }
+    return html;
+  }
+
+  function renderDurationExercise(ex, existingData) {
+    const seconds = ex.timerSeconds || 60;
+    if (ex.unilateral) {
+      const doneL = existingData?.doneL || false;
+      const doneR = existingData?.doneR || false;
+      return `
+        <div class="timer-block">
+          <div class="timer-row">
+            <span class="timer-side">LEFT</span>
+            <span class="timer-display" id="timer-l">${Timer.formatTime(seconds)}</span>
+            <button class="timer-btn timer-btn-start" id="timer-l-btn"
+              onclick="Timer.isActive('timer-l') ? Timer.togglePause('timer-l') : Timer.startCountdown('timer-l', ${seconds}, () => { document.getElementById('done-l').checked = true; Views._triggerAutoSave(); })">
+              ${doneL ? 'DONE' : 'START'}
+            </button>
+          </div>
+          <div class="timer-row">
+            <span class="timer-side">RIGHT</span>
+            <span class="timer-display" id="timer-r">${Timer.formatTime(seconds)}</span>
+            <button class="timer-btn timer-btn-start" id="timer-r-btn"
+              onclick="Timer.isActive('timer-r') ? Timer.togglePause('timer-r') : Timer.startCountdown('timer-r', ${seconds}, () => { document.getElementById('done-r').checked = true; Views._triggerAutoSave(); })">
+              ${doneR ? 'DONE' : 'START'}
+            </button>
+          </div>
+          <input type="hidden" id="done-l" value="${doneL}">
+          <input type="hidden" id="done-r" value="${doneR}">
+        </div>`;
+    }
+    const done = existingData?.done || false;
+    return `
+      <div class="timer-block">
+        <div class="timer-row">
+          <span class="timer-display" id="timer-main">${Timer.formatTime(seconds)}</span>
+          <button class="timer-btn timer-btn-start" id="timer-main-btn"
+            onclick="Timer.isActive('timer-main') ? Timer.togglePause('timer-main') : Timer.startCountdown('timer-main', ${seconds}, () => { document.getElementById('done-main').checked = true; Views._triggerAutoSave(); })">
+            ${done ? 'DONE' : 'START'}
+          </button>
+        </div>
+        <input type="hidden" id="done-main" value="${done}">
+      </div>`;
+  }
+
+  function renderCompletionExercise(ex, existingData) {
+    const hasTimer = ex.timerSeconds > 0;
+    if (ex.unilateral) {
+      const doneL = existingData?.doneL || false;
+      const doneR = existingData?.doneR || false;
+      let timerHtml = '';
+      if (hasTimer) {
+        const s = ex.timerSeconds;
+        timerHtml = `
+          <div class="timer-block" style="margin-top:12px;">
+            <div class="timer-row">
+              <span class="timer-side">L</span>
+              <span class="timer-display" id="timer-l">${Timer.formatTime(s)}</span>
+              <button class="timer-btn timer-btn-start" id="timer-l-btn"
+                onclick="Timer.isActive('timer-l') ? Timer.togglePause('timer-l') : Timer.startCountdown('timer-l', ${s}, () => { document.querySelector('.completion-toggle[data-side=L]').classList.add('done'); document.getElementById('done-l').value='true'; Views._triggerAutoSave(); })">START</button>
+            </div>
+            <div class="timer-row">
+              <span class="timer-side">R</span>
+              <span class="timer-display" id="timer-r">${Timer.formatTime(s)}</span>
+              <button class="timer-btn timer-btn-start" id="timer-r-btn"
+                onclick="Timer.isActive('timer-r') ? Timer.togglePause('timer-r') : Timer.startCountdown('timer-r', ${s}, () => { document.querySelector('.completion-toggle[data-side=R]').classList.add('done'); document.getElementById('done-r').value='true'; Views._triggerAutoSave(); })">START</button>
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="completion-row">
+          <div class="completion-toggle ${doneL ? 'done' : ''}" data-side="L" onclick="this.classList.toggle('done'); document.getElementById('done-l').value = this.classList.contains('done'); Views._triggerAutoSave();">
+            <div class="check-box">${doneL ? '✅' : ''}</div>
+            <span class="check-label">Left</span>
+          </div>
+          <div class="completion-toggle ${doneR ? 'done' : ''}" data-side="R" onclick="this.classList.toggle('done'); document.getElementById('done-r').value = this.classList.contains('done'); Views._triggerAutoSave();">
+            <div class="check-box">${doneR ? '✅' : ''}</div>
+            <span class="check-label">Right</span>
+          </div>
+        </div>
+        <input type="hidden" id="done-l" value="${doneL}">
+        <input type="hidden" id="done-r" value="${doneR}">
+        ${timerHtml}`;
+    }
+    const done = existingData?.done || false;
+    let timerHtml = '';
+    if (hasTimer) {
+      timerHtml = `
+        <div class="timer-block" style="margin-top:12px;">
+          <div class="timer-row">
+            <span class="timer-display" id="timer-main">${Timer.formatTime(ex.timerSeconds)}</span>
+            <button class="timer-btn timer-btn-start" id="timer-main-btn"
+              onclick="Timer.isActive('timer-main') ? Timer.togglePause('timer-main') : Timer.startCountdown('timer-main', ${ex.timerSeconds}, () => { document.querySelector('.completion-toggle').classList.add('done'); document.getElementById('done-main').value='true'; Views._triggerAutoSave(); })">START</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="completion-row">
+        <div class="completion-toggle ${done ? 'done' : ''}" onclick="this.classList.toggle('done'); document.getElementById('done-main').value = this.classList.contains('done'); Views._triggerAutoSave();">
+          <div class="check-box">${done ? '✅' : ''}</div>
+          <span class="check-label">Done</span>
+        </div>
+      </div>
+      <input type="hidden" id="done-main" value="${done}">
+      ${timerHtml}`;
+  }
+
+  function renderSledSets(ex, existingData) {
+    const sledLength = Data.getSledLength();
+    let html = `
+      <div class="sled-persistent">
+        <label>Length distance:</label>
+        <input type="number" class="set-input sled-length-input" inputmode="decimal" step="0.5" value="${sledLength}" style="display:inline;width:80px;"
+          oninput="Data.setSledLength(parseFloat(this.value)||15); Views._updateSledDerived();">
+        <span style="color:var(--text2);">m</span>
+      </div>`;
+    // Sled typically has 1 set but support multiple
+    const numSets = ex.sets || 1;
+    html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr;"><span></span><span>kg</span><span>lengths</span><span>time</span></div>`;
+    for (let s = 0; s < numSets; s++) {
+      const existing = existingData?.sets?.[s];
+      const weight = existing?.weight ?? '';
+      const lengths = existing?.lengths ?? '';
+      const timeStr = existing?.timeSeconds ? Timer.formatTime(existing.timeSeconds) : '';
+      html += `
+        <div class="sled-set-row">
+          <span class="set-label">Set ${s + 1}</span>
+          <input type="number" class="set-input sled-weight" inputmode="decimal" step="0.5" placeholder="kg" value="${weight}" data-set="${s}">
+          <input type="number" class="set-input sled-lengths" inputmode="numeric" step="1" placeholder="lengths" value="${lengths}" data-set="${s}"
+            oninput="Views._updateSledDerived();">
+          <div style="display:flex;gap:4px;align-items:center;">
+            <input type="text" class="set-input sled-time" inputmode="text" placeholder="m:ss" value="${timeStr}" data-set="${s}" id="sled-time-${s}" style="flex:1;">
+            <button class="stopwatch-btn" id="sw-${s}" onclick="Timer.toggleStopwatch('sw-${s}', 'sled-time-${s}')">⏱️</button>
+          </div>
+        </div>
+        <div class="sled-derived" id="sled-derived-${s}">${lengths && sledLength ? `= ${Math.round(lengths * sledLength)}m` : ''}</div>`;
+    }
+    return html;
+  }
+
+  function renderWeightDistanceSets(ex, existingData, preFill) {
+    const wLabel = ex.weightLabel || 'kg';
+    const rLabel = ex.repsLabel || 'meters';
+    let html = `<div class="sets-header" style="grid-template-columns:50px 1fr 30px 1fr;"><span></span><span>${wLabel}</span><span></span><span>${rLabel}</span></div>`;
+    for (let s = 0; s < ex.sets; s++) {
+      const existing = existingData?.sets?.[s];
+      const weight = existing?.weight ?? (preFill.weight || '');
+      const distance = existing?.distance ?? '';
+      html += `
+        <div class="wd-set-row">
+          <span class="set-label">Set ${s + 1}</span>
+          <input type="number" class="set-input wd-weight" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${weight}" data-set="${s}">
+          <span class="set-x">×</span>
+          <input type="number" class="set-input wd-distance" inputmode="numeric" step="1" placeholder="${rLabel}" value="${distance}" data-set="${s}">
+        </div>`;
+    }
+    return html;
+  }
+
+  function renderVariantPills(ex) {
+    if (!ex.variants) return '';
+    const active = getActiveVariant(ex);
+    return `<div class="variant-pills">${ex.variants.map(v =>
+      `<button class="variant-pill ${v.id === active.id ? 'active' : ''}" onclick="Views.switchVariant('${ex.id}', '${v.id}')">${v.label}</button>`
+    ).join('')}</div>`;
+  }
+
+  // Store current render context for re-rendering on variant switch
+  let _currentRenderCtx = null;
+
+  function switchVariant(exerciseId, variantId) {
+    Data.setVariant(exerciseId, variantId);
+    if (_currentRenderCtx) {
+      renderExercise(_currentRenderCtx.workoutId, _currentRenderCtx.exIndex);
+    }
+  }
+
+  // ---- Main exercise detail view ----
   function renderExercise(workoutId, exIndex) {
     const workout = PROGRAMME.find(w => w.id === workoutId);
     if (!workout) { renderHome(); return; }
     const ex = workout.exercises[exIndex];
     if (!ex || ex.isFence) { renderWorkout(workoutId); return; }
 
+    Timer.cleanup();
+    _currentRenderCtx = { workoutId, exIndex };
+
     const totalEx = workout.exercises.filter(e => !e.isFence).length;
     const exNum = workout.exercises.slice(0, exIndex + 1).filter(e => !e.isFence).length;
-
-    // Get last session data
+    const trackingType = getEffectiveTrackingType(ex);
     const lastEntry = State.getLastEntry(ex.id);
-    let lastHtml = '';
-    if (lastEntry) {
-      const setsStr = lastEntry.sets.map(s => `${s.weight || 'BW'}kg × ${s.reps}`).join(', ');
-      lastHtml = `
-        <div class="last-session">
-          <div class="last-session-title">Last session (${lastEntry.date}, W${lastEntry.workoutId})</div>
-          <div>${setsStr}</div>
-          ${lastEntry.notes ? `<div style="margin-top:4px;font-style:italic;color:var(--text3);">${lastEntry.notes}</div>` : ''}
-        </div>`;
-    }
+    const existingData = State.getExerciseData(exIndex);
+    const preFill = Progression.getPreFill(ex.id, ex);
 
     // Form cues
     let cuesHtml = '';
@@ -966,39 +1699,38 @@ const Views = (function() {
         </div>`;
     }
 
-    // Pre-fill logic
-    const preFill = Progression.getPreFill(ex.id, ex);
-    const existingData = State.getExerciseData(exIndex);
-
-    // Build set rows
-    let setsHtml = '';
-    for (let s = 0; s < ex.sets; s++) {
-      const existing = existingData?.sets?.[s];
-      const weight = existing?.weight ?? (preFill.weight || '');
-      const reps = existing?.reps ?? '';
-
-      setsHtml += `
-        <div class="set-row">
-          <span class="set-label">Set ${s + 1}</span>
-          <input type="number" class="set-input weight-input" inputmode="decimal"
-            step="0.5" placeholder="kg" value="${weight}" data-set="${s}">
-          <span class="set-x">×</span>
-          <input type="number" class="set-input reps-input" inputmode="numeric"
-            step="1" placeholder="reps" value="${reps}" data-set="${s}">
-        </div>
-        ${s === 0 && preFill.bumped && !existingData ? `<div class="bump-note">Auto-bumped from ${preFill.from}kg</div>` : ''}`;
-    }
-
-    // Superset partner info
+    // Superset info
     let ssInfo = '';
     if (ex.flow === 'SS' && ex.supersetWith) {
       const partner = workout.exercises.find(e => e.id === ex.supersetWith);
-      if (partner) {
-        ssInfo = `<div style="font-size:0.85rem;color:var(--ss-color);margin-bottom:8px;"><span class="badge badge-ss">SS</span> with ${partner.name}</div>`;
-      }
+      if (partner) ssInfo = `<div style="font-size:0.85rem;color:var(--ss-color);margin-bottom:8px;"><span class="badge badge-ss">SS</span> with ${partner.name}</div>`;
+    }
+
+    // Variant pills
+    const variantHtml = renderVariantPills(ex);
+
+    // Type-specific inputs
+    let inputsHtml = '';
+    switch (trackingType) {
+      case 'duration':
+        inputsHtml = renderDurationExercise(ex, existingData); break;
+      case 'completion':
+        inputsHtml = renderCompletionExercise(ex, existingData); break;
+      case 'sled':
+        inputsHtml = renderSledSets(ex, existingData); break;
+      case 'weight_distance':
+        inputsHtml = renderWeightDistanceSets(ex, existingData, preFill); break;
+      case 'reps_only':
+        inputsHtml = renderRepsOnlySets(ex, existingData, preFill); break;
+      case 'weight_reps': default:
+        if (ex.unilateral === 'split_weight') inputsHtml = renderSplitWeightSets(ex, existingData, preFill);
+        else if (ex.unilateral === 'split_reps') inputsHtml = renderSplitRepsSets(ex, existingData, preFill);
+        else inputsHtml = renderWeightRepsSets(ex, existingData, preFill);
+        break;
     }
 
     const existingNotes = existingData?.notes || '';
+    const showNotes = trackingType !== 'duration' && trackingType !== 'completion' || ex.formCues;
 
     app.innerHTML = `
       <div class="header">
@@ -1009,76 +1741,185 @@ const Views = (function() {
         <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}</div>
         <div class="ex-target">${ex.sets} × ${ex.reps}${ex.repRange ? ` (range: ${ex.repRange[0]}-${ex.repRange[1]})` : ''}</div>
         ${ssInfo}
+        ${variantHtml}
         ${cuesHtml}
-        ${lastHtml}
-        <div class="sets-header">
-          <span></span><span>Weight</span><span></span><span>Reps</span>
-        </div>
-        ${setsHtml}
+        ${formatLastEntry(lastEntry, ex)}
+        ${inputsHtml}
         <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
-          oninput="Views.autoSaveExercise(${workoutId}, ${exIndex})">${existingNotes}</textarea>
+          oninput="Views._triggerAutoSave()">${existingNotes}</textarea>
         <div id="progression-banner"></div>
       </div>
       <div class="save-bar">
         <button class="btn btn-primary" onclick="Views.saveExercise(${workoutId}, ${exIndex})">Save ✓</button>
       </div>`;
 
-    // Add input listeners for auto-save and progression banner
-    document.querySelectorAll('.weight-input, .reps-input').forEach(input => {
+    // Add listeners for all inputs
+    document.querySelectorAll('.weight-input, .reps-input, .wl-input, .wr-input, .rl-input, .rr-input, .shared-weight-input, .sled-weight, .sled-lengths, .sled-time, .wd-weight, .wd-distance').forEach(input => {
       input.addEventListener('input', () => {
-        Views.autoSaveExercise(workoutId, exIndex);
+        Views._triggerAutoSave();
         Views.updateBanner(ex);
       });
     });
 
-    // Initial banner
     if (existingData) Views.updateBanner(ex);
   }
 
+  // Trigger auto-save using stored context
+  function _triggerAutoSave() {
+    if (_currentRenderCtx) autoSaveExercise(_currentRenderCtx.workoutId, _currentRenderCtx.exIndex);
+  }
+
+  function _updateSledDerived() {
+    const sledLength = Data.getSledLength();
+    document.querySelectorAll('.sled-lengths').forEach(input => {
+      const s = input.dataset.set;
+      const lengths = parseFloat(input.value) || 0;
+      const el = document.getElementById(`sled-derived-${s}`);
+      if (el) el.textContent = lengths && sledLength ? `= ${Math.round(lengths * sledLength)}m` : '';
+    });
+    _triggerAutoSave();
+  }
+
+  // ---- Auto-save: collect data from DOM based on tracking type ----
   function autoSaveExercise(workoutId, exIndex) {
     const workout = PROGRAMME.find(w => w.id === workoutId);
+    if (!workout) return;
     const ex = workout.exercises[exIndex];
-    const sets = [];
-    for (let s = 0; s < ex.sets; s++) {
-      const wInput = document.querySelector(`.weight-input[data-set="${s}"]`);
-      const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
-      sets.push({
-        weight: wInput ? parseFloat(wInput.value) || 0 : 0,
-        reps: rInput ? (rInput.value === '' ? '' : parseInt(rInput.value) || rInput.value) : ''
-      });
-    }
+    if (!ex) return;
+    const trackingType = getEffectiveTrackingType(ex);
     const notes = document.getElementById('ex-notes')?.value || '';
-    State.logExercise(exIndex, sets, notes);
+    const variant = getActiveVariant(ex);
+    const data = { notes };
+    if (variant) data.variant = variant.id;
+
+    switch (trackingType) {
+      case 'duration': {
+        if (ex.unilateral) {
+          data.doneL = document.getElementById('done-l')?.value === 'true';
+          data.doneR = document.getElementById('done-r')?.value === 'true';
+        } else {
+          data.done = document.getElementById('done-main')?.value === 'true';
+        }
+        break;
+      }
+      case 'completion': {
+        if (ex.unilateral) {
+          data.doneL = document.getElementById('done-l')?.value === 'true';
+          data.doneR = document.getElementById('done-r')?.value === 'true';
+        } else {
+          data.done = document.getElementById('done-main')?.value === 'true';
+        }
+        break;
+      }
+      case 'sled': {
+        data.sets = [];
+        for (let s = 0; s < (ex.sets || 1); s++) {
+          const w = document.querySelector(`.sled-weight[data-set="${s}"]`);
+          const l = document.querySelector(`.sled-lengths[data-set="${s}"]`);
+          const t = document.querySelector(`.sled-time[data-set="${s}"]`);
+          const timeStr = t?.value || '';
+          const parts = timeStr.split(':');
+          const timeSeconds = parts.length === 2 ? (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0) : parseInt(timeStr) || 0;
+          data.sets.push({
+            weight: w ? parseFloat(w.value) || 0 : 0,
+            lengths: l ? parseInt(l.value) || 0 : 0,
+            timeSeconds
+          });
+        }
+        break;
+      }
+      case 'weight_distance': {
+        data.sets = [];
+        for (let s = 0; s < ex.sets; s++) {
+          const w = document.querySelector(`.wd-weight[data-set="${s}"]`);
+          const d = document.querySelector(`.wd-distance[data-set="${s}"]`);
+          data.sets.push({
+            weight: w ? parseFloat(w.value) || 0 : 0,
+            distance: d ? parseInt(d.value) || 0 : 0
+          });
+        }
+        break;
+      }
+      case 'reps_only': {
+        data.sets = [];
+        for (let s = 0; s < ex.sets; s++) {
+          const r = document.querySelector(`.reps-input[data-set="${s}"]`);
+          data.sets.push({ reps: r ? (r.value === '' ? '' : parseInt(r.value) || r.value) : '' });
+        }
+        break;
+      }
+      case 'weight_reps': default: {
+        if (ex.unilateral === 'split_weight') {
+          data.sets = [];
+          for (let s = 0; s < ex.sets; s++) {
+            data.sets.push({
+              weightL: parseFloat(document.querySelector(`.wl-input[data-set="${s}"]`)?.value) || 0,
+              repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
+              weightR: parseFloat(document.querySelector(`.wr-input[data-set="${s}"]`)?.value) || 0,
+              repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
+            });
+          }
+        } else if (ex.unilateral === 'split_reps') {
+          data.weight = parseFloat(document.querySelector('.shared-weight-input')?.value) || 0;
+          data.sets = [];
+          for (let s = 0; s < ex.sets; s++) {
+            data.sets.push({
+              repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
+              repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
+            });
+          }
+        } else {
+          data.sets = [];
+          for (let s = 0; s < ex.sets; s++) {
+            const wInput = document.querySelector(`.weight-input[data-set="${s}"]`);
+            const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
+            data.sets.push({
+              weight: wInput ? parseFloat(wInput.value) || 0 : 0,
+              reps: rInput ? (rInput.value === '' ? '' : parseInt(rInput.value) || rInput.value) : ''
+            });
+          }
+        }
+        break;
+      }
+    }
+
+    State.logExercise(exIndex, data);
   }
 
   function saveExercise(workoutId, exIndex) {
     autoSaveExercise(workoutId, exIndex);
+    Timer.cleanup();
     Router.go(`/w/${workoutId}`);
   }
 
   function saveAndBack(workoutId, exIndex) {
     autoSaveExercise(workoutId, exIndex);
+    Timer.cleanup();
     Router.go(`/w/${workoutId}`);
   }
 
   function updateBanner(exercise) {
     const bannerEl = document.getElementById('progression-banner');
     if (!bannerEl) return;
+    const trackingType = getEffectiveTrackingType(exercise);
+    if (trackingType !== 'weight_reps' && trackingType !== 'reps_only') { bannerEl.innerHTML = ''; return; }
 
     const sets = [];
-    for (let s = 0; s < exercise.sets; s++) {
-      const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
-      if (rInput && rInput.value) {
-        sets.push({ reps: rInput.value });
+    if (exercise.unilateral === 'split_reps') {
+      for (let s = 0; s < exercise.sets; s++) {
+        const rl = document.querySelector(`.rl-input[data-set="${s}"]`);
+        const rr = document.querySelector(`.rr-input[data-set="${s}"]`);
+        if (rl?.value && rr?.value) sets.push({ repsL: rl.value, repsR: rr.value });
+      }
+    } else {
+      for (let s = 0; s < exercise.sets; s++) {
+        const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
+        if (rInput?.value) sets.push({ reps: rInput.value });
       }
     }
 
     const banner = Progression.getBanner(sets, exercise);
-    if (!banner) {
-      bannerEl.innerHTML = '';
-      return;
-    }
-
+    if (!banner) { bannerEl.innerHTML = ''; return; }
     const cls = banner.type === 'green' ? 'banner-green' : banner.type === 'amber' ? 'banner-amber' : 'banner-atg';
     const icon = banner.type === 'green' ? '✅ ' : banner.type === 'amber' ? '⚠️ ' : '💡 ';
     bannerEl.innerHTML = `<div class="progression-banner ${cls}">${icon}${banner.text}</div>`;
@@ -1103,14 +1944,31 @@ const Views = (function() {
       const ex = workout.exercises[parseInt(idx)];
       if (!ex || ex.isFence) continue;
 
-      const setsStr = data.sets
-        .filter(s => s.reps !== '' && s.reps !== undefined)
-        .map(s => `${s.weight || 'BW'}kg × ${s.reps}`)
-        .join(' | ');
+      let setsStr = '';
+      if (data.done !== undefined || data.doneL !== undefined) {
+        // Completion/duration
+        if (data.doneL !== undefined) setsStr = `L: ${data.doneL ? '✅' : '—'} R: ${data.doneR ? '✅' : '—'}`;
+        else setsStr = data.done ? '✅' : '—';
+      } else if (data.sets && data.sets.length > 0) {
+        const s0 = data.sets[0];
+        if (s0.weightL !== undefined) {
+          setsStr = data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(' | ');
+        } else if (s0.repsL !== undefined) {
+          setsStr = `${data.weight||0}kg — ` + data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L${s.repsL}/R${s.repsR}`).join(' | ');
+        } else if (s0.lengths !== undefined) {
+          setsStr = data.sets.map(s => `${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}`).join(' | ');
+        } else if (s0.distance !== undefined) {
+          setsStr = data.sets.filter(s => s.distance).map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(' | ');
+        } else {
+          setsStr = data.sets.filter(s => s.reps !== '' && s.reps !== undefined).map(s => `${s.weight || 'BW'}kg × ${s.reps}`).join(' | ');
+        }
+      }
+
+      const variantLabel = data.variant ? ` [${data.variant}]` : '';
 
       exerciseItems += `
         <div class="summary-item">
-          <div class="summary-name">${ex.name}</div>
+          <div class="summary-name">${ex.name}${variantLabel}</div>
           <div class="summary-sets">${setsStr}</div>
           ${data.notes ? `<div class="summary-notes">${data.notes}</div>` : ''}
         </div>`;
@@ -1313,7 +2171,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, switchVariant, _triggerAutoSave, _updateSledDerived };
 })();
 
 // =====================================================
