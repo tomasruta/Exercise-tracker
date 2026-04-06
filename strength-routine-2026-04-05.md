@@ -18,7 +18,7 @@
 | # | Exercise | Sets × Reps | Flow | Position | Notes |
 |---|---|---|---|---|---|
 | 1 | Backward treadmill | 2 min | SEQ | Standing | |
-| 2 | Reverse sled / deadmilling | 8 | SEQ | Standing | |
+| 2 | Sled (push + pull) | — | SEQ | Standing | Track: kg × lengths × time. Measure length distance once per gym. |
 | 3 | Tibialis raise | 2×15-20 | SEQ | Seated | |
 | 4 | Seated calf raise | 1×15-20 | SEQ | Seated | Soleus (knee bent) |
 | 5 | Couch stretch | 60/60s | SEQ | Kneeling | |
@@ -45,14 +45,14 @@
 | # | Exercise | Sets × Reps | Flow | Position | Notes |
 |---|---|---|---|---|---|
 | 1 | Backward treadmill | 2 min | SEQ | Standing | |
-| 2 | Reverse sled / deadmilling | 8 | SEQ | Standing | |
+| 2 | Sled (push + pull) | — | SEQ | Standing | Track: kg × lengths × time. Measure length distance once per gym. |
 | 3 | Tibialis raise | 2×15-20 | SEQ | Seated | |
 | 4 | Patrick step-up | 2×20/20 | SEQ | Standing | |
 | 5 | Big toe stretch | 45s | SEQ | Kneeling | |
 | 6 | Calf stretch | 45/45s | SEQ | Standing | Both straight + bent knee |
 | 7 | Jefferson curl | 20 | SEQ | Standing | Use slant! Not first thing AM. |
 | 8 | Cable pancake | 20 | SEQ | Standing | |
-| 9 | ATG split squat | 5×6-8/6-8 | SEQ | Standing | Double progression |
+| 9 | ATG split squat (no walking) | 5×6-8/6-8 | SEQ | Standing | Double progression. Same DBs both hands. Full set one leg, then switch. |
 | 10 | RDL | 5×8-10 | SEQ | Standing | 🔄 Was seated GM. Form priority — lordosis. |
 | | 🥤 **MALTO FENCE** | | | | |
 | 11 | Weighted pull-ups | 3×6-8 | **SS w/ #12** | Hanging | Over/under/neutral |
@@ -68,7 +68,7 @@
 | # | Exercise | Sets × Reps | Flow | Position | Notes |
 |---|---|---|---|---|---|
 | 1 | Backward treadmill | 2 min | SEQ | Standing | |
-| 2 | Reverse sled / deadmilling | 8 | SEQ | Standing | |
+| 2 | Sled (push + pull) | — | SEQ | Standing | Track: kg × lengths × time. Measure length distance once per gym. |
 | 3 | Tibialis raise | 2×15-20 | SEQ | Seated | |
 | 4 | Single leg calf raise | 1×12/12 | SEQ | Standing | |
 | 5 | Petersen step-up | 4×15/15 | SEQ | Standing | |
@@ -92,7 +92,7 @@
 | # | Exercise | Sets × Reps | Flow | Position | Notes |
 |---|---|---|---|---|---|
 | 1 | Backward treadmill | 2 min | SEQ | Standing | |
-| 2 | Push-pull sled | 8 | SEQ | Standing | |
+| 2 | Sled (push + pull) | — | SEQ | Standing | Track: kg × lengths × time. Measure length distance once per gym. |
 | 3 | Tibialis raise | 2×15-20 | SEQ | Seated | |
 | 4 | Seated calf raise | 1×15-20 | SEQ | Seated | Soleus (knee bent) |
 | 5 | Reverse nordics | 3×10 | SEQ | Kneeling (mat) | ✅ Restored Session 3. No equipment needed. |
@@ -118,14 +118,14 @@
 | # | Exercise | Sets × Reps | Flow | Position | Notes |
 |---|---|---|---|---|---|
 | 1 | Backward treadmill | 2 min | SEQ | Standing | |
-| 2 | Push-pull sled | 8 | SEQ | Standing | |
+| 2 | Sled (push + pull) | — | SEQ | Standing | Track: kg × lengths × time. Measure length distance once per gym. |
 | 3 | Tibialis raise | 2×15-20 | SEQ | Seated | |
 | 4 | Poliquin step-up | 2×20/20 | SEQ | Standing | |
 | 5 | Big toe stretch | 45s | SEQ | Kneeling | |
 | 6 | Calf stretch | 45/45s | SEQ | Standing | Both straight + bent knee |
 | 7 | Jefferson curl | 20 | SEQ | Standing | Use slant! Not first thing AM. |
 | 8 | Cable pancake | 20 | SEQ | Standing | |
-| 9 | ATG lunge (walking) | 5×6m/6 | SEQ | Standing | Double progression on load |
+| 9 | ATG lunge (walking) | 5×6-8 steps/side | SEQ | Standing | Double progression. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. |
 | 10 | RDL | 5×8-10 | SEQ | Standing | Form priority — lordosis |
 | | 🥤 **MALTO FENCE** | | | | |
 | 11 | Full range row | 3×8-12 | **SS w/ #12** | Prone bench | ⚠️ Brief prone — pause malto |
@@ -141,12 +141,12 @@
 | # | Exercise | Sets × Reps | Flow | Position | Notes |
 |---|---|---|---|---|---|
 | 1 | Backward treadmill | 2 min | SEQ | Standing | |
-| 2 | Push-pull sled | 8 | SEQ | Standing | |
+| 2 | Sled (push + pull) | — | SEQ | Standing | Track: kg × lengths × time. Measure length distance once per gym. |
 | 3 | Tibialis raise | 2×15-20 | SEQ | Seated | |
 | 4 | SL calf raise (standing) | 1×12/12 | SEQ | Standing | Gastrocnemius (knee straight) |
 | 5 | Rhythm squat | 4×50 | SEQ | Standing | |
 | 6 | KOT/Sissy squat | 3×10 | SEQ | Kneeling | Watch form video first! |
-| 7 | Back extension | 3×8/8 | **SS w/ #8** | Prone bench | |
+| 7 | Back extension | 3×12 | **SS w/ #8** | Prone bench | |
 | 8 | Reverse squat (cable) | 3×20 | **SS w/ #7** | Supine-ish | |
 | | 🥤 **MALTO FENCE** | | | | |
 | 9 | Shoulder press | 3×8-12 | SEQ | Standing | Double progression |
