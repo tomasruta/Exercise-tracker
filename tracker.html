@@ -456,7 +456,19 @@ const Data = (function() {
     localStorage.removeItem(WIP_KEY);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP };
+  function markExported(sessionIndex) {
+    const sessions = getSessions();
+    if (sessions[sessionIndex]) {
+      sessions[sessionIndex].exported = true;
+      saveSessions(sessions);
+    }
+  }
+
+  function getUnexportedSessions() {
+    return getSessions().filter(s => !s.exported);
+  }
+
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions };
 })();
 
 // =====================================================
@@ -787,10 +799,23 @@ const Views = (function() {
         </div>`;
     }
 
+    // Check for unexported sessions
+    const unexported = Data.getUnexportedSessions();
+    let unexportedBanner = '';
+    if (unexported.length > 0 && !wip) {
+      unexportedBanner = `
+        <div style="background:var(--red-bg);border:1px solid var(--red);border-radius:10px;padding:12px;margin-bottom:16px;">
+          <div style="font-weight:600;color:var(--red);">${unexported.length} session${unexported.length > 1 ? 's' : ''} not exported</div>
+          <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">Go to Session History to export.</div>
+          <button class="btn btn-secondary" style="margin-top:8px;font-size:0.85rem;padding:10px;" onclick="Router.go('/settings')">Open Session History</button>
+        </div>`;
+    }
+
     app.innerHTML = `
       <div class="content">
         <h1 style="font-size:1.5rem;margin-bottom:20px;">Exercise Tracker</h1>
         ${wipBanner}
+        ${unexportedBanner}
         <div class="workout-grid">
           ${PROGRAMME.map(w => `
             <button class="workout-btn" onclick="Router.go('/w/${w.id}')">
@@ -803,11 +828,7 @@ const Views = (function() {
           `).join('')}
         </div>
         <div class="home-actions">
-          <button class="btn btn-secondary" onclick="Views.showImportModal()">Load History</button>
-          <button class="btn btn-secondary" onclick="Views.exportAll()">Export All Sessions</button>
-        </div>
-        <div style="text-align:center;margin-top:20px;font-size:0.75rem;color:var(--text3);">
-          ${Data.getSessions().length} sessions stored
+          <button class="btn btn-secondary" onclick="Router.go('/settings')">Settings & History</button>
         </div>
       </div>`;
   }
@@ -1066,6 +1087,8 @@ const Views = (function() {
   function finishWorkout(workoutId) {
     const session = State.finishSession();
     if (!session) return;
+    // Store the index of this session for export tracking
+    window._lastSessionIndex = Data.getSessions().length - 1;
     renderSummary(session);
   }
 
@@ -1126,9 +1149,9 @@ const Views = (function() {
   async function copyMarkdown() {
     try {
       await navigator.clipboard.writeText(window._lastMarkdown || '');
+      if (window._lastSessionIndex !== undefined) Data.markExported(window._lastSessionIndex);
       alert('Copied to clipboard!');
     } catch {
-      // Fallback: show in a textarea
       prompt('Copy this markdown:', window._lastMarkdown || '');
     }
   }
@@ -1140,6 +1163,7 @@ const Views = (function() {
           title: 'Workout Session',
           text: window._lastMarkdown || ''
         });
+        if (window._lastSessionIndex !== undefined) Data.markExported(window._lastSessionIndex);
       } catch { /* user cancelled */ }
     } else {
       copyMarkdown();
@@ -1214,7 +1238,82 @@ const Views = (function() {
     }, 2000);
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport };
+  function renderSettings() {
+    const sessions = Data.getSessions();
+
+    let sessionRows = '';
+    if (sessions.length === 0) {
+      sessionRows = '<div style="color:var(--text3);text-align:center;padding:20px;">No sessions recorded yet.</div>';
+    } else {
+      // Show newest first
+      for (let i = sessions.length - 1; i >= 0; i--) {
+        const s = sessions[i];
+        const workout = PROGRAMME.find(w => w.id === s.workoutId);
+        const wName = workout ? workout.name : `Workout ${s.workoutId}`;
+        const exCount = Object.keys(s.exercises).length;
+        const exported = s.exported ? '✅' : '⚠️';
+
+        sessionRows += `
+          <div class="summary-item" style="display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;">
+              <div class="summary-name">${exported} W${s.workoutId} — ${Markdown.formatDate(s.date)}</div>
+              <div class="summary-sets">${wName} · ${exCount} exercises${s.exported ? ' · Exported' : ' · Not exported'}</div>
+            </div>
+            <button class="btn btn-secondary" style="flex:none;padding:8px 12px;font-size:0.8rem;width:auto;" onclick="Views.exportSingleSession(${i})">Export</button>
+          </div>`;
+      }
+    }
+
+    app.innerHTML = `
+      <div class="header">
+        <button class="back-btn" onclick="Router.go('/')">← Home</button>
+        <h1>Settings & History</h1>
+      </div>
+      <div class="content">
+        <div class="summary-section">
+          <h3>Session History (${sessions.length} total)</h3>
+          ${sessionRows}
+        </div>
+
+        <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px;">
+          <button class="btn btn-secondary" onclick="Views.exportAll()">Export All Sessions</button>
+          <button class="btn btn-secondary" onclick="Views.showImportModal()">Load History (Import)</button>
+        </div>
+
+        <div style="text-align:center;margin-top:24px;font-size:0.75rem;color:var(--text3);">
+          Exercise Tracker v1.0
+        </div>
+      </div>`;
+  }
+
+  function exportSingleSession(sessionIndex) {
+    const sessions = Data.getSessions();
+    const session = sessions[sessionIndex];
+    if (!session) return;
+
+    const md = Markdown.exportSession(session);
+    window._lastMarkdown = md;
+    window._lastSessionIndex = sessionIndex;
+
+    if (navigator.share) {
+      navigator.share({ title: 'Workout Session', text: md })
+        .then(() => {
+          Data.markExported(sessionIndex);
+          renderSettings(); // refresh to show updated export status
+        })
+        .catch(() => {});
+    } else {
+      navigator.clipboard.writeText(md)
+        .then(() => {
+          Data.markExported(sessionIndex);
+          alert('Session copied to clipboard!');
+          renderSettings();
+        })
+        .catch(() => prompt('Copy:', md));
+    }
+  }
+
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession };
 })();
 
 // =====================================================
@@ -1234,6 +1333,9 @@ const Router = (function() {
     if (parts[0] === 'w' && parts[1] && parts[2] === 'summary') {
       return { view: 'summary', workoutId: parseInt(parts[1]) };
     }
+    if (parts[0] === 'settings') {
+      return { view: 'settings' };
+    }
     return { view: 'home' };
   }
 
@@ -1242,6 +1344,7 @@ const Router = (function() {
     switch (r.view) {
       case 'workout': Views.renderWorkout(r.workoutId); break;
       case 'exercise': Views.renderExercise(r.workoutId, r.exIndex); break;
+      case 'settings': Views.renderSettings(); break;
       case 'home': default: Views.renderHome(); break;
     }
   }
