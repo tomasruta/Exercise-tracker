@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Exercise Tracker</title>
+<style>
+/* ===== RESET ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+}
+input, textarea, button, select { font-family: inherit; font-size: inherit; }
+
+/* ===== THEME ===== */
+:root {
+  --bg: #f8f9fa;
+  --bg-card: #ffffff;
+  --bg-input: #f0f0f0;
+  --text: #1a1a1a;
+  --text2: #666;
+  --text3: #999;
+  --border: #e0e0e0;
+  --accent: #2563eb;
+  --green: #16a34a;
+  --green-bg: #dcfce7;
+  --amber: #d97706;
+  --amber-bg: #fef3c7;
+  --red: #dc2626;
+  --red-bg: #fee2e2;
+  --ss-color: #6366f1;
+  --ss-bg: #eef2ff;
+  --fence-color: #f59e0b;
+  --fence-bg: #fffbeb;
+  --new-badge: #8b5cf6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f0f0f;
+    --bg-card: #1c1c1e;
+    --bg-input: #2c2c2e;
+    --text: #e5e5e5;
+    --text2: #aaa;
+    --text3: #777;
+    --border: #333;
+    --green-bg: #052e16;
+    --amber-bg: #451a03;
+    --red-bg: #450a0a;
+    --ss-bg: #1e1b4b;
+    --fence-bg: #451a03;
+  }
+}
+
+/* ===== LAYOUT ===== */
+#app { max-width: 500px; margin: 0 auto; padding-bottom: env(safe-area-inset-bottom, 20px); }
+.header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.header h1 { font-size: 1.1rem; font-weight: 600; flex: 1; }
+.back-btn {
+  background: none; border: none; color: var(--accent);
+  font-size: 1rem; cursor: pointer; padding: 8px 4px;
+  min-width: 44px; min-height: 44px; display: flex; align-items: center;
+}
+.content { padding: 16px; }
+
+/* ===== HOME ===== */
+.workout-grid { display: flex; flex-direction: column; gap: 12px; }
+.workout-btn {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px;
+  cursor: pointer; text-align: left; width: 100%;
+  min-height: 64px; transition: background 0.15s;
+}
+.workout-btn:active { background: var(--bg-input); }
+.workout-id {
+  font-size: 1.3rem; font-weight: 700; color: var(--accent);
+  min-width: 40px;
+}
+.workout-info { flex: 1; }
+.workout-name { font-size: 0.95rem; font-weight: 600; display: block; }
+.workout-sub { font-size: 0.8rem; color: var(--text2); margin-top: 2px; }
+.home-actions { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
+.btn {
+  display: block; width: 100%; padding: 14px;
+  border: none; border-radius: 10px; font-size: 1rem;
+  font-weight: 600; cursor: pointer; text-align: center;
+  min-height: 48px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-secondary { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); }
+.btn-success { background: var(--green); color: #fff; }
+.btn-amber { background: var(--amber); color: #fff; }
+.btn:active { opacity: 0.85; }
+
+/* ===== WORKOUT LIST ===== */
+.exercise-list { display: flex; flex-direction: column; gap: 2px; }
+.ss-group {
+  border-left: 3px solid var(--ss-color);
+  background: var(--ss-bg);
+  border-radius: 0 10px 10px 0;
+  margin: 4px 0;
+}
+.ss-label {
+  font-size: 0.7rem; font-weight: 700; color: var(--ss-color);
+  padding: 4px 10px 0; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.ex-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; cursor: pointer;
+  background: var(--bg-card); border-bottom: 1px solid var(--border);
+  min-height: 52px;
+}
+.ss-group .ex-row { background: transparent; border-bottom: 1px solid var(--border); }
+.ss-group .ex-row:last-child { border-bottom: none; }
+.ex-num { font-size: 0.8rem; color: var(--text3); min-width: 22px; text-align: right; }
+.ex-info { flex: 1; min-width: 0; }
+.ex-name { font-size: 0.95rem; font-weight: 500; }
+.ex-meta { font-size: 0.8rem; color: var(--text2); margin-top: 2px; }
+.ex-status { font-size: 1.1rem; min-width: 28px; text-align: center; }
+.badge {
+  display: inline-block; font-size: 0.65rem; font-weight: 700;
+  padding: 1px 5px; border-radius: 4px; vertical-align: middle; margin-left: 4px;
+}
+.badge-new { background: var(--new-badge); color: #fff; }
+.badge-ss { background: var(--ss-color); color: #fff; }
+
+/* ===== MALTO FENCE ===== */
+.malto-fence {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--fence-bg); border: 2px solid var(--fence-color);
+  border-radius: 10px; padding: 10px 14px; margin: 10px 0;
+  font-weight: 700; font-size: 0.85rem; color: var(--fence-color);
+}
+
+/* ===== EXERCISE DETAIL ===== */
+.ex-detail { padding-bottom: 100px; }
+.ex-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
+.ex-target { font-size: 1rem; color: var(--text2); margin-bottom: 12px; }
+.cue-section {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; margin-bottom: 12px;
+}
+.cue-toggle {
+  display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; font-weight: 600; font-size: 0.9rem;
+  background: none; border: none; width: 100%; text-align: left;
+  color: var(--text); padding: 0;
+}
+.cue-toggle::after { content: '▼'; font-size: 0.7rem; color: var(--text3); transition: transform 0.2s; }
+.cue-section.collapsed .cue-toggle::after { transform: rotate(-90deg); }
+.cue-body { margin-top: 8px; font-size: 0.85rem; color: var(--text2); line-height: 1.5; }
+.cue-section.collapsed .cue-body { display: none; }
+.last-session {
+  background: var(--bg-input); border-radius: 10px;
+  padding: 12px; margin-bottom: 16px; font-size: 0.85rem;
+}
+.last-session-title { font-weight: 600; margin-bottom: 4px; color: var(--text2); }
+
+/* ===== SET INPUTS ===== */
+.sets-header {
+  display: grid; grid-template-columns: 50px 1fr 30px 1fr;
+  gap: 8px; padding: 0 4px 6px; font-size: 0.75rem;
+  color: var(--text3); font-weight: 600; text-transform: uppercase;
+}
+.set-row {
+  display: grid; grid-template-columns: 50px 1fr 30px 1fr;
+  gap: 8px; align-items: center; margin-bottom: 8px;
+}
+.set-label {
+  font-size: 0.85rem; font-weight: 600; color: var(--text2);
+  text-align: center; padding: 10px 0;
+}
+.set-input {
+  width: 100%; padding: 12px 10px;
+  background: var(--bg-input); border: 2px solid var(--border);
+  border-radius: 8px; font-size: 1.15rem; font-weight: 600;
+  color: var(--text); text-align: center;
+  min-height: 48px;
+}
+.set-input:focus { border-color: var(--accent); outline: none; }
+.set-x { text-align: center; color: var(--text3); font-weight: 600; }
+.bump-note {
+  font-size: 0.8rem; color: var(--green); margin-top: -4px; margin-bottom: 8px;
+  padding-left: 54px;
+}
+
+.notes-field {
+  width: 100%; padding: 12px; margin-top: 12px;
+  background: var(--bg-input); border: 2px solid var(--border);
+  border-radius: 10px; font-size: 0.95rem; color: var(--text);
+  resize: vertical; min-height: 60px; line-height: 1.4;
+}
+.notes-field:focus { border-color: var(--accent); outline: none; }
+.notes-field::placeholder { color: var(--text3); }
+
+/* ===== PROGRESSION BANNER ===== */
+.progression-banner {
+  padding: 10px 14px; border-radius: 10px; font-size: 0.9rem;
+  font-weight: 600; margin-top: 12px;
+}
+.banner-green { background: var(--green-bg); color: var(--green); }
+.banner-amber { background: var(--amber-bg); color: var(--amber); }
+.banner-atg { background: var(--bg-input); color: var(--text2); }
+
+/* ===== FIXED SAVE BAR ===== */
+.save-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  padding: 12px 16px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg); border-top: 1px solid var(--border);
+  z-index: 100; display: flex; gap: 10px;
+  max-width: 500px; margin: 0 auto;
+}
+.save-bar .btn { flex: 1; }
+
+/* ===== SUMMARY ===== */
+.summary-item {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; margin-bottom: 8px;
+}
+.summary-name { font-weight: 600; font-size: 0.95rem; }
+.summary-sets { font-size: 0.85rem; color: var(--text2); margin-top: 4px; }
+.summary-notes { font-size: 0.85rem; color: var(--text3); margin-top: 4px; font-style: italic; }
+.summary-section { margin-bottom: 20px; }
+.summary-section h3 { font-size: 0.9rem; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ===== IMPORT MODAL ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 200; display: flex; align-items: flex-end; justify-content: center;
+}
+.modal {
+  background: var(--bg); border-radius: 16px 16px 0 0;
+  padding: 20px; width: 100%; max-width: 500px;
+  max-height: 80vh; overflow-y: auto;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+.modal h2 { font-size: 1.1rem; margin-bottom: 12px; }
+.modal textarea {
+  width: 100%; min-height: 200px; padding: 12px;
+  background: var(--bg-input); border: 2px solid var(--border);
+  border-radius: 10px; font-size: 0.85rem; color: var(--text);
+  font-family: monospace; resize: vertical;
+}
+.modal-actions { display: flex; gap: 10px; margin-top: 12px; }
+.modal-actions .btn { flex: 1; }
+.import-result { margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 0.85rem; }
+
+/* ===== WORKOUT NOTES ===== */
+.workout-notes { margin-top: 20px; padding-top: 16px; border-top: 2px solid var(--border); }
+.workout-notes label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; color: var(--text2); }
+.workout-notes .notes-field { margin-top: 0; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// =====================================================
+// PROGRAMME DATA — ATG 6-Workout Rotation (5 Apr 2026)
+// Exercise IDs are the stable contract across workouts.
+// Do NOT add workout suffixes to IDs.
+// =====================================================
+const PROGRAMME = [
+  {
+    id: 1,
+    name: "Back Health + Posterior Chain",
+    subtitle: "~115 min",
+    exercises: [
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'reverse-sled', name: 'Reverse sled / deadmilling', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Stay low. Knees forward. VMO engagement requires bent-knee position throughout.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent). Fixed: W1+W4 seated, W3+W6 SL standing (gastrocnemius).', notes: 'Mar 25: standing on squat machine didn\'t work well, couldn\'t get right impulse. Only 25kg. Go harder.' },
+      { id: 'couch-stretch', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
+      { id: 'pullover', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
+      { id: 'trap-3-raise', name: 'Trap-3 raise', sets: 3, reps: '8', flow: 'SS', supersetWith: 'pullover', repRange: null, progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', repRange: null, progressionType: 'atg', formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.', isNew: true },
+      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', repRange: null, progressionType: 'atg', formCues: 'Check that spine is NOT in imprint — should feel lower back muscles, not abs. If abs dominate, drop weight.', notes: 'Mar 17: Started 18kg too much, 15kg also hard, 13kg still good impulse. Accept weakness, build from scratch. Mar 28: Struggled again, had to go to 13kg. Be careful.', isNew: true },
+      { id: 'glute-bridge', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Shoulders on bench. Drive up through heels. 2-second squeeze at top. Source: Novotný #4.', notes: '', isNew: true },
+      { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Bottom foot must be fully settled, not lifting. Torso drops below horizontal — must be pre-fence.', notes: 'Mar 25: Beautiful work. First round harder than second. Always check bottom foot. Mar 30: 8 reps maybe too much — moving lumbar. Try 7 next time.' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'nordic-curl', name: 'Nordic curl', sets: 5, reps: '5', flow: 'SS', supersetWith: 'back-squat', repRange: [5, 5], progressionType: 'compound', formCues: 'Try actual nordics at Max Fitness Flora — look for anchor point. Ham curl (seated) is fallback only.', notes: 'Mar 30: Ham curl sub — barely feeling impulse. Need to try actual nordics.' },
+      { id: 'back-squat', name: 'Back squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'nordic-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Double progression: all sets at 8 reps → add 1-2.5kg → drop to 6.', notes: 'Mar 30: Only got to 50kg. Even empty bar (20kg) was feeling quads. Going careful — glad I put in the work.' },
+      { id: 'farmers-carry', name: "Farmer's carry", sets: 3, reps: '40m', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Heavy DBs, shoulders packed, tall spine. 20-25kg/hand to start. Source: Dan John.', notes: '', isNew: true }
+    ]
+  },
+  {
+    id: 2,
+    name: "Push/Pull + Biceps",
+    subtitle: "~105 min",
+    exercises: [
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'reverse-sled', name: 'Reverse sled / deadmilling', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Stay low. Knees forward. VMO engagement requires bent-knee position throughout.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'patrick-step-up', name: 'Patrick step-up', sets: 2, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Both straight + bent knee.', notes: '' },
+      { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Use slant! Not first thing AM.', notes: '' },
+      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'atg-split-squat', name: 'ATG split squat', sets: 5, reps: '6-8/6-8', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', formCues: 'Double progression 6-8/side.', notes: '' },
+      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: 'Hip hinge, soft knees, FLAT BACK. Stop before lumbar rounds. Form priority — maintain lordosis.', notes: '' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'weighted-pull-ups', name: 'Weighted pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Over/under/neutral grip rotation.', notes: '' },
+      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-pull-ups', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'scott-curl', name: 'Scott curl (Zottman)', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Incline bench. Curl supinated, rotate pronated at top, 3s eccentric down. 5-7kg start.', notes: '', isNew: true }
+    ]
+  },
+  {
+    id: 3,
+    name: "Shoulder Health + Frontal Plane + Triceps",
+    subtitle: "~100 min",
+    exercises: [
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'reverse-sled', name: 'Reverse sled / deadmilling', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Stay low. Knees forward. VMO engagement requires bent-knee position throughout.', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'sl-calf-raise', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
+      { id: 'petersen-step-up', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
+      { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15 steps', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Mini-band above ankles. Slight squat position. 15 steps each way. (Novotný #12)', notes: '', isNew: true },
+      { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Wide stance. Shift laterally. Full depth one side. BW to start.', notes: '', isNew: true },
+      { id: 'hack-squat', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Barbell Hackenschmidt. Can lift heels off ground. Don\'t need steep slant board.', notes: '' },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', repRange: null, progressionType: 'atg', formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
+      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', repRange: null, progressionType: 'atg', formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
+      { id: 'powell-raise', name: 'Powell raise', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'FORM RESET: 1-2kg, strict, 3s eccentric. Brief prone post-fence — pause malto sipping.', notes: '' },
+      { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'oh-tricep-ext', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
+      { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'external-rotation', repRange: [8, 12], progressionType: 'isolation', formCues: 'Cable rope, face away, extend overhead, 3s eccentric. ~10kg start.', notes: '', isNew: true }
+    ]
+  },
+  {
+    id: 4,
+    name: "Front Squat + Pull Block",
+    subtitle: "~110 min",
+    exercises: [
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'push-pull-sled', name: 'Push-pull sled', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent).', notes: '' },
+      { id: 'reverse-nordics', name: 'Reverse nordics', sets: 3, reps: '10', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Kneeling on mat. Tips of feet up. No equipment needed.', notes: '' },
+      { id: 'ham-curl-activation', name: 'Ham curl (activation)', sets: 1, reps: '12', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Quick activation before main work.', notes: '' },
+      { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'pullover', name: 'Pullover', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'ql-extension', repRange: [10, 12], progressionType: 'atg', formCues: 'Put plates under bench for more range.', notes: '' },
+      { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SS', supersetWith: 'pullover', repRange: null, progressionType: 'atg', formCues: 'Bottom foot fully settled. Torso drops below horizontal.', notes: '' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'front-squat', name: 'Front squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'ham-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Wrist CARs during rest! Figure out foot positioning if using Smith machine. Try without Smith next time.', notes: '' },
+      { id: 'ham-curl', name: 'Ham curl (seated)', sets: 5, reps: '8-10', flow: 'SS', supersetWith: 'front-squat', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
+      { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'pull-ups', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence. Rest back properly on bench for stable push.', notes: '' },
+      { id: 'hammer-curls', name: 'Hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Standing, neutral grip throughout. 7-9kg start.', notes: '', isNew: true }
+    ]
+  },
+  {
+    id: 5,
+    name: "Lunge Day + Push/Pull + Biceps",
+    subtitle: "~105 min",
+    exercises: [
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'push-pull-sled', name: 'Push-pull sled', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'poliquin-step-up', name: 'Poliquin step-up', sets: 2, reps: '20/20', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: '3 plates height. Put leg further away. Go down with bum to feel it around knee.', notes: '' },
+      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Both straight + bent knee.', notes: '' },
+      { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Use slant! Not first thing AM.', notes: '' },
+      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6m', flow: 'SEQ', repRange: null, progressionType: 'compound', formCues: 'Double progression on load. Don\'t rush. Stay in stretches. Control matters.', notes: '' },
+      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: 'Hip hinge, soft knees, FLAT BACK. Stop before lumbar rounds. Form priority — maintain lordosis.', notes: '' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'full-range-row', name: 'Full range row', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'incline-press', repRange: [8, 12], progressionType: 'isolation', formCues: 'Form is tricky — back curls up. May need different version. Brief prone — pause malto.', notes: '' },
+      { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'full-range-row', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence.', notes: '' },
+      { id: 'hammer-curls', name: 'Hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Standing, neutral grip throughout. 7-9kg start.', notes: '', isNew: true }
+    ]
+  },
+  {
+    id: 6,
+    name: "Rhythm/KOT + Shoulder Health + Push + Rotation",
+    subtitle: "~108 min",
+    exercises: [
+      { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', repRange: null, progressionType: null, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
+      { id: 'push-pull-sled', name: 'Push-pull sled', sets: 1, reps: '8 lengths', flow: 'SEQ', repRange: null, progressionType: null, formCues: '', notes: '' },
+      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: '', notes: '' },
+      { id: 'sl-calf-raise', name: 'SL calf raise (standing)', sets: 1, reps: '12/12', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
+      { id: 'rhythm-squat', name: 'Rhythm squat', sets: 4, reps: '50', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: '35kg sweet spot. 40kg = trouble getting bar up/down.', notes: '' },
+      { id: 'kot-sissy-squat', name: 'KOT/Sissy squat', sets: 3, reps: '10', flow: 'SEQ', repRange: null, progressionType: 'atg', formCues: 'Watch form video first!', notes: '' },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '8/8', flow: 'SS', supersetWith: 'reverse-squat', repRange: null, progressionType: 'atg', formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings.', notes: '' },
+      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', repRange: null, progressionType: 'atg', formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
+      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', repRange: null, progressionType: null, formCues: 'Face height. Elbows out+back. Squeeze scaps.', notes: '' },
+      { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'band-pull-apart', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
+      { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'dips', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
+      { id: 'dips', name: 'Dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pull-ups', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
+      { id: 'cable-chop', name: 'Half-kneel cable chop', sets: 3, reps: '10/side', flow: 'SS', supersetWith: 'oh-tricep-ext', repRange: null, progressionType: null, formCues: 'One knee down. Cable high. Diagonal across body. Alternate high→low / low→high each session. (Novotný #3 / Galpin)', notes: '', isNew: true },
+      { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'cable-chop', repRange: [8, 12], progressionType: 'isolation', formCues: 'Cable rope, face away, extend overhead, 3s eccentric. ~10kg start.', notes: '', isNew: true }
+    ]
+  }
+];
+
+// =====================================================
+// DATA MODULE — localStorage read/write
+// =====================================================
+const Data = (function() {
+  const SESSIONS_KEY = 'gym-sessions';
+  const WIP_KEY = 'gym-session-wip';
+
+  function getSessions() {
+    try {
+      return JSON.parse(localStorage.getItem(SESSIONS_KEY)) || [];
+    } catch { return []; }
+  }
+
+  function saveSessions(sessions) {
+    try {
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+    } catch (e) {
+      alert('Storage full! Export your data and clear old sessions.');
+    }
+  }
+
+  function addSession(session) {
+    const sessions = getSessions();
+    sessions.push(session);
+    saveSessions(sessions);
+  }
+
+  function getWIP() {
+    try {
+      return JSON.parse(localStorage.getItem(WIP_KEY));
+    } catch { return null; }
+  }
+
+  function saveWIP(wip) {
+    try {
+      localStorage.setItem(WIP_KEY, JSON.stringify(wip));
+    } catch (e) {
+      console.error('Failed to save WIP:', e);
+    }
+  }
+
+  function clearWIP() {
+    localStorage.removeItem(WIP_KEY);
+  }
+
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP };
+})();
+
+// =====================================================
+// STATE MODULE — working session + history lookups
+// =====================================================
+const State = (function() {
+  let wip = null;
+
+  function init() {
+    wip = Data.getWIP();
+  }
+
+  function startSession(workoutId) {
+    wip = {
+      workoutId,
+      date: new Date().toISOString().slice(0, 10),
+      startedAt: new Date().toISOString(),
+      exercises: {},
+      overall: '',
+      injuries: '',
+    };
+    Data.saveWIP(wip);
+    return wip;
+  }
+
+  function getWIP() { return wip; }
+
+  function hasWIP() { return wip !== null; }
+
+  function logExercise(exIndex, sets, notes) {
+    if (!wip) return;
+    wip.exercises[exIndex] = { sets, notes };
+    Data.saveWIP(wip);
+  }
+
+  function updateSessionNotes(overall, injuries) {
+    if (!wip) return;
+    wip.overall = overall;
+    wip.injuries = injuries;
+    Data.saveWIP(wip);
+  }
+
+  function getExerciseData(exIndex) {
+    if (!wip || !wip.exercises[exIndex]) return null;
+    return wip.exercises[exIndex];
+  }
+
+  function isExerciseLogged(exIndex) {
+    if (!wip || !wip.exercises[exIndex]) return false;
+    const data = wip.exercises[exIndex];
+    return data.sets && data.sets.some(s => s.reps !== null && s.reps !== undefined && s.reps !== '');
+  }
+
+  function finishSession() {
+    if (!wip) return null;
+    wip.completedAt = new Date().toISOString();
+    Data.addSession(wip);
+    const finished = { ...wip };
+    wip = null;
+    Data.clearWIP();
+    return finished;
+  }
+
+  function abandonSession() {
+    wip = null;
+    Data.clearWIP();
+  }
+
+  // Find last entry for a given exercise ID across all sessions
+  function getLastEntry(exerciseId) {
+    const sessions = Data.getSessions();
+    for (let i = sessions.length - 1; i >= 0; i--) {
+      const s = sessions[i];
+      const workout = PROGRAMME.find(w => w.id === s.workoutId);
+      if (!workout) continue;
+      for (const [idx, data] of Object.entries(s.exercises)) {
+        const ex = workout.exercises[parseInt(idx)];
+        if (ex && ex.id === exerciseId && data.sets && data.sets.length > 0) {
+          return { date: s.date, workoutId: s.workoutId, ...data };
+        }
+      }
+    }
+    return null;
+  }
+
+  return { init, startSession, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, finishSession, abandonSession, getLastEntry };
+})();
+
+// =====================================================
+// PROGRESSION MODULE — auto-bump + banners
+// =====================================================
+const Progression = (function() {
+
+  function getWeightStep(progressionType) {
+    if (progressionType === 'compound') return 2.5;
+    if (progressionType === 'isolation') return 1;
+    return 0;
+  }
+
+  function shouldAutoBump(lastSets, repRange) {
+    if (!repRange || !lastSets || lastSets.length === 0) return false;
+    const top = repRange[1];
+    return lastSets.every(s => {
+      const r = parseInt(s.reps);
+      return !isNaN(r) && r >= top;
+    });
+  }
+
+  function getPreFill(exerciseId, exercise) {
+    const last = State.getLastEntry(exerciseId);
+    if (!last || !last.sets || last.sets.length === 0) return { weight: '', bumped: false, from: null };
+
+    const lastWeight = last.sets[0].weight || 0;
+    if (exercise.repRange && shouldAutoBump(last.sets, exercise.repRange)) {
+      const step = getWeightStep(exercise.progressionType);
+      if (step > 0) {
+        return { weight: lastWeight + step, bumped: true, from: lastWeight };
+      }
+    }
+    return { weight: lastWeight || '', bumped: false, from: null };
+  }
+
+  function getBanner(sets, exercise) {
+    if (!exercise.progressionType) return null;
+    if (exercise.progressionType === 'atg') {
+      return { type: 'atg', text: 'Add load when form is solid' };
+    }
+    if (!exercise.repRange) return null;
+
+    const validSets = sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '');
+    if (validSets.length === 0) return null;
+
+    const [low, high] = exercise.repRange;
+    const allAtTop = validSets.every(s => parseInt(s.reps) >= high);
+    const anyBelowBottom = validSets.some(s => parseInt(s.reps) < low);
+
+    if (allAtTop) {
+      const step = getWeightStep(exercise.progressionType);
+      const label = step > 0 ? `+${step}kg` : '';
+      return { type: 'green', text: `All sets at ${high} — add ${label} next session` };
+    }
+    if (anyBelowBottom) {
+      return { type: 'amber', text: `Below range — stay at this weight` };
+    }
+    return null;
+  }
+
+  return { getPreFill, getBanner, shouldAutoBump };
+})();
+
+// =====================================================
+// MARKDOWN MODULE — export + import
+// =====================================================
+const Markdown = (function() {
+
+  function formatDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  function exportSession(session) {
+    const workout = PROGRAMME.find(w => w.id === session.workoutId);
+    if (!workout) return '';
+
+    let md = `## ${formatDate(session.date)} — Workout ${workout.id} (${workout.name})\n\n`;
+
+    if (session.overall) md += `**Overall:** ${session.overall}\n`;
+    if (session.injuries) md += `**Injuries:** ${session.injuries}\n`;
+    if (session.overall || session.injuries) md += '\n';
+
+    for (const [idx, data] of Object.entries(session.exercises)) {
+      const ex = workout.exercises[parseInt(idx)];
+      if (!ex || ex.isFence) continue;
+
+      const setsStr = data.sets
+        .filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '')
+        .map(s => s.reps)
+        .join(',');
+
+      const weight = data.sets[0]?.weight;
+      const weightStr = weight ? ` @ ${weight}kg` : ' @ BW';
+
+      md += `- **${ex.name}** — ${ex.sets}×[${setsStr}]${weightStr}\n`;
+      if (data.notes) md += `  - ${data.notes}\n`;
+    }
+
+    md += '\n';
+    return md;
+  }
+
+  function exportAll() {
+    const sessions = Data.getSessions();
+    if (sessions.length === 0) return '# Training Log\n\nNo sessions recorded yet.\n';
+    let md = '# Training Log\n\n';
+    // Sort by date ascending
+    const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
+    for (const s of sorted) {
+      md += exportSession(s);
+      md += '---\n\n';
+    }
+    return md;
+  }
+
+  // Build lookup map for fuzzy matching
+  function buildLookup() {
+    const map = {};
+    for (const w of PROGRAMME) {
+      for (let i = 0; i < w.exercises.length; i++) {
+        const ex = w.exercises[i];
+        if (ex.isFence) continue;
+        const norm = ex.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!map[norm]) map[norm] = { id: ex.id, name: ex.name };
+      }
+    }
+    return map;
+  }
+
+  const LOOKUP = buildLookup();
+
+  function matchExercise(name) {
+    const norm = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Exact match
+    if (LOOKUP[norm]) return LOOKUP[norm];
+    // Partial match
+    for (const [key, val] of Object.entries(LOOKUP)) {
+      if (key.includes(norm) || norm.includes(key)) return val;
+    }
+    return null;
+  }
+
+  function importMarkdown(text) {
+    const sessions = [];
+    const blocks = text.split(/^## /m).filter(b => b.trim());
+    let matched = 0, unmatched = 0, unmatchedNames = [];
+
+    for (const block of blocks) {
+      const lines = block.split('\n');
+      // Parse date and workout number
+      const headerMatch = lines[0].match(/(\d{1,2}\s+\w+\s+\d{4}).*?Workout\s*(\d)/i);
+      if (!headerMatch) continue;
+
+      const dateStr = headerMatch[1];
+      const workoutId = parseInt(headerMatch[2]);
+      // Parse to YYYY-MM-DD
+      const d = new Date(dateStr);
+      const date = isNaN(d.getTime()) ? dateStr : d.toISOString().slice(0, 10);
+
+      const workout = PROGRAMME.find(w => w.id === workoutId);
+      if (!workout) continue;
+
+      const session = { workoutId, date, startedAt: '', exercises: {}, overall: '', injuries: '' };
+
+      // Parse overall/injuries
+      for (const line of lines) {
+        const overallMatch = line.match(/\*\*Overall:\*\*\s*(.+)/);
+        if (overallMatch) session.overall = overallMatch[1];
+        const injuryMatch = line.match(/\*\*Injur\w*:\*\*\s*(.+)/);
+        if (injuryMatch) session.injuries = injuryMatch[1];
+      }
+
+      // Parse exercises
+      let currentExNotes = null;
+      for (const line of lines) {
+        const exMatch = line.match(/^-\s+\*\*(.+?)\*\*\s*—\s*(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)kg/);
+        const exMatchBW = line.match(/^-\s+\*\*(.+?)\*\*\s*—\s*(\d+)×\[([^\]]+)\]\s*@\s*BW/);
+        const noteMatch = line.match(/^\s+-\s+(.+)/);
+
+        if (exMatch || exMatchBW) {
+          const m = exMatch || exMatchBW;
+          const exName = m[1];
+          const repsArr = m[3].split(',').map(r => r.trim());
+          const weight = exMatch ? parseFloat(m[4]) : 0;
+
+          const matched_ = matchExercise(exName);
+          if (matched_) {
+            // Find exercise index in workout
+            const exIdx = workout.exercises.findIndex(e => e.id === matched_.id);
+            if (exIdx >= 0) {
+              session.exercises[exIdx] = {
+                sets: repsArr.map(r => ({ weight, reps: parseInt(r) || r })),
+                notes: ''
+              };
+              currentExNotes = exIdx;
+              matched++;
+            }
+          } else {
+            unmatched++;
+            unmatchedNames.push(exName);
+            currentExNotes = null;
+          }
+        } else if (noteMatch && currentExNotes !== null) {
+          if (session.exercises[currentExNotes]) {
+            session.exercises[currentExNotes].notes = noteMatch[1];
+          }
+        }
+      }
+
+      if (Object.keys(session.exercises).length > 0) {
+        sessions.push(session);
+      }
+    }
+
+    return { sessions, matched, unmatched, unmatchedNames };
+  }
+
+  return { exportSession, exportAll, importMarkdown, formatDate };
+})();
+
+// =====================================================
+// VIEWS MODULE — DOM rendering
+// =====================================================
+const Views = (function() {
+  const app = document.getElementById('app');
+
+  function renderHome() {
+    const wip = State.getWIP();
+    let wipBanner = '';
+    if (wip) {
+      const w = PROGRAMME.find(p => p.id === wip.workoutId);
+      wipBanner = `
+        <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:10px;padding:12px;margin-bottom:16px;">
+          <div style="font-weight:600;color:var(--amber);">Session in progress</div>
+          <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">W${wip.workoutId} — ${w ? w.name : ''} (${wip.date})</div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-amber" style="flex:1;font-size:0.85rem;padding:10px;" onclick="Router.go('/w/${wip.workoutId}')">Resume</button>
+            <button class="btn btn-secondary" style="flex:1;font-size:0.85rem;padding:10px;" onclick="State.abandonSession();Views.renderHome()">Discard</button>
+          </div>
+        </div>`;
+    }
+
+    app.innerHTML = `
+      <div class="content">
+        <h1 style="font-size:1.5rem;margin-bottom:20px;">Exercise Tracker</h1>
+        ${wipBanner}
+        <div class="workout-grid">
+          ${PROGRAMME.map(w => `
+            <button class="workout-btn" onclick="Router.go('/w/${w.id}')">
+              <span class="workout-id">W${w.id}</span>
+              <div class="workout-info">
+                <span class="workout-name">${w.name}</span>
+                <span class="workout-sub">${w.subtitle} · ${w.exercises.filter(e => !e.isFence).length} exercises</span>
+              </div>
+            </button>
+          `).join('')}
+        </div>
+        <div class="home-actions">
+          <button class="btn btn-secondary" onclick="Views.showImportModal()">Load History</button>
+          <button class="btn btn-secondary" onclick="Views.exportAll()">Export All Sessions</button>
+        </div>
+        <div style="text-align:center;margin-top:20px;font-size:0.75rem;color:var(--text3);">
+          ${Data.getSessions().length} sessions stored
+        </div>
+      </div>`;
+  }
+
+  function renderWorkout(workoutId) {
+    const workout = PROGRAMME.find(w => w.id === workoutId);
+    if (!workout) { renderHome(); return; }
+
+    // Start or resume session
+    const wip = State.getWIP();
+    if (!wip || wip.workoutId !== workoutId) {
+      if (wip) {
+        if (!confirm(`You have an unfinished W${wip.workoutId} session. Discard it and start W${workoutId}?`)) {
+          Router.go('/');
+          return;
+        }
+        State.abandonSession();
+      }
+      State.startSession(workoutId);
+    }
+
+    // Build exercise rows grouped by supersets
+    let rows = '';
+    let exNum = 0;
+    let i = 0;
+
+    while (i < workout.exercises.length) {
+      const ex = workout.exercises[i];
+
+      if (ex.isFence) {
+        rows += `<div class="malto-fence">🥤 MALTO FENCE — ${ex.fenceNote}</div>`;
+        i++;
+        continue;
+      }
+
+      exNum++;
+
+      // Check if this is a superset
+      if (ex.flow === 'SS' && ex.supersetWith) {
+        // Find partner
+        const partnerIdx = workout.exercises.findIndex((e, j) => j > i && e.id === ex.supersetWith);
+        if (partnerIdx >= 0) {
+          const partner = workout.exercises[partnerIdx];
+          const exNum2 = exNum + 1;
+          rows += `
+            <div class="ss-group">
+              <div class="ss-label">Superset</div>
+              ${renderExRow(ex, i, exNum, workoutId)}
+              ${renderExRow(partner, partnerIdx, exNum2, workoutId)}
+            </div>`;
+          exNum++;
+          i = partnerIdx + 1;
+          continue;
+        }
+      }
+
+      rows += renderExRow(ex, i, exNum, workoutId);
+      i++;
+    }
+
+    const wipData = State.getWIP();
+
+    app.innerHTML = `
+      <div class="header">
+        <button class="back-btn" onclick="Router.go('/')">← Home</button>
+        <h1>W${workoutId} — ${workout.name}</h1>
+      </div>
+      <div class="content">
+        <div class="exercise-list">${rows}</div>
+        <div class="workout-notes">
+          <label>How did it feel overall?</label>
+          <textarea class="notes-field" id="overall-notes" placeholder="Speak or type..."
+            oninput="State.updateSessionNotes(this.value, document.getElementById('injury-notes').value)"
+          >${wipData?.overall || ''}</textarea>
+          <label>Injuries / concerns</label>
+          <textarea class="notes-field" id="injury-notes" placeholder="Any pain, tweaks, flags..."
+            oninput="State.updateSessionNotes(document.getElementById('overall-notes').value, this.value)"
+          >${wipData?.injuries || ''}</textarea>
+        </div>
+        <div style="margin-top:16px;padding-bottom:20px;">
+          <button class="btn btn-success" onclick="Views.finishWorkout(${workoutId})">Finish & Copy Session</button>
+        </div>
+      </div>`;
+  }
+
+  function renderExRow(ex, index, num, workoutId) {
+    const logged = State.isExerciseLogged(index);
+    const statusIcon = logged ? '✅' : '';
+    const lastEntry = State.getLastEntry(ex.id);
+    const lastStr = lastEntry ? `Last: ${lastEntry.sets[0]?.weight || 'BW'}kg` : '';
+
+    return `
+      <div class="ex-row" onclick="Router.go('/w/${workoutId}/e/${index}')">
+        <span class="ex-num">${num}</span>
+        <div class="ex-info">
+          <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}</span>
+          <span class="ex-meta">${ex.sets}×${ex.reps}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${lastStr ? ' · ' + lastStr : ''}</span>
+        </div>
+        <span class="ex-status">${statusIcon}</span>
+      </div>`;
+  }
+
+  function renderExercise(workoutId, exIndex) {
+    const workout = PROGRAMME.find(w => w.id === workoutId);
+    if (!workout) { renderHome(); return; }
+    const ex = workout.exercises[exIndex];
+    if (!ex || ex.isFence) { renderWorkout(workoutId); return; }
+
+    const totalEx = workout.exercises.filter(e => !e.isFence).length;
+    const exNum = workout.exercises.slice(0, exIndex + 1).filter(e => !e.isFence).length;
+
+    // Get last session data
+    const lastEntry = State.getLastEntry(ex.id);
+    let lastHtml = '';
+    if (lastEntry) {
+      const setsStr = lastEntry.sets.map(s => `${s.weight || 'BW'}kg × ${s.reps}`).join(', ');
+      lastHtml = `
+        <div class="last-session">
+          <div class="last-session-title">Last session (${lastEntry.date}, W${lastEntry.workoutId})</div>
+          <div>${setsStr}</div>
+          ${lastEntry.notes ? `<div style="margin-top:4px;font-style:italic;color:var(--text3);">${lastEntry.notes}</div>` : ''}
+        </div>`;
+    }
+
+    // Form cues
+    let cuesHtml = '';
+    if (ex.formCues || ex.notes) {
+      cuesHtml = `
+        <div class="cue-section" id="cue-section">
+          <button class="cue-toggle" onclick="document.getElementById('cue-section').classList.toggle('collapsed')">Reference & Cues</button>
+          <div class="cue-body">
+            ${ex.formCues ? `<div style="margin-bottom:6px;">${ex.formCues}</div>` : ''}
+            ${ex.notes ? `<div style="color:var(--text3);font-style:italic;">${ex.notes}</div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    // Pre-fill logic
+    const preFill = Progression.getPreFill(ex.id, ex);
+    const existingData = State.getExerciseData(exIndex);
+
+    // Build set rows
+    let setsHtml = '';
+    for (let s = 0; s < ex.sets; s++) {
+      const existing = existingData?.sets?.[s];
+      const weight = existing?.weight ?? (preFill.weight || '');
+      const reps = existing?.reps ?? '';
+
+      setsHtml += `
+        <div class="set-row">
+          <span class="set-label">Set ${s + 1}</span>
+          <input type="number" class="set-input weight-input" inputmode="decimal"
+            step="0.5" placeholder="kg" value="${weight}" data-set="${s}">
+          <span class="set-x">×</span>
+          <input type="number" class="set-input reps-input" inputmode="numeric"
+            step="1" placeholder="reps" value="${reps}" data-set="${s}">
+        </div>
+        ${s === 0 && preFill.bumped && !existingData ? `<div class="bump-note">Auto-bumped from ${preFill.from}kg</div>` : ''}`;
+    }
+
+    // Superset partner info
+    let ssInfo = '';
+    if (ex.flow === 'SS' && ex.supersetWith) {
+      const partner = workout.exercises.find(e => e.id === ex.supersetWith);
+      if (partner) {
+        ssInfo = `<div style="font-size:0.85rem;color:var(--ss-color);margin-bottom:8px;"><span class="badge badge-ss">SS</span> with ${partner.name}</div>`;
+      }
+    }
+
+    const existingNotes = existingData?.notes || '';
+
+    app.innerHTML = `
+      <div class="header">
+        <button class="back-btn" onclick="Views.saveAndBack(${workoutId}, ${exIndex})">← Back</button>
+        <h1>W${workoutId} — ${exNum}/${totalEx}</h1>
+      </div>
+      <div class="content ex-detail">
+        <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}</div>
+        <div class="ex-target">${ex.sets} × ${ex.reps}${ex.repRange ? ` (range: ${ex.repRange[0]}-${ex.repRange[1]})` : ''}</div>
+        ${ssInfo}
+        ${cuesHtml}
+        ${lastHtml}
+        <div class="sets-header">
+          <span></span><span>Weight</span><span></span><span>Reps</span>
+        </div>
+        ${setsHtml}
+        <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
+          oninput="Views.autoSaveExercise(${workoutId}, ${exIndex})">${existingNotes}</textarea>
+        <div id="progression-banner"></div>
+      </div>
+      <div class="save-bar">
+        <button class="btn btn-primary" onclick="Views.saveExercise(${workoutId}, ${exIndex})">Save ✓</button>
+      </div>`;
+
+    // Add input listeners for auto-save and progression banner
+    document.querySelectorAll('.weight-input, .reps-input').forEach(input => {
+      input.addEventListener('input', () => {
+        Views.autoSaveExercise(workoutId, exIndex);
+        Views.updateBanner(ex);
+      });
+    });
+
+    // Initial banner
+    if (existingData) Views.updateBanner(ex);
+  }
+
+  function autoSaveExercise(workoutId, exIndex) {
+    const workout = PROGRAMME.find(w => w.id === workoutId);
+    const ex = workout.exercises[exIndex];
+    const sets = [];
+    for (let s = 0; s < ex.sets; s++) {
+      const wInput = document.querySelector(`.weight-input[data-set="${s}"]`);
+      const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
+      sets.push({
+        weight: wInput ? parseFloat(wInput.value) || 0 : 0,
+        reps: rInput ? (rInput.value === '' ? '' : parseInt(rInput.value) || rInput.value) : ''
+      });
+    }
+    const notes = document.getElementById('ex-notes')?.value || '';
+    State.logExercise(exIndex, sets, notes);
+  }
+
+  function saveExercise(workoutId, exIndex) {
+    autoSaveExercise(workoutId, exIndex);
+    Router.go(`/w/${workoutId}`);
+  }
+
+  function saveAndBack(workoutId, exIndex) {
+    autoSaveExercise(workoutId, exIndex);
+    Router.go(`/w/${workoutId}`);
+  }
+
+  function updateBanner(exercise) {
+    const bannerEl = document.getElementById('progression-banner');
+    if (!bannerEl) return;
+
+    const sets = [];
+    for (let s = 0; s < exercise.sets; s++) {
+      const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
+      if (rInput && rInput.value) {
+        sets.push({ reps: rInput.value });
+      }
+    }
+
+    const banner = Progression.getBanner(sets, exercise);
+    if (!banner) {
+      bannerEl.innerHTML = '';
+      return;
+    }
+
+    const cls = banner.type === 'green' ? 'banner-green' : banner.type === 'amber' ? 'banner-amber' : 'banner-atg';
+    const icon = banner.type === 'green' ? '✅ ' : banner.type === 'amber' ? '⚠️ ' : '💡 ';
+    bannerEl.innerHTML = `<div class="progression-banner ${cls}">${icon}${banner.text}</div>`;
+  }
+
+  function finishWorkout(workoutId) {
+    const session = State.finishSession();
+    if (!session) return;
+    renderSummary(session);
+  }
+
+  function renderSummary(session) {
+    const workout = PROGRAMME.find(w => w.id === session.workoutId);
+    if (!workout) { renderHome(); return; }
+
+    const md = Markdown.exportSession(session);
+
+    let exerciseItems = '';
+    for (const [idx, data] of Object.entries(session.exercises)) {
+      const ex = workout.exercises[parseInt(idx)];
+      if (!ex || ex.isFence) continue;
+
+      const setsStr = data.sets
+        .filter(s => s.reps !== '' && s.reps !== undefined)
+        .map(s => `${s.weight || 'BW'}kg × ${s.reps}`)
+        .join(' | ');
+
+      exerciseItems += `
+        <div class="summary-item">
+          <div class="summary-name">${ex.name}</div>
+          <div class="summary-sets">${setsStr}</div>
+          ${data.notes ? `<div class="summary-notes">${data.notes}</div>` : ''}
+        </div>`;
+    }
+
+    app.innerHTML = `
+      <div class="header">
+        <h1>Session Complete</h1>
+      </div>
+      <div class="content">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="font-size:2rem;">💪</div>
+          <div style="font-size:1.1rem;font-weight:600;">W${session.workoutId} — ${workout.name}</div>
+          <div style="color:var(--text2);margin-top:4px;">${Markdown.formatDate(session.date)}</div>
+        </div>
+
+        ${session.overall ? `<div class="summary-section"><h3>Overall</h3><div class="summary-item">${session.overall}</div></div>` : ''}
+        ${session.injuries ? `<div class="summary-section"><h3>Injuries / Concerns</h3><div class="summary-item" style="color:var(--amber);">${session.injuries}</div></div>` : ''}
+
+        <div class="summary-section">
+          <h3>Exercises</h3>
+          ${exerciseItems}
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px;">
+          <button class="btn btn-primary" onclick="Views.copyMarkdown()">Copy as Markdown</button>
+          <button class="btn btn-secondary" onclick="Views.shareMarkdown()">Share</button>
+          <button class="btn btn-secondary" onclick="Router.go('/')">Done — Back to Home</button>
+        </div>
+      </div>`;
+
+    // Store markdown for copy/share
+    window._lastMarkdown = md;
+  }
+
+  async function copyMarkdown() {
+    try {
+      await navigator.clipboard.writeText(window._lastMarkdown || '');
+      alert('Copied to clipboard!');
+    } catch {
+      // Fallback: show in a textarea
+      prompt('Copy this markdown:', window._lastMarkdown || '');
+    }
+  }
+
+  async function shareMarkdown() {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Workout Session',
+          text: window._lastMarkdown || ''
+        });
+      } catch { /* user cancelled */ }
+    } else {
+      copyMarkdown();
+    }
+  }
+
+  function exportAll() {
+    const md = Markdown.exportAll();
+    window._lastMarkdown = md;
+    if (navigator.share) {
+      navigator.share({ title: 'Training Log', text: md }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(md)
+        .then(() => alert('All sessions copied to clipboard!'))
+        .catch(() => prompt('Copy:', md));
+    }
+  }
+
+  function showImportModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'import-modal';
+    overlay.innerHTML = `
+      <div class="modal">
+        <h2>Load History</h2>
+        <p style="font-size:0.85rem;color:var(--text2);margin-bottom:10px;">
+          Paste your training-log.md content below. Sessions will be added to your history.
+        </p>
+        <textarea id="import-text" placeholder="Paste markdown here..."></textarea>
+        <div id="import-result"></div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="document.getElementById('import-modal').remove()">Cancel</button>
+          <button class="btn btn-primary" onclick="Views.doImport()">Import</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  function doImport() {
+    const text = document.getElementById('import-text')?.value;
+    if (!text) return;
+
+    const result = Markdown.importMarkdown(text);
+    const resultEl = document.getElementById('import-result');
+
+    if (result.sessions.length === 0) {
+      resultEl.innerHTML = `<div class="import-result" style="background:var(--red-bg);color:var(--red);">No sessions found. Check the format.</div>`;
+      return;
+    }
+
+    // Add sessions to storage
+    const existing = Data.getSessions();
+    const combined = [...existing, ...result.sessions];
+    Data.saveSessions(combined);
+
+    let msg = `Imported ${result.sessions.length} session(s), ${result.matched} exercise(s) matched.`;
+    if (result.unmatched > 0) {
+      msg += ` ${result.unmatched} exercise(s) could not be matched: ${result.unmatchedNames.join(', ')}`;
+    }
+
+    resultEl.innerHTML = `<div class="import-result" style="background:var(--green-bg);color:var(--green);">${msg}</div>`;
+
+    // Re-init state to pick up new history
+    State.init();
+
+    setTimeout(() => {
+      document.getElementById('import-modal')?.remove();
+      renderHome();
+    }, 2000);
+  }
+
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport };
+})();
+
+// =====================================================
+// ROUTER — hash-based SPA routing
+// =====================================================
+const Router = (function() {
+  function parseHash() {
+    const hash = location.hash.slice(1) || '/';
+    const parts = hash.split('/').filter(Boolean);
+
+    if (parts[0] === 'w' && parts.length === 2) {
+      return { view: 'workout', workoutId: parseInt(parts[1]) };
+    }
+    if (parts[0] === 'w' && parts[1] && parts[2] === 'e' && parts[3] !== undefined) {
+      return { view: 'exercise', workoutId: parseInt(parts[1]), exIndex: parseInt(parts[3]) };
+    }
+    if (parts[0] === 'w' && parts[1] && parts[2] === 'summary') {
+      return { view: 'summary', workoutId: parseInt(parts[1]) };
+    }
+    return { view: 'home' };
+  }
+
+  function route() {
+    const r = parseHash();
+    switch (r.view) {
+      case 'workout': Views.renderWorkout(r.workoutId); break;
+      case 'exercise': Views.renderExercise(r.workoutId, r.exIndex); break;
+      case 'home': default: Views.renderHome(); break;
+    }
+  }
+
+  function go(path) {
+    location.hash = path;
+  }
+
+  function init() {
+    window.addEventListener('hashchange', route);
+    route();
+  }
+
+  return { init, go };
+})();
+
+// =====================================================
+// APP INIT
+// =====================================================
+(function() {
+  State.init();
+  Router.init();
+})();
+</script>
+</body>
+</html>
