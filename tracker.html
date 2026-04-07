@@ -838,7 +838,7 @@ const Markdown = (function() {
 
   function formatDate(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
   function exportSession(session) {
@@ -996,9 +996,9 @@ const Markdown = (function() {
 
       const dateStr = headerMatch[1];
       const workoutId = parseInt(headerMatch[2]);
-      // Parse to YYYY-MM-DD
-      const d = new Date(dateStr);
-      const date = isNaN(d.getTime()) ? dateStr : d.toISOString().slice(0, 10);
+      // Parse to YYYY-MM-DD (use local date to avoid timezone shifts)
+      const d = new Date(dateStr + ' 12:00:00');
+      const date = isNaN(d.getTime()) ? dateStr : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
       const workout = PROGRAMME.find(w => w.id === workoutId);
       if (!workout) continue;
@@ -1016,27 +1016,101 @@ const Markdown = (function() {
       // Parse exercises
       let currentExNotes = null;
       for (const line of lines) {
-        const exMatch = line.match(/^-\s+\*\*(.+?)\*\*\s*—\s*(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)kg/);
-        const exMatchBW = line.match(/^-\s+\*\*(.+?)\*\*\s*—\s*(\d+)×\[([^\]]+)\]\s*@\s*BW/);
         const noteMatch = line.match(/^\s+-\s+(.+)/);
 
-        if (exMatch || exMatchBW) {
-          const m = exMatch || exMatchBW;
-          const exName = m[1];
-          const repsArr = m[3].split(',').map(r => r.trim());
-          const weight = exMatch ? parseFloat(m[4]) : 0;
+        // Try each format in order of specificity
+        let parsed = null;
+        let exName = null;
+        let variantId = null;
 
+        // Extract exercise name (with optional variant)
+        const nameMatch = line.match(/^-\s+\*\*(.+?)\*\*\s*(?:\[(\w[\w-]*)\])?\s*—\s*(.*)/);
+        if (nameMatch) {
+          exName = nameMatch[1];
+          variantId = nameMatch[2] || null;
+          const rest = nameMatch[3].trim();
+
+          // 1. Completion unilateral: L✅ R— or L— R✅
+          const compUni = rest.match(/^L([✅—])\s*R([✅—])$/);
+          if (compUni) {
+            parsed = { doneL: compUni[1] === '✅', doneR: compUni[2] === '✅' };
+          }
+
+          // 2. Completion bilateral: just ✅ or —
+          if (!parsed && /^[✅—]$/.test(rest)) {
+            parsed = { done: rest === '✅' };
+          }
+
+          // 3. Sled: 1×[8 lengths, 2:30] @ 30kg (length = 15m, total ~120m)
+          if (!parsed) {
+            const sledMatch = rest.match(/^\d+×\[(\d+)\s*lengths?,\s*(\d+:\d{2})\]\s*@\s*([\d.]+)kg\s*\(length\s*=\s*([\d.]+)m/);
+            if (sledMatch) {
+              const timeParts = sledMatch[2].split(':');
+              const timeSeconds = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]);
+              parsed = { sets: [{ weight: parseFloat(sledMatch[3]), lengths: parseInt(sledMatch[1]), timeSeconds }] };
+            }
+          }
+
+          // 4. Weight/distance: 3×[40m,35m,30m] @ 22kg/hand
+          if (!parsed) {
+            const wdMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)kg/);
+            if (wdMatch && wdMatch[2].includes('m') && !wdMatch[2].includes('/')) {
+              const distances = wdMatch[2].split(',').map(d => parseInt(d.trim()));
+              parsed = { sets: distances.map(d => ({ weight: parseFloat(wdMatch[3]), distance: d })) };
+            }
+          }
+
+          // 5. Split_weight: 3×[L10/R10,L8/R9] @ L:5kg R:5kg
+          if (!parsed) {
+            const swMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*L:([\d.]+)kg\s*R:([\d.]+)kg/);
+            if (swMatch) {
+              const pairs = swMatch[2].split(',').map(p => {
+                const lr = p.trim().match(/L(\d+)\/R(\d+)/);
+                return lr ? { weightL: parseFloat(swMatch[3]), repsL: parseInt(lr[1]), weightR: parseFloat(swMatch[4]), repsR: parseInt(lr[2]) } : null;
+              }).filter(Boolean);
+              parsed = { sets: pairs };
+            }
+          }
+
+          // 6. Split_reps: 5×[L6/R8,L7/R7] @ 20kg
+          if (!parsed) {
+            const srMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)kg/);
+            if (srMatch && srMatch[2].includes('L') && srMatch[2].includes('/R')) {
+              const pairs = srMatch[2].split(',').map(p => {
+                const lr = p.trim().match(/L(\d+)\/R(\d+)/);
+                return lr ? { repsL: parseInt(lr[1]), repsR: parseInt(lr[2]) } : null;
+              }).filter(Boolean);
+              parsed = { weight: parseFloat(srMatch[3]), sets: pairs };
+            }
+          }
+
+          // 7. Standard weight×reps: 5×[6,8,6] @ 50kg or @ BW
+          if (!parsed) {
+            const stdMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)kg/);
+            const bwMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*BW/);
+            const m = stdMatch || bwMatch;
+            if (m) {
+              const repsArr = m[2].split(',').map(r => r.trim());
+              const weight = stdMatch ? parseFloat(m[3]) : 0;
+              parsed = { sets: repsArr.map(r => ({ weight, reps: parseInt(r) || r })) };
+            }
+          }
+        }
+
+        if (parsed && exName) {
           const matched_ = matchExercise(exName);
           if (matched_) {
-            // Find exercise index in workout
             const exIdx = workout.exercises.findIndex(e => e.id === matched_.id);
             if (exIdx >= 0) {
-              session.exercises[exIdx] = {
-                sets: repsArr.map(r => ({ weight, reps: parseInt(r) || r })),
-                notes: ''
-              };
+              parsed.notes = '';
+              if (variantId) parsed.variant = variantId;
+              session.exercises[exIdx] = parsed;
               currentExNotes = exIdx;
               matched++;
+            } else {
+              unmatched++;
+              unmatchedNames.push(exName);
+              currentExNotes = null;
             }
           } else {
             unmatched++;
@@ -1203,7 +1277,7 @@ const Views = (function() {
       wipBanner = `
         <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:10px;padding:12px;margin-bottom:16px;">
           <div style="font-weight:600;color:var(--amber);">Session in progress</div>
-          <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">W${wip.workoutId} — ${w ? w.name : ''} (${wip.date})</div>
+          <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">W${wip.workoutId} — ${w ? w.name : ''} (${Markdown.formatDate(wip.date)})</div>
           <div style="display:flex;gap:8px;margin-top:8px;">
             <button class="btn btn-amber" style="flex:1;font-size:0.85rem;padding:10px;" onclick="Router.go('/w/${wip.workoutId}')">Resume</button>
             <button class="btn btn-secondary" style="flex:1;font-size:0.85rem;padding:10px;" onclick="State.abandonSession();Views.renderHome()">Discard</button>
@@ -1399,7 +1473,7 @@ const Views = (function() {
     }
     return `
       <div class="last-session">
-        <div class="last-session-title">Last session (${lastEntry.date}, W${lastEntry.workoutId})</div>
+        <div class="last-session-title">Last session (${Markdown.formatDate(lastEntry.date)}, W${lastEntry.workoutId})</div>
         <div>${detail}</div>
         ${lastEntry.notes ? `<div style="margin-top:4px;font-style:italic;color:var(--text3);">${lastEntry.notes}</div>` : ''}
       </div>`;
