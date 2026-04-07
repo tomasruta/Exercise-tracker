@@ -2,7 +2,7 @@
 
 ## Now
 - [ ] Add to Home Screen on iPhone SE (needs Safari access during AppBlock window)
-- [ ] Better exercise breakdowns (form cues, set structure)
+- [ ] Real-device testing on iPhone SE Safari (all 6 workouts, form cues, variants)
 
 ## Next
 - [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
@@ -31,3 +31,8 @@
 - [x] Import parser expanded to handle all tracking types + variants
 - [x] Date format with weekday (e.g. "Sun, 5 April 2026")
 - [x] Import date timezone fix
+- [x] Structured form cues (Setup/Do/Don't/You) for 10 new exercises
+- [x] Scott curl variant toggle (Preacher bench / Spider curl)
+- [x] Cable chop hi→lo / lo→hi alternation tracking with auto-flip
+- [x] Exercise name corrections (Incline hammer curls)
+- [x] isNew badge cleanup (back-extension, reverse-squat, pull-ups, dips)

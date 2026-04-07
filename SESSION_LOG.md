@@ -51,3 +51,26 @@
 - Add to Home Screen on iPhone SE
 - Better exercise breakdowns (form cues, set structure)
 - Split_reps double progression banner (per-side L/R status)
+
+## 2026-04-07 (Session 2) — Spec Amendment Session 5
+
+**Built:**
+- Structured form cues for 10 new exercises with **Setup / Do / Don't (❌) / You** sections
+- Scott curl variant toggle: Preacher bench (default) / Spider curl — form cues change per variant
+- Cable chop alternation tracking: 🔄 Hi→Lo / Lo→Hi display, tappable toggle, auto-flips on W6 completion
+- New `FORM_CUES` constant with structured data, `getStructuredCues()` resolver (variant-aware)
+- Renamed "Hammer curls" → "Incline hammer curls" (W4, W5)
+- Removed isNew badge from: back-extension, reverse-squat, pull-ups, dips (user confirmed these aren't new)
+- Saved `gym-tracker-spec-amendment-session5.md` to project root
+
+**Decisions:**
+- Structured cues stored as object arrays (`setup[]`, `exec[]`, `mistakes[]`, `you[]`) — cleaner than parsing formatted strings
+- For variant exercises (scott-curl), FORM_CUES uses variant ID as sub-key to resolve the right cues
+- Old plain-text `formCues` on exercises cleared when structured cues replace them — avoids duplication
+- Chop direction stored in `gym-chop-direction` localStorage key, flips automatically on W6 finish
+- Form cue rendering falls back to plain text for exercises without structured cues (non-breaking)
+
+**Next:**
+- Real-device testing on iPhone SE Safari
+- Programme rotation (stable IDs when routine changes)
+- Split_reps double progression banner
