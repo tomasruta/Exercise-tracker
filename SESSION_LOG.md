@@ -23,3 +23,31 @@
 - User has new handover from Claude Chat (`gym-tracker-spec-amendment.md`) with significant rework requirements
 - Need to update programme data (sled changes, ATG split squat rename)
 - Better exercise breakdowns needed
+
+## 2026-04-07 — Verification + Import Fix + Date Format
+
+**Built:**
+- Expanded markdown import parser to handle all 6 tracking types (was only weight×reps before — ~40% of exercises couldn't round-trip)
+- Added import support for: completion (bilateral/unilateral), sled, weight_distance, split_weight, split_reps, variants
+- Fixed timezone bug in import date parsing (UTC shift caused off-by-one day)
+- Added weekday abbreviation to all date displays ("Sun, 5 April 2026" instead of "2026-04-05")
+- Applied `formatDate` consistently to last-session banner and WIP session display
+
+**Verified (browser preview, no JS errors):**
+- All 6 tracking types render correctly with proper inputs
+- Unilateral split_weight (QL extension): L/R rows with independent weight+reps
+- Unilateral split_reps (ATG split squat): shared weight, L/R reps
+- Completion+unilateral+timer (Couch stretch): L/R toggles with 1:00 countdowns
+- Variant pills (Tibialis raise): switches between reps_only and weight_reps
+- Sled: length distance field, KG/lengths/time, stopwatch button
+- Weight_distance (Farmer's carry): kg/hand + meters columns
+- Import round-trip: 10 exercises imported with correct data structures
+
+**Decisions:**
+- Previous session's plan file was gone — rebuilt verification checklist from scratch
+- Date format uses `en-GB` locale with `weekday: 'short'` → produces "Tue, 7 April 2026" (comma is locale default)
+
+**Next:**
+- Add to Home Screen on iPhone SE
+- Better exercise breakdowns (form cues, set structure)
+- Split_reps double progression banner (per-side L/R status)
