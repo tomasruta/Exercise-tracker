@@ -74,3 +74,38 @@
 - Real-device testing on iPhone SE Safari
 - Programme rotation (stable IDs when routine changes)
 - Split_reps double progression banner
+
+## 2026-04-07 (Session 3) — Final Audit + iPhone SE QA + UX Polish
+
+**Built:**
+- Pull-ups split into 3 grip-specific exercises: overhand (W2), underhand/chin-up (W4), neutral (W6) — each with independent weight/rep history
+- Nordic curl variant toggle: Nordic curl / Ham curl (seated) / Ham curl (prone)
+- Ham curl activation (W4 #6) now shares seated/prone variant toggle
+- QA fixes from Claude Chat: band-pull-apart `progressionType: 'atg'`, sl-calf-raise `prefillReps: 12`, cable-pancake `progressionType: 'atg'`, removed dead `showNotes` variable
+- Sled stopwatch button enlarged: own grid column, 48×44px tap target (was 13×22px)
+- Reference & Cues collapsed by default — less clutter, tap to expand
+- Completion checkmark (✅) now appears immediately on tap (was only on re-render)
+- Big "Save ✓" button replaced with subtle "Auto-saved" indicator + smaller "Done ←"
+- Weight fields pre-fill with 0 instead of blank (bodyweight convention)
+- Delete individual sessions from Settings > Session History
+- gstack upgraded to v0.15.16.0, bun installed
+
+**QA verified (code + browser):**
+- All 3 pull-up grips render correctly with independent superset references
+- Nordic curl shows 3 variant pills
+- Export/import round-trip preserves split_weight, notes, chop direction
+- Chop direction only flips on successful W6 completion (not discard)
+- Auto-bump split_reps requires BOTH sides hit top on ALL sets
+- Sled length persists across workouts (single global localStorage key)
+- File size: 117KB (budget 500KB)
+- iPhone SE 375×667 viewport: all inputs properly sized, tap targets ≥44px
+
+**Decisions:**
+- iPhone SE 3rd gen (MMX83LL/A, 375×667) is the primary test device — saved to global CLAUDE.md
+- GitHub Pages confirmed as hosting (rarely down, PWA caches offline, auto-updates on push)
+- Auto-save is the default — Save button was confusing since data persists on every input change
+
+**Next:**
+- Stretch timer: record actual hold time for stretches (user request)
+- Add to Home Screen on iPhone SE
+- Programme rotation when routine changes
