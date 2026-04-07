@@ -1903,7 +1903,7 @@ const Views = (function() {
         ? renderStructuredCues(structuredCues)
         : (ex.formCues ? `<div style="margin-bottom:6px;">${ex.formCues}</div>` : '');
       cuesHtml = `
-        <div class="cue-section" id="cue-section">
+        <div class="cue-section collapsed" id="cue-section">
           <button class="cue-toggle" onclick="document.getElementById('cue-section').classList.toggle('collapsed')">Reference & Cues</button>
           <div class="cue-body">
             ${cueContent}
