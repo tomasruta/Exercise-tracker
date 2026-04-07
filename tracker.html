@@ -163,6 +163,16 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .cue-section.collapsed .cue-toggle::after { transform: rotate(-90deg); }
 .cue-body { margin-top: 8px; font-size: 0.85rem; color: var(--text2); line-height: 1.5; }
 .cue-section.collapsed .cue-body { display: none; }
+.cue-label { font-weight: 700; font-size: 0.8rem; color: var(--text); margin: 8px 0 2px; text-transform: uppercase; letter-spacing: 0.03em; }
+.cue-label:first-child { margin-top: 0; }
+.cue-list { margin: 0; padding-left: 1.2em; }
+.cue-list li { margin-bottom: 2px; }
+.cue-list.mistakes { list-style: none; padding-left: 0; }
+.cue-list.mistakes li::before { content: '❌ '; }
+.cue-list.you { list-style: none; padding-left: 0; color: var(--text3); font-style: italic; }
+.cue-list.you li::before { content: '→ '; }
+.chop-direction { display: inline-block; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
+.chop-direction:active { opacity: 0.7; }
 .last-session {
   background: var(--bg-input); border-radius: 10px;
   padding: 12px; margin-bottom: 16px; font-size: 0.85rem;
@@ -383,7 +393,84 @@ const VARIANTS = {
   hamCurl: [
     { id: 'seated', label: 'Seated', trackingType: 'weight_reps', isDefault: true },
     { id: 'prone', label: 'Prone (lying)', trackingType: 'weight_reps', isDefault: false }
+  ],
+  scottCurl: [
+    { id: 'preacher', label: 'Preacher bench', trackingType: 'weight_reps', isDefault: true },
+    { id: 'spider', label: 'Spider curl', trackingType: 'weight_reps', isDefault: false }
   ]
+};
+
+// Structured form cues for the 10 new exercises (Session 5)
+// For variant exercises, keys are variant IDs
+const FORM_CUES = {
+  'rdl': {
+    setup: ['Feet hip-width, soft knee bend stays constant', 'DBs at sides, scapulas packed'],
+    exec: ['Hinge at hips, push butt back', 'DBs close to legs', 'Stop at hamstring stretch or lumbar rounding'],
+    mistakes: ['Round lower back', 'Bend knees more on descent', 'Look up', 'Hyperextend at top'],
+    you: ['Chin tucked throughout', 'Film from side for Kuma']
+  },
+  'scott-curl': {
+    preacher: {
+      setup: ['Armpits snug on preacher pad', 'Arms fully extended at bottom'],
+      exec: ['Curl up supinated', 'Rotate pronated at top', '3s eccentric down pronated', 'Rotate back at bottom'],
+      mistakes: ['Use incline bench behind back (wrong exercise!)', 'Rush eccentric', 'Swing shoulders'],
+      you: ['Start 5-7kg']
+    },
+    spider: {
+      setup: ['Chest over incline bench, arms hanging on far side'],
+      exec: ['Curl up supinated', 'Rotate pronated at top', '3s eccentric down pronated', 'Rotate back at bottom'],
+      mistakes: ['Use incline bench behind back (wrong exercise!)', 'Rush eccentric', 'Swing shoulders'],
+      you: ['Start 5-7kg']
+    }
+  },
+  'hammer-curls': {
+    setup: ['Incline bench ~60°, sit back', 'Arms hang BEHIND torso', 'Neutral grip throughout'],
+    exec: ['Curl up neutral grip, squeeze at top', '3s eccentric', 'Full extension at bottom'],
+    mistakes: ['Bench too upright', 'Swing elbows forward', 'Supinate grip'],
+    you: ['Start 7-9kg']
+  },
+  'oh-tricep-ext': {
+    setup: ['Cable LOW, rope attachment', 'Face AWAY from stack', 'Staggered stance'],
+    exec: ['Extend overhead to lockout', '3s eccentric back behind head', 'Elbows forward'],
+    mistakes: ['Cable set high (that\'s pushdowns)', 'Elbows flare', 'Arch lower back'],
+    you: ['Start ~10kg']
+  },
+  'glute-bridge': {
+    setup: ['Mid-scapula on bench edge', 'Feet flat hip-width', 'Shins vertical at top'],
+    exec: ['Drive hips up', '2s SQUEEZE at top (mandatory)', 'Ribs down', 'Lower with control'],
+    mistakes: ['Hyperextend at top', 'Feet too far/close', 'Push through toes', 'Skip squeeze'],
+    you: ['BW → barbell']
+  },
+  'cossack-squat': {
+    setup: ['Wide stance ~1.5× shoulder width', 'Toes out ~15-30°'],
+    exec: ['Shift laterally, deep squat one side', 'Straight leg heel stays down', 'Alternate sides'],
+    mistakes: ['Heel lift on working leg', 'Knee collapse inward', 'Round back', 'Force depth'],
+    you: ['BW → goblet hold']
+  },
+  'lateral-band-walk': {
+    setup: ['Mini-band at ANKLES', 'Quarter squat, hips back'],
+    exec: ['Step laterally', 'Trailing foot NEVER meets lead foot', 'Stay low throughout'],
+    mistakes: ['Stand upright', 'Feet together', 'Toes out', 'Band too heavy'],
+    you: ['Light band']
+  },
+  'cable-chop': {
+    setup: ['INSIDE knee down (closest to cable)', 'Outside foot forward'],
+    exec: ['Pull diagonally across body', 'Arms straight', 'Trunk stays SQUARE'],
+    mistakes: ['Rotate trunk', 'Outside knee down', 'Pull with arms', 'Too heavy'],
+    you: ['Start ~10-15kg', 'Alternates hi→lo / lo→hi each W6 session']
+  },
+  'farmers-carry': {
+    setup: ['Heavy DBs at sides', 'Shoulders packed DOWN', 'Tall spine, chin tucked'],
+    exec: ['Walk 40m, normal gait', 'Breathe'],
+    mistakes: ['Shrug shoulders', 'Sway', 'Look down', 'Choppy steps'],
+    you: ['Start 20-25kg/hand']
+  },
+  'band-pull-apart': {
+    setup: ['Band at shoulder height', 'Slight elbow bend', 'Shoulders down'],
+    exec: ['Pull apart by squeezing scapulae', 'Elbows out+back', '1s squeeze at retraction'],
+    mistakes: ['Shrug', 'Pull with arms', 'Band too heavy', 'Stop short of full retraction'],
+    you: ['Medium band']
+  }
 };
 
 // ID alias map for backward compatibility with old session data
@@ -408,14 +495,14 @@ const PROGRAMME = [
       { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
       { id: 'pullover', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
       { id: 'trap-3-raise', name: 'Trap-3 raise', sets: 3, reps: '8', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', prefillReps: 8, formCues: '', notes: '' },
-      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.', isNew: true },
-      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'Check that spine is NOT in imprint — should feel lower back muscles, not abs. If abs dominate, drop weight.', notes: 'Mar 17: Started 18kg too much, 15kg also hard, 13kg still good impulse. Accept weakness, build from scratch. Mar 28: Struggled again, had to go to 13kg. Be careful.', isNew: true },
-      { id: 'glute-bridge', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Shoulders on bench. Drive up through heels. 2-second squeeze at top. Source: Novotný #4.', notes: '', isNew: true },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.' },
+      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'Check that spine is NOT in imprint — should feel lower back muscles, not abs. If abs dominate, drop weight.', notes: 'Mar 17: Started 18kg too much, 15kg also hard, 13kg still good impulse. Accept weakness, build from scratch. Mar 28: Struggled again, had to go to 13kg. Be careful.' },
+      { id: 'glute-bridge', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: '', notes: '', isNew: true },
       { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot must be fully settled, not lifting. Torso drops below horizontal — must be pre-fence.', notes: 'Mar 25: Beautiful work. First round harder than second. Always check bottom foot. Mar 30: 8 reps maybe too much — moving lumbar. Try 7 next time.' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'nordic-curl', name: 'Nordic curl', sets: 5, reps: '5', flow: 'SS', supersetWith: 'back-squat', repRange: [5, 5], progressionType: 'compound', prefillReps: 5, formCues: 'Try actual nordics at Max Fitness Flora — look for anchor point. Ham curl (seated) is fallback only.', notes: 'Mar 30: Ham curl sub — barely feeling impulse. Need to try actual nordics.' },
       { id: 'back-squat', name: 'Back squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'nordic-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Double progression: all sets at 8 reps → add 1-2.5kg → drop to 6.', notes: 'Mar 30: Only got to 50kg. Even empty bar (20kg) was feeling quads. Going careful — glad I put in the work.' },
-      { id: 'farmers-carry', name: "Farmer's carry", sets: 3, reps: '40m', flow: 'SEQ', trackingType: 'weight_distance', repsLabel: 'meters', weightLabel: 'kg/hand', formCues: 'Heavy DBs, shoulders packed, tall spine. 20-25kg/hand to start. Source: Dan John.', notes: '', isNew: true }
+      { id: 'farmers-carry', name: "Farmer's carry", sets: 3, reps: '40m', flow: 'SEQ', trackingType: 'weight_distance', repsLabel: 'meters', weightLabel: 'kg/hand', formCues: '', notes: '', isNew: true }
     ]
   },
   {
@@ -432,11 +519,11 @@ const PROGRAMME = [
       { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
       { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
       { id: 'atg-split-squat', name: 'ATG split squat (no walking)', sets: 5, reps: '6-8/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', formCues: 'Stationary — no walking. Same DBs both hands. Full set one leg, then switch. Double progression 6-8/side.', notes: '' },
-      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: 'Hip hinge, soft knees, FLAT BACK. Stop before lumbar rounds. Form priority — maintain lordosis.', notes: '' },
+      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'weighted-pull-ups', name: 'Weighted pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Over/under/neutral grip rotation.', notes: '' },
       { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-pull-ups', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
-      { id: 'scott-curl', name: 'Scott curl (Zottman)', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Incline bench. Curl supinated, rotate pronated at top, 3s eccentric down. 5-7kg start.', notes: '', isNew: true }
+      { id: 'scott-curl', name: 'Scott curl (Zottman)', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', variants: VARIANTS.scottCurl, formCues: '', notes: '', isNew: true }
     ]
   },
   {
@@ -449,8 +536,8 @@ const PROGRAMME = [
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'sl-calf-raise', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
       { id: 'petersen-step-up', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 15, formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
-      { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15 steps', flow: 'SEQ', trackingType: 'completion', formCues: 'Mini-band above ankles. Slight squat position. 15 steps each way. (Novotný #12)', notes: '', isNew: true },
-      { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 8, formCues: 'Wide stance. Shift laterally. Full depth one side. BW to start.', notes: '', isNew: true },
+      { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15 steps', flow: 'SEQ', trackingType: 'completion', formCues: '', notes: '', isNew: true },
+      { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 8, formCues: '', notes: '', isNew: true },
       { id: 'hack-squat', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Barbell Hackenschmidt. Can lift heels off ground. Don\'t need steep slant board.', notes: '' },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
       { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
@@ -458,7 +545,7 @@ const PROGRAMME = [
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
       { id: 'powell-raise', name: 'Powell raise', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'FORM RESET: 1-2kg, strict, 3s eccentric. Brief prone post-fence — pause malto sipping.', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'oh-tricep-ext', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
-      { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'external-rotation', repRange: [8, 12], progressionType: 'isolation', formCues: 'Cable rope, face away, extend overhead, 3s eccentric. ~10kg start.', notes: '', isNew: true }
+      { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'external-rotation', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
   },
   {
@@ -480,9 +567,9 @@ const PROGRAMME = [
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'front-squat', name: 'Front squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'ham-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Wrist CARs during rest! Figure out foot positioning if using Smith machine. Try without Smith next time.', notes: '' },
       { id: 'ham-curl', name: 'Ham curl (seated)', sets: 5, reps: '8-10', flow: 'SS', supersetWith: 'front-squat', repRange: [8, 10], progressionType: 'compound', variants: VARIANTS.hamCurl, formCues: '', notes: '' },
-      { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
+      { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'pull-ups', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence. Rest back properly on bench for stable push.', notes: '' },
-      { id: 'hammer-curls', name: 'Hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Standing, neutral grip throughout. 7-9kg start.', notes: '', isNew: true }
+      { id: 'hammer-curls', name: 'Incline hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
   },
   {
@@ -499,11 +586,11 @@ const PROGRAMME = [
       { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
       { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
       { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6-8 steps/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', repsLabel: 'steps', formCues: 'Walking. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. All sets at 8/side → add weight.', notes: '' },
-      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: 'Hip hinge, soft knees, FLAT BACK. Stop before lumbar rounds. Form priority — maintain lordosis.', notes: '' },
+      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'full-range-row', name: 'Full range row', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'incline-press', repRange: [8, 12], progressionType: 'isolation', formCues: 'Form is tricky — back curls up. May need different version. Brief prone — pause malto.', notes: '' },
       { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'full-range-row', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence.', notes: '' },
-      { id: 'hammer-curls', name: 'Hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Standing, neutral grip throughout. 7-9kg start.', notes: '', isNew: true }
+      { id: 'hammer-curls', name: 'Incline hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
   },
   {
@@ -521,12 +608,12 @@ const PROGRAMME = [
       { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
-      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', prefillReps: 12, formCues: 'Face height. Elbows out+back. Squeeze scaps.', notes: '' },
+      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', prefillReps: 12, formCues: '', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'band-pull-apart', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
-      { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'dips', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
-      { id: 'dips', name: 'Dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pull-ups', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '', isNew: true },
-      { id: 'cable-chop', name: 'Half-kneel cable chop', sets: 3, reps: '10/side', flow: 'SS', supersetWith: 'oh-tricep-ext', unilateral: 'split_weight', prefillReps: 10, formCues: 'One knee down. Cable high. Diagonal across body. Alternate high→low / low→high each session. (Novotný #3 / Galpin)', notes: '', isNew: true },
-      { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'cable-chop', repRange: [8, 12], progressionType: 'isolation', formCues: 'Cable rope, face away, extend overhead, 3s eccentric. ~10kg start.', notes: '', isNew: true }
+      { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'dips', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'dips', name: 'Dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pull-ups', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'cable-chop', name: 'Half-kneel cable chop', sets: 3, reps: '10/side', flow: 'SS', supersetWith: 'oh-tricep-ext', unilateral: 'split_weight', prefillReps: 10, formCues: '', notes: '', isNew: true },
+      { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'cable-chop', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
   }
 ];
@@ -608,7 +695,12 @@ const Data = (function() {
     localStorage.setItem(VARIANT_PREFIX + exerciseId, variantId);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant };
+  const CHOP_KEY = 'gym-chop-direction';
+  function getChopDirection() { return localStorage.getItem(CHOP_KEY) || 'hi_lo'; }
+  function setChopDirection(dir) { localStorage.setItem(CHOP_KEY, dir); }
+  function flipChopDirection() { setChopDirection(getChopDirection() === 'hi_lo' ? 'lo_hi' : 'hi_lo'); }
+
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection };
 })();
 
 // =====================================================
@@ -1428,7 +1520,7 @@ const Views = (function() {
       <div class="ex-row" onclick="Router.go('/w/${workoutId}/e/${index}')">
         <span class="ex-num">${num}</span>
         <div class="ex-info">
-          <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}</span>
+          <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
           <span class="ex-meta">${metaStr}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${lastStr ? ' · ' + lastStr : ''}</span>
         </div>
         <span class="ex-status">${statusIcon}</span>
@@ -1449,6 +1541,38 @@ const Views = (function() {
   function getEffectiveTrackingType(ex) {
     const variant = getActiveVariant(ex);
     return variant?.trackingType || ex.trackingType || 'weight_reps';
+  }
+
+  function getStructuredCues(ex) {
+    const cueData = FORM_CUES[ex.id];
+    if (!cueData) return null;
+    // Variant-keyed: check if it has setup/exec directly or variant sub-objects
+    if (cueData.setup) return cueData;
+    // Variant-keyed: resolve to active variant
+    const variant = getActiveVariant(ex);
+    if (variant && cueData[variant.id]) return cueData[variant.id];
+    // Fallback: first key that has setup
+    for (const k of Object.keys(cueData)) {
+      if (cueData[k]?.setup) return cueData[k];
+    }
+    return null;
+  }
+
+  function renderStructuredCues(cues) {
+    let html = '';
+    if (cues.setup?.length) {
+      html += `<div class="cue-label">Setup</div><ul class="cue-list">${cues.setup.map(s => `<li>${s}</li>`).join('')}</ul>`;
+    }
+    if (cues.exec?.length) {
+      html += `<div class="cue-label">Do</div><ul class="cue-list">${cues.exec.map(s => `<li>${s}</li>`).join('')}</ul>`;
+    }
+    if (cues.mistakes?.length) {
+      html += `<div class="cue-label">Don't</div><ul class="cue-list mistakes">${cues.mistakes.map(s => `<li>${s}</li>`).join('')}</ul>`;
+    }
+    if (cues.you?.length) {
+      html += `<div class="cue-label">You</div><ul class="cue-list you">${cues.you.map(s => `<li>${s}</li>`).join('')}</ul>`;
+    }
+    return html;
   }
 
   // ---- Last session display ----
@@ -1743,6 +1867,13 @@ const Views = (function() {
     }
   }
 
+  function toggleChopDirection() {
+    Data.flipChopDirection();
+    if (_currentRenderCtx) {
+      renderExercise(_currentRenderCtx.workoutId, _currentRenderCtx.exIndex);
+    }
+  }
+
   // ---- Main exercise detail view ----
   function renderExercise(workoutId, exIndex) {
     const workout = PROGRAMME.find(w => w.id === workoutId);
@@ -1760,15 +1891,19 @@ const Views = (function() {
     const existingData = State.getExerciseData(exIndex);
     const preFill = Progression.getPreFill(ex.id, ex);
 
-    // Form cues
+    // Form cues — structured (FORM_CUES) or plain text fallback
     let cuesHtml = '';
-    if (ex.formCues || ex.notes) {
+    const structuredCues = getStructuredCues(ex);
+    if (structuredCues || ex.formCues || ex.notes) {
+      const cueContent = structuredCues
+        ? renderStructuredCues(structuredCues)
+        : (ex.formCues ? `<div style="margin-bottom:6px;">${ex.formCues}</div>` : '');
       cuesHtml = `
         <div class="cue-section" id="cue-section">
           <button class="cue-toggle" onclick="document.getElementById('cue-section').classList.toggle('collapsed')">Reference & Cues</button>
           <div class="cue-body">
-            ${ex.formCues ? `<div style="margin-bottom:6px;">${ex.formCues}</div>` : ''}
-            ${ex.notes ? `<div style="color:var(--text3);font-style:italic;">${ex.notes}</div>` : ''}
+            ${cueContent}
+            ${ex.notes ? `<div style="color:var(--text3);font-style:italic;margin-top:6px;">${ex.notes}</div>` : ''}
           </div>
         </div>`;
     }
@@ -1782,6 +1917,15 @@ const Views = (function() {
 
     // Variant pills
     const variantHtml = renderVariantPills(ex);
+
+    // Chop direction (cable-chop only)
+    let chopHtml = '';
+    if (ex.id === 'cable-chop') {
+      const dir = Data.getChopDirection();
+      const label = dir === 'hi_lo' ? '🔄 Hi→Lo' : '🔄 Lo→Hi';
+      const session = dir === 'hi_lo' ? 'Session A' : 'Session B';
+      chopHtml = `<div class="chop-direction" onclick="Views.toggleChopDirection()">${label} <span style="font-weight:400;font-size:0.8rem;color:var(--text3);">(${session})</span></div>`;
+    }
 
     // Type-specific inputs
     let inputsHtml = '';
@@ -1816,6 +1960,7 @@ const Views = (function() {
         <div class="ex-target">${ex.sets} × ${ex.reps}${ex.repRange ? ` (range: ${ex.repRange[0]}-${ex.repRange[1]})` : ''}</div>
         ${ssInfo}
         ${variantHtml}
+        ${chopHtml}
         ${cuesHtml}
         ${formatLastEntry(lastEntry, ex)}
         ${inputsHtml}
@@ -2002,6 +2147,8 @@ const Views = (function() {
   function finishWorkout(workoutId) {
     const session = State.finishSession();
     if (!session) return;
+    // Flip chop direction after completing W6
+    if (workoutId === 6) Data.flipChopDirection();
     // Store the index of this session for export tracking
     window._lastSessionIndex = Data.getSessions().length - 1;
     renderSummary(session);
@@ -2245,7 +2392,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, switchVariant, _triggerAutoSave, _updateSledDerived };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, switchVariant, toggleChopDirection, _triggerAutoSave, _updateSledDerived };
 })();
 
 // =====================================================
