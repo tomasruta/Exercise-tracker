@@ -55,9 +55,9 @@
 | 9 | ATG split squat (no walking) | 5×6-8/6-8 | SEQ | Standing | Double progression. Same DBs both hands. Full set one leg, then switch. |
 | 10 | RDL | 5×8-10 | SEQ | Standing | 🔄 Was seated GM. Form priority — lordosis. |
 | | 🥤 **MALTO FENCE** | | | | |
-| 11 | Weighted pull-ups | 3×6-8 | **SS w/ #12** | Hanging | Over/under/neutral |
+| 11 | Weighted pull-up (overhand) | 3×6-8 | **SS w/ #12** | Hanging | Pronated grip. BW until 3×8 → add weight. |
 | 12 | Weighted dips | 3×6-8 | **SS w/ #11** | On bars | |
-| 13 | Scott curl (Zottman) | 3×8-12 | SEQ | Seated incline | 🆕 5-7kg start. Incline bench OK post-fence (reclined, not flat). |
+| 13 | Scott curl (Zottman) | 3×8-12 | SEQ | Preacher bench | 🆕 5-7kg start. Preacher bench primary; spider curl (chest over incline bench) if no preacher available. |
 
 **~105 min. Seated GM → RDL.**
 
@@ -105,9 +105,9 @@
 | | 🥤 **MALTO FENCE** | | | | |
 | 12 | Front squat | 5×6-8 | **SS w/ #13** | Standing | Wrist CARs during rest! |
 | 13 | Ham curl (seated) | 5×8-10 | **SS w/ #12** | Seated | Main working sets |
-| 14 | Pull-ups | 3×6-8 | **SS w/ #15** | Hanging | 🆕 in W4 |
+| 14 | Weighted chin-up (underhand) | 3×6-8 | **SS w/ #15** | Hanging | Supinated grip. BW until 3×8 → add weight. |
 | 15 | Incline DB press | 3×8-12 | **SS w/ #14** | Incline bench | ⚠️ Inclined not flat — OK post-fence |
-| 16 | Hammer curls | 3×8-12 | SEQ | Standing | 🆕 7-9kg start |
+| 16 | Incline hammer curls | 3×8-12 | SEQ | Incline bench | 🆕 Israetel. Bench ~60°, neutral grip, 3s ecc. 7-9kg start |
 
 **~110 min. Reverse nordics restored. Front squat ↔ Ham curl superset restored. Pullover ↔ QL is new (V2).**
 
@@ -130,7 +130,7 @@
 | | 🥤 **MALTO FENCE** | | | | |
 | 11 | Full range row | 3×8-12 | **SS w/ #12** | Prone bench | ⚠️ Brief prone — pause malto |
 | 12 | Incline DB press | 3×8-12 | **SS w/ #11** | Incline bench | Inclined not flat — OK |
-| 13 | Hammer curls | 3×8-12 | SEQ | Standing | 🆕 Double progression |
+| 13 | Incline hammer curls | 3×8-12 | SEQ | Incline bench | 🆕 Israetel. Bench ~60°, neutral grip, 3s ecc. Double progression |
 
 **~105 min. No structural changes from V2. Row ↔ Press is inherited superset.**
 
@@ -152,7 +152,7 @@
 | 9 | Shoulder press | 3×8-12 | SEQ | Standing | Double progression |
 | 10 | Band pull-apart | 3×12 | **SS w/ #11** | Standing | 🔄 Was cable face pull |
 | 11 | External rotation | 3×10-12 | **SS w/ #10** | Standing | |
-| 12 | Pull-ups | 3×6-8 | **SS w/ #13** | Hanging | 🆕 in W6 |
+| 12 | Weighted neutral pull-up | 3×6-8 | **SS w/ #13** | Hanging | Neutral/hammer grip. BW until 3×8 → add weight. |
 | 13 | Dips | 3×6-8 | **SS w/ #12** | On bars | 🆕 in W6 |
 | 14 | Half-kneel cable chop | 3×10/side | **SS w/ #15** | Half-kneeling | 🆕 Novotný #3. Alt hi→lo / lo→hi |
 | 15 | Overhead tricep ext | 3×8-12 | **SS w/ #14** | Standing cable | 🆕 Double progression |

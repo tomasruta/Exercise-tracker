@@ -397,6 +397,11 @@ const VARIANTS = {
   scottCurl: [
     { id: 'preacher', label: 'Preacher bench', trackingType: 'weight_reps', isDefault: true },
     { id: 'spider', label: 'Spider curl', trackingType: 'weight_reps', isDefault: false }
+  ],
+  nordicCurl: [
+    { id: 'nordic', label: 'Nordic curl', trackingType: 'weight_reps', isDefault: true },
+    { id: 'ham-curl-seated', label: 'Ham curl (seated)', trackingType: 'weight_reps', isDefault: false },
+    { id: 'ham-curl-prone', label: 'Ham curl (prone)', trackingType: 'weight_reps', isDefault: false }
   ]
 };
 
@@ -500,7 +505,7 @@ const PROGRAMME = [
       { id: 'glute-bridge', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: '', notes: '', isNew: true },
       { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot must be fully settled, not lifting. Torso drops below horizontal — must be pre-fence.', notes: 'Mar 25: Beautiful work. First round harder than second. Always check bottom foot. Mar 30: 8 reps maybe too much — moving lumbar. Try 7 next time.' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
-      { id: 'nordic-curl', name: 'Nordic curl', sets: 5, reps: '5', flow: 'SS', supersetWith: 'back-squat', repRange: [5, 5], progressionType: 'compound', prefillReps: 5, formCues: 'Try actual nordics at Max Fitness Flora — look for anchor point. Ham curl (seated) is fallback only.', notes: 'Mar 30: Ham curl sub — barely feeling impulse. Need to try actual nordics.' },
+      { id: 'nordic-curl', name: 'Nordic curl', sets: 5, reps: '5', flow: 'SS', supersetWith: 'back-squat', repRange: [5, 5], progressionType: 'compound', prefillReps: 5, variants: VARIANTS.nordicCurl, formCues: 'Try actual nordics at Max Fitness Flora — look for anchor point. Ham curl fallback if no anchor.', notes: 'Mar 30: Ham curl sub — barely feeling impulse. Need to try actual nordics.' },
       { id: 'back-squat', name: 'Back squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'nordic-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Double progression: all sets at 8 reps → add 1-2.5kg → drop to 6.', notes: 'Mar 30: Only got to 50kg. Even empty bar (20kg) was feeling quads. Going careful — glad I put in the work.' },
       { id: 'farmers-carry', name: "Farmer's carry", sets: 3, reps: '40m', flow: 'SEQ', trackingType: 'weight_distance', repsLabel: 'meters', weightLabel: 'kg/hand', formCues: '', notes: '', isNew: true }
     ]
@@ -517,12 +522,12 @@ const PROGRAMME = [
       { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'completion', timerSeconds: 45, formCues: '', notes: '' },
       { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 45, formCues: 'Both straight + bent knee.', notes: '' },
       { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
-      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
       { id: 'atg-split-squat', name: 'ATG split squat (no walking)', sets: 5, reps: '6-8/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', formCues: 'Stationary — no walking. Same DBs both hands. Full set one leg, then switch. Double progression 6-8/side.', notes: '' },
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
-      { id: 'weighted-pull-ups', name: 'Weighted pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Over/under/neutral grip rotation.', notes: '' },
-      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-pull-ups', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'pullup-overhand', name: 'Weighted pull-up (overhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Pronated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
+      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-overhand', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'scott-curl', name: 'Scott curl (Zottman)', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', variants: VARIANTS.scottCurl, formCues: '', notes: '', isNew: true }
     ]
   },
@@ -534,7 +539,7 @@ const PROGRAMME = [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
-      { id: 'sl-calf-raise', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
+      { id: 'sl-calf-raise', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 12, formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
       { id: 'petersen-step-up', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 15, formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
       { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15 steps', flow: 'SEQ', trackingType: 'completion', formCues: '', notes: '', isNew: true },
       { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 8, formCues: '', notes: '', isNew: true },
@@ -558,7 +563,7 @@ const PROGRAMME = [
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent).', notes: '' },
       { id: 'reverse-nordics', name: 'Reverse nordics', sets: 3, reps: '10', flow: 'SEQ', progressionType: 'atg', prefillReps: 10, formCues: 'Kneeling on mat. Tips of feet up. No equipment needed.', notes: '' },
-      { id: 'ham-curl-activation', name: 'Ham curl (activation)', sets: 1, reps: '12', flow: 'SEQ', prefillReps: 12, formCues: 'Quick activation before main work.', notes: '' },
+      { id: 'ham-curl-activation', name: 'Ham curl (activation)', sets: 1, reps: '12', flow: 'SEQ', prefillReps: 12, variants: VARIANTS.hamCurl, formCues: 'Quick activation before main work.', notes: '' },
       { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
       { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', formCues: '', notes: '' },
       { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
@@ -567,8 +572,8 @@ const PROGRAMME = [
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'front-squat', name: 'Front squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'ham-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Wrist CARs during rest! Figure out foot positioning if using Smith machine. Try without Smith next time.', notes: '' },
       { id: 'ham-curl', name: 'Ham curl (seated)', sets: 5, reps: '8-10', flow: 'SS', supersetWith: 'front-squat', repRange: [8, 10], progressionType: 'compound', variants: VARIANTS.hamCurl, formCues: '', notes: '' },
-      { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
-      { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'pull-ups', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence. Rest back properly on bench for stable push.', notes: '' },
+      { id: 'chinup-underhand', name: 'Weighted chin-up (underhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: 'Supinated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
+      { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'chinup-underhand', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence. Rest back properly on bench for stable push.', notes: '' },
       { id: 'hammer-curls', name: 'Incline hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
   },
@@ -584,7 +589,7 @@ const PROGRAMME = [
       { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'completion', timerSeconds: 45, formCues: '', notes: '' },
       { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 45, formCues: 'Both straight + bent knee.', notes: '' },
       { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
-      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
       { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6-8 steps/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', repsLabel: 'steps', formCues: 'Walking. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. All sets at 8/side → add weight.', notes: '' },
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
@@ -601,17 +606,17 @@ const PROGRAMME = [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
-      { id: 'sl-calf-raise', name: 'SL calf raise (standing)', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', formCues: 'Gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
+      { id: 'sl-calf-raise', name: 'SL calf raise (standing)', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 12, formCues: 'Gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
       { id: 'rhythm-squat', name: 'Rhythm squat', sets: 4, reps: '50', flow: 'SEQ', progressionType: 'atg', prefillReps: 50, formCues: '35kg sweet spot. 40kg = trouble getting bar up/down.', notes: '' },
       { id: 'kot-sissy-squat', name: 'KOT/Sissy squat', sets: 3, reps: '10', flow: 'SEQ', progressionType: 'atg', prefillReps: 10, formCues: 'Watch form video first!', notes: '' },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings.', notes: '' },
       { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
-      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', prefillReps: 12, formCues: '', notes: '' },
+      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', progressionType: 'atg', prefillReps: 12, formCues: '', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'band-pull-apart', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
-      { id: 'pull-ups', name: 'Pull-ups', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'dips', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
-      { id: 'dips', name: 'Dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pull-ups', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'pullup-neutral', name: 'Weighted neutral pull-up', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Neutral/hammer grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
+      { id: 'dips', name: 'Dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-neutral', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'cable-chop', name: 'Half-kneel cable chop', sets: 3, reps: '10/side', flow: 'SS', supersetWith: 'oh-tricep-ext', unilateral: 'split_weight', prefillReps: 10, formCues: '', notes: '', isNew: true },
       { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'cable-chop', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
@@ -1948,7 +1953,6 @@ const Views = (function() {
     }
 
     const existingNotes = existingData?.notes || '';
-    const showNotes = trackingType !== 'duration' && trackingType !== 'completion' || ex.formCues;
 
     app.innerHTML = `
       <div class="header">

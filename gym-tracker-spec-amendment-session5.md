@@ -156,3 +156,51 @@ Below are the condensed form cues for each exercise. These are the gym-floor-usa
 - **Do:** Pull apart by squeezing scapulae, elbows out+back, 1s squeeze at retraction
 - **Don't:** Shrug · Pull with arms · Band too heavy · Stop short of full retraction
 - **Start:** Medium band
+
+
+---
+
+## 6. PULL-UP GRIP ASSIGNMENTS — Three Separate Exercises
+
+Pull-ups were "over/under/neutral" in one exercise. Now split into **three distinct exercises**, one grip per workout. Each is its own entry in the tracker with independent weight/rep history.
+
+| Workout | Exercise name | Grip | Tracker ID |
+|---|---|---|---|
+| **W2 #11** | Weighted pull-up (overhand) | Pronated | `pullup_overhand` |
+| **W4 #14** | Weighted chin-up (underhand) | Supinated | `chinup_underhand` |
+| **W6 #12** | Weighted neutral pull-up | Neutral/hammer | `pullup_neutral` |
+
+**Tracking:** Each has `added_weight` field (default 0kg = bodyweight). Double progression applies: BW until 3×8 clean → add 2.5kg → drop to 3×6.
+
+**Dips** (W2 #12, W6 #13) remain a single exercise tracked as `weighted_dips` with same `added_weight` field.
+
+---
+
+## 7. MOBILITY EXERCISES — Track Weight
+
+These mobility/stretch exercises should track weight (kg) even though they're not strength exercises. User wants to see load progression over time:
+
+| Exercise | Workouts | What to track |
+|---|---|---|
+| Loaded butterfly | W1, W4 | Weight on lap (kg) |
+| Internal hip dumbbell lift | W1, W4 | DB weight per side (kg) |
+
+Both are `split_weight` type (per Session 4 spec — L/R get own kg).
+
+---
+
+## 8. ADDITIONAL VARIANTS
+
+### Nordic curl (W1 #15)
+| Variant | When | Equipment |
+|---|---|---|
+| **Nordic curl** (default) | Gym has anchor/pad | Floor anchor or partner |
+| **Ham curl (seated)** (fallback) | No anchor available | Seated ham curl machine |
+
+Same `variant` pattern as tibialis, back extension, etc. Persists per gym in localStorage.
+
+### Ham curl — confirm Seated / Prone variant (Session 4)
+Already specified in Session 4 amendment. Just confirming: ham curl variant toggle (seated vs prone) applies to ALL ham curl instances:
+- W1 #15 fallback (if nordic not available)
+- W4 #6 (activation set)
+- W4 #13 (main working sets)
