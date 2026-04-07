@@ -109,3 +109,27 @@
 - Stretch timer: record actual hold time for stretches (user request)
 - Add to Home Screen on iPhone SE
 - Programme rotation when routine changes
+
+## 2026-04-07 (Session 4) — Stretch Hold Timer
+
+**Built:**
+- Stretch/duration timers now count UP from `0:00` with goal shown alongside (`0:32 / 1:00`)
+- Timer beeps + vibrates at goal time but keeps running — user taps STOP when done
+- Actual hold time saved as `timeL`/`timeR`/`time` (seconds) alongside done flags
+- Affects: Couch stretch (60s L/R), Big toe stretch (45s), Calf stretch (45s L/R), Backward treadmill (120s)
+- Markdown export: `L✅(52s) R✅(65s)` or `✅(48s)` — import round-trips correctly
+- Session summary shows formatted times next to checkmarks
+- Navigation safety: auto-stops and saves elapsed time if user taps Back mid-timer
+- Backward compatible: old sessions without time data display normally
+
+**Decisions:**
+- Count UP (not down) — more intuitive for tracking actual hold duration, shows real progress
+- Don't auto-stop at goal — stretches benefit from going past the preset, and actual time is the valuable data
+- Programme rotation deferred — not a quick cleanup, needs data migration logic
+- Sled history trends removed from roadmap — user prefers tracking in markdown exports
+- "Add to Home Screen" moved to Ideas — user will handle manually
+
+**Next:**
+- Service worker for true offline PWA
+- Split_reps double progression banner (per-side L/R status)
+- Cross-exercise trend tracking (idea)
