@@ -1618,7 +1618,7 @@ const Views = (function() {
     let html = `<div class="sets-header"><span></span><span>${wLabel}</span><span></span><span>${rLabel}</span></div>`;
     for (let s = 0; s < ex.sets; s++) {
       const existing = existingData?.sets?.[s];
-      const weight = existing?.weight ?? (preFill.weight || '');
+      const weight = existing?.weight ?? (preFill.weight || 0);
       const reps = existing?.reps ?? (ex.prefillReps || '');
       html += `
         <div class="set-row">
@@ -1652,9 +1652,9 @@ const Views = (function() {
     let html = '';
     for (let s = 0; s < ex.sets; s++) {
       const existing = existingData?.sets?.[s];
-      const wL = existing?.weightL ?? (preFill.weightL || '');
+      const wL = existing?.weightL ?? (preFill.weightL || 0);
       const rL = existing?.repsL ?? (ex.prefillReps || '');
-      const wR = existing?.weightR ?? (preFill.weightR || '');
+      const wR = existing?.weightR ?? (preFill.weightR || 0);
       const rR = existing?.repsR ?? (ex.prefillReps || '');
       html += `
         <div class="uni-set-group">
@@ -1678,7 +1678,7 @@ const Views = (function() {
 
   function renderSplitRepsSets(ex, existingData, preFill) {
     const rLabel = ex.repsLabel || 'reps';
-    const sharedWeight = existingData?.weight ?? (preFill.weight || '');
+    const sharedWeight = existingData?.weight ?? (preFill.weight || 0);
     let html = `
       <div class="split-reps-weight">
         <label>Weight (both sides)</label>
