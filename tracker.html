@@ -1767,11 +1767,11 @@ const Views = (function() {
       }
       return `
         <div class="completion-row">
-          <div class="completion-toggle ${doneL ? 'done' : ''}" data-side="L" onclick="this.classList.toggle('done'); document.getElementById('done-l').value = this.classList.contains('done'); Views._triggerAutoSave();">
+          <div class="completion-toggle ${doneL ? 'done' : ''}" data-side="L" onclick="this.classList.toggle('done'); this.querySelector('.check-box').textContent = this.classList.contains('done') ? '✅' : ''; document.getElementById('done-l').value = this.classList.contains('done'); Views._triggerAutoSave();">
             <div class="check-box">${doneL ? '✅' : ''}</div>
             <span class="check-label">Left</span>
           </div>
-          <div class="completion-toggle ${doneR ? 'done' : ''}" data-side="R" onclick="this.classList.toggle('done'); document.getElementById('done-r').value = this.classList.contains('done'); Views._triggerAutoSave();">
+          <div class="completion-toggle ${doneR ? 'done' : ''}" data-side="R" onclick="this.classList.toggle('done'); this.querySelector('.check-box').textContent = this.classList.contains('done') ? '✅' : ''; document.getElementById('done-r').value = this.classList.contains('done'); Views._triggerAutoSave();">
             <div class="check-box">${doneR ? '✅' : ''}</div>
             <span class="check-label">Right</span>
           </div>
@@ -1794,7 +1794,7 @@ const Views = (function() {
     }
     return `
       <div class="completion-row">
-        <div class="completion-toggle ${done ? 'done' : ''}" onclick="this.classList.toggle('done'); document.getElementById('done-main').value = this.classList.contains('done'); Views._triggerAutoSave();">
+        <div class="completion-toggle ${done ? 'done' : ''}" onclick="this.classList.toggle('done'); this.querySelector('.check-box').textContent = this.classList.contains('done') ? '✅' : ''; document.getElementById('done-main').value = this.classList.contains('done'); Views._triggerAutoSave();">
           <div class="check-box">${done ? '✅' : ''}</div>
           <span class="check-label">Done</span>
         </div>
