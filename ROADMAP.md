@@ -1,19 +1,17 @@
 # ATG Gym Workout Tracker — Roadmap
 
 ## Now
-- [ ] Apply spec amendment from Claude Chat (`gym-tracker-spec-amendment.md`)
-- [ ] Update programme data (sled tracking, ATG split squat rename, etc.)
-- [ ] Rework exercises per new handover requirements
+- [ ] Add to Home Screen on iPhone SE (needs Safari access during AppBlock window)
+- [ ] Better exercise breakdowns (form cues, set structure)
 
 ## Next
-- [ ] Better exercise breakdowns (form cues, set structure)
-- [ ] Add to Home Screen on iPhone SE (needs Safari access during AppBlock window)
-- [ ] Verify full round-trip: log → export → clear → import → verify
+- [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
+- [ ] Size audit (currently ~106KB, budget 500KB)
+- [ ] Consider service worker for true offline PWA
 
 ## Later
-- [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
-- [ ] Size audit (currently ~62KB, budget 500KB)
-- [ ] Consider service worker for true offline PWA
+- [ ] Split_reps double progression banner (per-side status: L ready / R not yet)
+- [ ] Sled history tracking across sessions (weight/lengths trends)
 
 ## Done
 - [x] Full tracker built — single HTML file, all 6 workouts, ~80 exercises
@@ -25,3 +23,11 @@
 - [x] Settings page with individual session export
 - [x] GitHub Pages deployment: tomasruta.github.io/Exercise-tracker/tracker.html
 - [x] Crash recovery via `gym-session-wip` auto-save
+- [x] Spec amendment: 6 tracking types (weight_reps, reps_only, duration, completion, sled, weight_distance)
+- [x] Unilateral support (split_weight, split_reps) with L/R inputs
+- [x] Countdown timers + sled stopwatch with haptic/audio feedback
+- [x] Variant system (tibialis, back extension, reverse squat, ham curl)
+- [x] Programme corrections (sled unification, ATG split squat rename, back ext W6 fix)
+- [x] Import parser expanded to handle all tracking types + variants
+- [x] Date format with weekday (e.g. "Sun, 5 April 2026")
+- [x] Import date timezone fix
