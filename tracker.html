@@ -294,6 +294,8 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .timer-btn-start { background: var(--green); color: #fff; }
 .timer-btn-pause { background: var(--amber); color: #fff; }
 .timer-btn-done { background: var(--green-bg); color: var(--green); }
+.timer-goal { font-size: 0.85rem; color: var(--text-secondary); font-weight: 400; margin-left: 4px; }
+.timer-past-goal { color: var(--green); }
 
 /* ===== COMPLETION TOGGLES ===== */
 .completion-row {
@@ -959,9 +961,12 @@ const Markdown = (function() {
       // Duration/completion exercises
       if (data.done !== undefined || data.doneL !== undefined) {
         if (data.doneL !== undefined) {
-          md += `- **${ex.name}**${variantStr} — L${data.doneL ? '✅' : '—'} R${data.doneR ? '✅' : '—'}\n`;
+          const tL = data.timeL ? `(${data.timeL}s)` : '';
+          const tR = data.timeR ? `(${data.timeR}s)` : '';
+          md += `- **${ex.name}**${variantStr} — L${data.doneL ? '✅' : '—'}${tL} R${data.doneR ? '✅' : '—'}${tR}\n`;
         } else {
-          md += `- **${ex.name}**${variantStr} — ${data.done ? '✅' : '—'}\n`;
+          const t = data.time ? `(${data.time}s)` : '';
+          md += `- **${ex.name}**${variantStr} — ${data.done ? '✅' : '—'}${t}\n`;
         }
         if (data.notes) md += `  - ${data.notes}\n`;
         continue;
@@ -1129,15 +1134,21 @@ const Markdown = (function() {
           variantId = nameMatch[2] || null;
           const rest = nameMatch[3].trim();
 
-          // 1. Completion unilateral: L✅ R— or L— R✅
-          const compUni = rest.match(/^L([✅—])\s*R([✅—])$/);
+          // 1. Completion unilateral: L✅(52s) R—(0s) or L✅ R✅
+          const compUni = rest.match(/^L([✅—])(?:\((\d+)s\))?\s*R([✅—])(?:\((\d+)s\))?$/);
           if (compUni) {
-            parsed = { doneL: compUni[1] === '✅', doneR: compUni[2] === '✅' };
+            parsed = { doneL: compUni[1] === '✅', doneR: compUni[3] === '✅' };
+            if (compUni[2]) parsed.timeL = parseInt(compUni[2]);
+            if (compUni[4]) parsed.timeR = parseInt(compUni[4]);
           }
 
-          // 2. Completion bilateral: just ✅ or —
-          if (!parsed && /^[✅—]$/.test(rest)) {
-            parsed = { done: rest === '✅' };
+          // 2. Completion bilateral: ✅(48s) or just ✅ or —
+          if (!parsed) {
+            const compBi = rest.match(/^([✅—])(?:\((\d+)s\))?$/);
+            if (compBi) {
+              parsed = { done: compBi[1] === '✅' };
+              if (compBi[2]) parsed.time = parseInt(compBi[2]);
+            }
           }
 
           // 3. Sled: 1×[8 lengths, 2:30] @ 30kg (length = 15m, total ~120m)
@@ -1352,14 +1363,84 @@ const Timer = (function() {
     }
   }
 
+  // Hold timer for stretches — counts UP, beeps at goal, user stops manually
+  const holdTimers = {};
+
+  function startHoldTimer(id, goalSeconds) {
+    ensureAudio();
+    if (holdTimers[id]) return; // already running
+
+    const el = document.getElementById(id);
+    const goalEl = document.getElementById(id + '-goal');
+    const btn = document.getElementById(id + '-btn');
+    if (!el) return;
+
+    const start = Date.now();
+    let beeped = false;
+
+    el.textContent = '0:00';
+    if (btn) { btn.textContent = 'STOP'; btn.className = 'timer-btn timer-btn-pause'; }
+
+    holdTimers[id] = {
+      start,
+      goalSeconds,
+      beeped,
+      interval: setInterval(() => {
+        const elapsed = Math.round((Date.now() - holdTimers[id].start) / 1000);
+        el.textContent = formatTime(elapsed);
+        if (elapsed >= goalSeconds && !holdTimers[id].beeped) {
+          holdTimers[id].beeped = true;
+          el.classList.add('timer-past-goal');
+          beep();
+          vibrate();
+        }
+      }, 1000)
+    };
+  }
+
+  function stopHoldTimer(id) {
+    if (!holdTimers[id]) return 0;
+    const elapsed = Math.round((Date.now() - holdTimers[id].start) / 1000);
+    clearInterval(holdTimers[id].interval);
+    delete holdTimers[id];
+
+    const el = document.getElementById(id);
+    const btn = document.getElementById(id + '-btn');
+    if (el) el.textContent = formatTime(elapsed);
+    if (btn) { btn.textContent = 'DONE'; btn.className = 'timer-btn timer-btn-done'; }
+    return elapsed;
+  }
+
+  function getHoldElapsed(id) {
+    if (!holdTimers[id]) return 0;
+    return Math.round((Date.now() - holdTimers[id].start) / 1000);
+  }
+
+  function isHoldActive(id) { return !!holdTimers[id]; }
+
   function cleanup() {
     Object.values(timers).forEach(t => clearInterval(t.interval));
     Object.values(stopwatches).forEach(s => clearInterval(s.interval));
+    // Auto-stop hold timers and save elapsed time before clearing
+    Object.keys(holdTimers).forEach(id => {
+      const elapsed = stopHoldTimer(id);
+      // Write elapsed to hidden input if it exists
+      const timeInput = document.getElementById(id.replace('timer-', 'time-'));
+      if (timeInput && elapsed > 0) {
+        timeInput.value = elapsed;
+        // Also mark as done
+        const side = id.replace('timer-', '');
+        const doneInput = document.getElementById('done-' + side);
+        if (doneInput) doneInput.value = 'true';
+        const toggle = document.querySelector(`.completion-toggle[data-side="${side.toUpperCase()}"]`) || document.querySelector('.completion-toggle');
+        if (toggle) { toggle.classList.add('done'); const cb = toggle.querySelector('.check-box'); if (cb) cb.textContent = '✅'; }
+      }
+    });
     Object.keys(timers).forEach(k => delete timers[k]);
     Object.keys(stopwatches).forEach(k => delete stopwatches[k]);
   }
 
-  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, formatTime, cleanup, ensureAudio };
+  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, getHoldElapsed, isHoldActive, formatTime, cleanup, ensureAudio };
 })();
 
 // =====================================================
@@ -1706,39 +1787,48 @@ const Views = (function() {
     if (ex.unilateral) {
       const doneL = existingData?.doneL || false;
       const doneR = existingData?.doneR || false;
+      const timeL = existingData?.timeL || 0;
+      const timeR = existingData?.timeR || 0;
       return `
         <div class="timer-block">
           <div class="timer-row">
             <span class="timer-side">LEFT</span>
-            <span class="timer-display" id="timer-l">${Timer.formatTime(seconds)}</span>
-            <button class="timer-btn timer-btn-start" id="timer-l-btn"
-              onclick="Timer.isActive('timer-l') ? Timer.togglePause('timer-l') : Timer.startCountdown('timer-l', ${seconds}, () => { document.getElementById('done-l').checked = true; Views._triggerAutoSave(); })">
+            <span class="timer-display${timeL >= seconds ? ' timer-past-goal' : ''}" id="timer-l">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
+            <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
+            <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
+              onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.getElementById('done-l').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${seconds});}">
               ${doneL ? 'DONE' : 'START'}
             </button>
           </div>
           <div class="timer-row">
             <span class="timer-side">RIGHT</span>
-            <span class="timer-display" id="timer-r">${Timer.formatTime(seconds)}</span>
-            <button class="timer-btn timer-btn-start" id="timer-r-btn"
-              onclick="Timer.isActive('timer-r') ? Timer.togglePause('timer-r') : Timer.startCountdown('timer-r', ${seconds}, () => { document.getElementById('done-r').checked = true; Views._triggerAutoSave(); })">
+            <span class="timer-display${timeR >= seconds ? ' timer-past-goal' : ''}" id="timer-r">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
+            <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
+            <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
+              onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.getElementById('done-r').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${seconds});}">
               ${doneR ? 'DONE' : 'START'}
             </button>
           </div>
           <input type="hidden" id="done-l" value="${doneL}">
           <input type="hidden" id="done-r" value="${doneR}">
+          <input type="hidden" id="time-l" value="${timeL}">
+          <input type="hidden" id="time-r" value="${timeR}">
         </div>`;
     }
     const done = existingData?.done || false;
+    const time = existingData?.time || 0;
     return `
       <div class="timer-block">
         <div class="timer-row">
-          <span class="timer-display" id="timer-main">${Timer.formatTime(seconds)}</span>
-          <button class="timer-btn timer-btn-start" id="timer-main-btn"
-            onclick="Timer.isActive('timer-main') ? Timer.togglePause('timer-main') : Timer.startCountdown('timer-main', ${seconds}, () => { document.getElementById('done-main').checked = true; Views._triggerAutoSave(); })">
+          <span class="timer-display${time >= seconds ? ' timer-past-goal' : ''}" id="timer-main">${done && time ? Timer.formatTime(time) : '0:00'}</span>
+          <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
+          <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
+            onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.getElementById('done-main').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${seconds});}">
             ${done ? 'DONE' : 'START'}
           </button>
         </div>
         <input type="hidden" id="done-main" value="${done}">
+        <input type="hidden" id="time-main" value="${time}">
       </div>`;
   }
 
@@ -1747,6 +1837,8 @@ const Views = (function() {
     if (ex.unilateral) {
       const doneL = existingData?.doneL || false;
       const doneR = existingData?.doneR || false;
+      const timeL = existingData?.timeL || 0;
+      const timeR = existingData?.timeR || 0;
       let timerHtml = '';
       if (hasTimer) {
         const s = ex.timerSeconds;
@@ -1754,17 +1846,21 @@ const Views = (function() {
           <div class="timer-block" style="margin-top:12px;">
             <div class="timer-row">
               <span class="timer-side">L</span>
-              <span class="timer-display" id="timer-l">${Timer.formatTime(s)}</span>
-              <button class="timer-btn timer-btn-start" id="timer-l-btn"
-                onclick="Timer.isActive('timer-l') ? Timer.togglePause('timer-l') : Timer.startCountdown('timer-l', ${s}, () => { document.querySelector('.completion-toggle[data-side=L]').classList.add('done'); document.getElementById('done-l').value='true'; Views._triggerAutoSave(); })">START</button>
+              <span class="timer-display${timeL >= s ? ' timer-past-goal' : ''}" id="timer-l">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
+              <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
+              <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
+                onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.querySelector('.completion-toggle[data-side=L]').classList.add('done');document.querySelector('.completion-toggle[data-side=L] .check-box').textContent='✅';document.getElementById('done-l').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${s});}">${doneL ? 'DONE' : 'START'}</button>
             </div>
             <div class="timer-row">
               <span class="timer-side">R</span>
-              <span class="timer-display" id="timer-r">${Timer.formatTime(s)}</span>
-              <button class="timer-btn timer-btn-start" id="timer-r-btn"
-                onclick="Timer.isActive('timer-r') ? Timer.togglePause('timer-r') : Timer.startCountdown('timer-r', ${s}, () => { document.querySelector('.completion-toggle[data-side=R]').classList.add('done'); document.getElementById('done-r').value='true'; Views._triggerAutoSave(); })">START</button>
+              <span class="timer-display${timeR >= s ? ' timer-past-goal' : ''}" id="timer-r">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
+              <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
+              <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
+                onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.querySelector('.completion-toggle[data-side=R]').classList.add('done');document.querySelector('.completion-toggle[data-side=R] .check-box').textContent='✅';document.getElementById('done-r').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${s});}">${doneR ? 'DONE' : 'START'}</button>
             </div>
-          </div>`;
+          </div>
+          <input type="hidden" id="time-l" value="${timeL}">
+          <input type="hidden" id="time-r" value="${timeR}">`;
       }
       return `
         <div class="completion-row">
@@ -1782,16 +1878,19 @@ const Views = (function() {
         ${timerHtml}`;
     }
     const done = existingData?.done || false;
+    const time = existingData?.time || 0;
     let timerHtml = '';
     if (hasTimer) {
       timerHtml = `
         <div class="timer-block" style="margin-top:12px;">
           <div class="timer-row">
-            <span class="timer-display" id="timer-main">${Timer.formatTime(ex.timerSeconds)}</span>
-            <button class="timer-btn timer-btn-start" id="timer-main-btn"
-              onclick="Timer.isActive('timer-main') ? Timer.togglePause('timer-main') : Timer.startCountdown('timer-main', ${ex.timerSeconds}, () => { document.querySelector('.completion-toggle').classList.add('done'); document.getElementById('done-main').value='true'; Views._triggerAutoSave(); })">START</button>
+            <span class="timer-display${time >= ex.timerSeconds ? ' timer-past-goal' : ''}" id="timer-main">${done && time ? Timer.formatTime(time) : '0:00'}</span>
+            <span class="timer-goal">/ ${Timer.formatTime(ex.timerSeconds)}</span>
+            <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
+              onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.querySelector('.completion-toggle').classList.add('done');document.querySelector('.completion-toggle .check-box').textContent='✅';document.getElementById('done-main').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${ex.timerSeconds});}">${done ? 'DONE' : 'START'}</button>
           </div>
-        </div>`;
+        </div>
+        <input type="hidden" id="time-main" value="${time}">`;
     }
     return `
       <div class="completion-row">
@@ -2023,8 +2122,14 @@ const Views = (function() {
         if (ex.unilateral) {
           data.doneL = document.getElementById('done-l')?.value === 'true';
           data.doneR = document.getElementById('done-r')?.value === 'true';
+          const tL = parseInt(document.getElementById('time-l')?.value) || 0;
+          const tR = parseInt(document.getElementById('time-r')?.value) || 0;
+          if (tL) data.timeL = tL;
+          if (tR) data.timeR = tR;
         } else {
           data.done = document.getElementById('done-main')?.value === 'true';
+          const t = parseInt(document.getElementById('time-main')?.value) || 0;
+          if (t) data.time = t;
         }
         break;
       }
@@ -2032,8 +2137,14 @@ const Views = (function() {
         if (ex.unilateral) {
           data.doneL = document.getElementById('done-l')?.value === 'true';
           data.doneR = document.getElementById('done-r')?.value === 'true';
+          const tL = parseInt(document.getElementById('time-l')?.value) || 0;
+          const tR = parseInt(document.getElementById('time-r')?.value) || 0;
+          if (tL) data.timeL = tL;
+          if (tR) data.timeR = tR;
         } else {
           data.done = document.getElementById('done-main')?.value === 'true';
+          const t = parseInt(document.getElementById('time-main')?.value) || 0;
+          if (t) data.time = t;
         }
         break;
       }
@@ -2174,9 +2285,15 @@ const Views = (function() {
 
       let setsStr = '';
       if (data.done !== undefined || data.doneL !== undefined) {
-        // Completion/duration
-        if (data.doneL !== undefined) setsStr = `L: ${data.doneL ? '✅' : '—'} R: ${data.doneR ? '✅' : '—'}`;
-        else setsStr = data.done ? '✅' : '—';
+        // Completion/duration — show hold times if available
+        if (data.doneL !== undefined) {
+          const tL = data.timeL ? ` ${Timer.formatTime(data.timeL)}` : '';
+          const tR = data.timeR ? ` ${Timer.formatTime(data.timeR)}` : '';
+          setsStr = `L: ${data.doneL ? '✅' : '—'}${tL}  R: ${data.doneR ? '✅' : '—'}${tR}`;
+        } else {
+          const t = data.time ? ` ${Timer.formatTime(data.time)}` : '';
+          setsStr = (data.done ? '✅' : '—') + t;
+        }
       } else if (data.sets && data.sets.length > 0) {
         const s0 = data.sets[0];
         if (s0.weightL !== undefined) {

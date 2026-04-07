@@ -1,16 +1,18 @@
 # ATG Gym Workout Tracker — Roadmap
 
 ## Now
-- [ ] Add to Home Screen on iPhone SE (needs Safari access during AppBlock window)
+(nothing active)
 
 ## Next
-- [ ] Stretch timer: record actual hold time instead of just preset countdown
-- [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
 - [ ] Consider service worker for true offline PWA
 
 ## Later
+- [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
 - [ ] Split_reps double progression banner (per-side status: L ready / R not yet)
-- [ ] Sled history tracking across sessions (weight/lengths trends)
+- [ ] Cross-exercise trend tracking (idea: visual progression across sessions)
+
+## Ideas
+- [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
 
 ## Done
 - [x] Full tracker built — single HTML file, all 6 workouts, ~80 exercises
@@ -45,3 +47,5 @@
 - [x] Save button replaced with auto-save indicator + "Done ←"
 - [x] Weight fields pre-fill with 0 (bodyweight convention)
 - [x] Delete individual sessions from history
+- [x] Stretch hold timer: count-up timer records actual hold time (was preset countdown only)
+- [x] Markdown export/import round-trip for hold times: `L✅(52s) R✅(65s)`
