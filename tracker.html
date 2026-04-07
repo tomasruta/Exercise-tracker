@@ -2346,6 +2346,7 @@ const Views = (function() {
               <div class="summary-sets">${wName} · ${exCount} exercises${s.exported ? ' · Exported' : ' · Not exported'}</div>
             </div>
             <button class="btn btn-secondary" style="flex:none;padding:8px 12px;font-size:0.8rem;width:auto;" onclick="Views.exportSingleSession(${i})">Export</button>
+            <button class="btn btn-secondary" style="flex:none;padding:8px 10px;font-size:0.8rem;width:auto;color:var(--red);border-color:var(--red);" onclick="Views.deleteSession(${i})">✕</button>
           </div>`;
       }
     }
@@ -2399,7 +2400,15 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, switchVariant, toggleChopDirection, _triggerAutoSave, _updateSledDerived };
+  function deleteSession(sessionIndex) {
+    if (!confirm('Delete this session? This cannot be undone.')) return;
+    const sessions = Data.getSessions();
+    sessions.splice(sessionIndex, 1);
+    Data.saveSessions(sessions);
+    renderSettings();
+  }
+
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, _triggerAutoSave, _updateSledDerived };
 })();
 
 // =====================================================
