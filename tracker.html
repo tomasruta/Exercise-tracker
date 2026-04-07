@@ -335,14 +335,15 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .sled-persistent label { font-size: 0.85rem; font-weight: 600; color: var(--text2); }
 .sled-persistent input { width: 80px; margin: 0 8px; }
 .sled-set-row {
-  display: grid; grid-template-columns: 50px 1fr 1fr 1fr; gap: 6px;
+  display: grid; grid-template-columns: 50px 1fr 1fr 1fr 48px; gap: 6px;
   align-items: center; margin-bottom: 8px;
 }
 .sled-derived { font-size: 0.8rem; color: var(--text3); padding-left: 54px; margin-top: -4px; margin-bottom: 8px; }
 .stopwatch-btn {
-  padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700;
+  padding: 0; border-radius: 8px; font-size: 1.5rem; font-weight: 700;
   border: 1px solid var(--border); background: var(--bg-card); cursor: pointer;
-  min-height: 36px;
+  height: 44px; width: 48px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .stopwatch-btn.running { background: var(--red); color: #fff; border-color: var(--red); }
 
@@ -1813,7 +1814,7 @@ const Views = (function() {
       </div>`;
     // Sled typically has 1 set but support multiple
     const numSets = ex.sets || 1;
-    html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr;"><span></span><span>kg</span><span>lengths</span><span>time</span></div>`;
+    html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr 48px;"><span></span><span>kg</span><span>lengths</span><span>time</span><span></span></div>`;
     for (let s = 0; s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const weight = existing?.weight ?? '';
@@ -1823,12 +1824,10 @@ const Views = (function() {
         <div class="sled-set-row">
           <span class="set-label">Set ${s + 1}</span>
           <input type="number" class="set-input sled-weight" inputmode="decimal" step="0.5" placeholder="kg" value="${weight}" data-set="${s}">
-          <input type="number" class="set-input sled-lengths" inputmode="numeric" step="1" placeholder="lengths" value="${lengths}" data-set="${s}"
+          <input type="number" class="set-input sled-lengths" inputmode="numeric" step="1" placeholder="len" value="${lengths}" data-set="${s}"
             oninput="Views._updateSledDerived();">
-          <div style="display:flex;gap:4px;align-items:center;">
-            <input type="text" class="set-input sled-time" inputmode="text" placeholder="m:ss" value="${timeStr}" data-set="${s}" id="sled-time-${s}" style="flex:1;">
-            <button class="stopwatch-btn" id="sw-${s}" onclick="Timer.toggleStopwatch('sw-${s}', 'sled-time-${s}')">⏱️</button>
-          </div>
+          <input type="text" class="set-input sled-time" inputmode="text" placeholder="m:ss" value="${timeStr}" data-set="${s}" id="sled-time-${s}">
+          <button class="stopwatch-btn" id="sw-${s}" onclick="Timer.toggleStopwatch('sw-${s}', 'sled-time-${s}')">⏱️</button>
         </div>
         <div class="sled-derived" id="sled-derived-${s}">${lengths && sledLength ? `= ${Math.round(lengths * sledLength)}m` : ''}</div>`;
     }
