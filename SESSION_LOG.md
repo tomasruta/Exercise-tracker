@@ -1,5 +1,30 @@
 # Session Log
 
+## 2026-04-08 (Session 2) — Export Fix + Exercise History + Form Cues Workflow
+
+**Built:**
+- Export bug fix: hardened per-set weight comparison with `parseFloat` + floating-point tolerance across all export paths (weight_reps, weight_distance, split_reps)
+- Export: replaced square brackets `[]` with parentheses `()` to avoid Obsidian internal link rendering; import accepts both for backward compat
+- Export: added "reps" to rep discrepancy flags ("3 sets above target 12 reps")
+- Session detail view (`#/session/{index}`): tap any session in Settings to see readable per-set breakdown with numbered circle badges (replaces monospace export format)
+- Exercise history page (`#/exercise/{exerciseId}`): shows canonical form cues + last 15 sessions with weights/reps/notes + "Copy all notes for AI review" button
+- Inline on exercise detail: Reference & Cues section now shows user-edited cues, last session notes with date, and "View full history →" link
+- Editable cues via localStorage (`gym-cues-{exerciseId}`) — built then removed UI buttons; cue editing will be done via Claude Code → GitHub Pages push workflow
+- Finish session guard: scans all exercises for suspicious data before saving (0 weight with reps, reps with 0 weight, missing L/R reps)
+- Cache-busting: HTTP no-cache meta tags + `APP_VERSION` constant with auto-update banner ("Update available — tap to reload")
+- Exposed `resolveDisplayName` from Markdown module for Views reuse
+
+**Decisions:**
+- Form cues workflow: canonical cues updated via Claude Code editing FORM_CUES/PROGRAMME → push to GitHub Pages → auto-syncs to phone. In-app editing removed to avoid temptation; localStorage override API kept as internal fallback.
+- Export format kept compact (`5×(6 @41, 8 @38) kg`) — optimized for Claude Chat analysis, not Obsidian readability. Obsidian is just the storage layer.
+- Session detail uses readable per-set format (not export format) — `① 41kg × 6` with numbered badges
+- APP_VERSION bump strategy: increment on each push, old cached versions detect mismatch and show update banner
+
+**Next:**
+- Service worker for true offline PWA
+- Programme rotation when routine changes
+- Batch form cue updates via Claude Code (user exports notes → AI review → update FORM_CUES)
+
 ## 2026-04-08 — Session 6: Peek View + Adjust Time
 
 **Built:**

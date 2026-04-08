@@ -5,7 +5,6 @@
 
 ## Next
 - [ ] Consider service worker for true offline PWA
-- [ ] Cache-busting for GitHub Pages updates (version query param or service worker)
 
 ## Ideas — Form Cues Workflow
 - [ ] **Preferred flow**: Update canonical cues via Claude Code → push to GitHub Pages → auto-syncs to phone. Better than in-app editing because cues live in source of truth (HTML file), not scattered in localStorage. User exports session notes to Obsidian, reviews with AI, then asks Claude Code to update cues in FORM_CUES/PROGRAMME constants.
@@ -29,6 +28,13 @@
 - [x] Editable cues: localStorage override for form cues with Edit/Save/Reset
 - [x] Inline last session notes + "View full history →" link on exercise detail page
 - [x] resolveDisplayName exposed from Markdown module for reuse
+- [x] Finish session guard: warns about sets with 0 weight/reps when other sets have data
+- [x] Session detail: readable per-set layout with numbered circles (replaced monospace export format)
+- [x] Removed in-app cue editing UI (cues managed via Claude Code → GitHub Pages push)
+- [x] Cache-busting: HTTP no-cache headers + APP_VERSION auto-update banner
+- [x] Export: parentheses () instead of square brackets [] (Obsidian link conflict fix)
+- [x] Import: accepts both () and [] for backward compatibility
+- [x] Export: "above target 12 reps" (added "reps" for clarity)
 - [x] Full tracker built — single HTML file, all 6 workouts, ~80 exercises
 - [x] Hash-based SPA routing, dark mode, iOS PWA meta tags
 - [x] Exercise detail with weight/reps inputs, auto-bump, progression banners
