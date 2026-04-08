@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Exercise Tracker</title>
 <style>
 /* ===== RESET ===== */
@@ -3167,11 +3170,35 @@ const Router = (function() {
 })();
 
 // =====================================================
+// APP VERSION + AUTO-UPDATE CHECK
+// =====================================================
+const APP_VERSION = '1.1.0';
+
+// =====================================================
 // APP INIT
 // =====================================================
 (function() {
   State.init();
   Router.init();
+
+  // Check for updates on load — fetch self with cache-bust, compare version
+  if (location.protocol === 'https:') {
+    setTimeout(() => {
+      fetch(location.href.split('#')[0] + '?_v=' + Date.now(), { cache: 'no-store' })
+        .then(r => r.text())
+        .then(html => {
+          const match = html.match(/APP_VERSION\s*=\s*'([^']+)'/);
+          if (match && match[1] !== APP_VERSION) {
+            const banner = document.createElement('div');
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px 16px;background:#2563eb;color:white;font-size:0.85rem;text-align:center;z-index:9999;cursor:pointer;';
+            banner.textContent = 'Update available — tap to reload';
+            banner.onclick = () => location.reload(true);
+            document.body.appendChild(banner);
+          }
+        })
+        .catch(() => {}); // silently fail if offline
+    }, 2000);
+  }
 })();
 </script>
 </body>
