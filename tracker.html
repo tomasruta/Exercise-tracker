@@ -1117,7 +1117,7 @@ const Markdown = (function() {
         const sledLength = Data.getSledLength();
         for (const s of data.sets) {
           const dist = s.lengths * sledLength;
-          md += `- **${displayName}** — 1×[${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}] @ ${s.weight||0}kg (length = ${sledLength}m, total ~${Math.round(dist)}m)\n`;
+          md += `- **${displayName}** — 1×(${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}) @ ${s.weight||0}kg (length = ${sledLength}m, total ~${Math.round(dist)}m)\n`;
         }
         md += formatNotes(data.notes);
         md += '\n';
@@ -1137,7 +1137,7 @@ const Markdown = (function() {
           setsStr = validSets.map(s => `${s.distance}m @${s.weight||0}`).join(', ');
           weightStr = ` ${wLabel}`;
         }
-        md += `- **${displayName}** — ${validSets.length}×[${setsStr}]${weightStr}\n`;
+        md += `- **${displayName}** — ${validSets.length}×(${setsStr})${weightStr}\n`;
         md += formatNotes(data.notes);
         md += '\n';
         continue;
@@ -1151,7 +1151,7 @@ const Markdown = (function() {
         const wStr = allSameW
           ? ` @ L:${validSets[0]?.weightL||0}${wLabel} R:${validSets[0]?.weightR||0}${wLabel}`
           : ` @ varies`;
-        md += `- **${displayName}** — ${validSets.length}×[${setsStr}]${wStr}\n`;
+        md += `- **${displayName}** — ${validSets.length}×(${setsStr})${wStr}\n`;
         md += formatNotes(data.notes);
         md += '\n';
         continue;
@@ -1162,7 +1162,7 @@ const Markdown = (function() {
         const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
         const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
         const weight = parseFloat(data.weight) || parseFloat(s0.weight) || 0;
-        md += `- **${displayName}** — ${validSets.length}×[${setsStr}] @ ${weight}${wLabel}\n`;
+        md += `- **${displayName}** — ${validSets.length}×(${setsStr}) @ ${weight}${wLabel}\n`;
         md += formatNotes(data.notes);
         md += '\n';
         continue;
@@ -1183,7 +1183,7 @@ const Markdown = (function() {
         weightStr = ` ${wLabel}`;
       }
 
-      md += `- **${displayName}** — ${validSets.length}×[${setsStr}]${weightStr}\n`;
+      md += `- **${displayName}** — ${validSets.length}×(${setsStr})${weightStr}\n`;
 
       // Flag rep discrepancies vs target range
       if (effectiveRepRange) {
@@ -1331,9 +1331,9 @@ const Markdown = (function() {
             }
           }
 
-          // 3. Sled: 1×[8 lengths, 2:30] @ 30kg (length = 15m, total ~120m)
+          // 3. Sled: 1×(8 lengths, 2:30) @ 30kg (length = 15m, total ~120m)  [also accepts [] for compat]
           if (!parsed) {
-            const sledMatch = rest.match(/^\d+×\[(\d+)\s*lengths?,\s*(\d+:\d{2})\]\s*@\s*([\d.]+)kg\s*\(length\s*=\s*([\d.]+)m/);
+            const sledMatch = rest.match(/^\d+×[\[(](\d+)\s*lengths?,\s*(\d+:\d{2})[\])]\s*@\s*([\d.]+)kg\s*\(length\s*=\s*([\d.]+)m/);
             if (sledMatch) {
               const timeParts = sledMatch[2].split(':');
               const timeSeconds = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]);
@@ -1341,18 +1341,18 @@ const Markdown = (function() {
             }
           }
 
-          // 4. Weight/distance: 3×[40m,35m,30m] @ 22kg/hand
+          // 4. Weight/distance: 3×(40m,35m,30m) @ 22kg/hand
           if (!parsed) {
-            const wdMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)kg/);
+            const wdMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*([\d.]+)kg/);
             if (wdMatch && wdMatch[2].includes('m') && !wdMatch[2].includes('/')) {
               const distances = wdMatch[2].split(',').map(d => parseInt(d.trim()));
               parsed = { sets: distances.map(d => ({ weight: parseFloat(wdMatch[3]), distance: d })) };
             }
           }
 
-          // 5. Split_weight: 3×[L10/R10,L8/R9] @ L:5kg R:5kg
+          // 5. Split_weight: 3×(L10/R10,L8/R9) @ L:5kg R:5kg
           if (!parsed) {
-            const swMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*L:([\d.]+)kg\s*R:([\d.]+)kg/);
+            const swMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*L:([\d.]+)kg\s*R:([\d.]+)kg/);
             if (swMatch) {
               const pairs = swMatch[2].split(',').map(p => {
                 const lr = p.trim().match(/L(\d+)\/R(\d+)/);
@@ -1362,9 +1362,9 @@ const Markdown = (function() {
             }
           }
 
-          // 6. Split_reps: 5×[L6/R8,L7/R7] @ 20kg
+          // 6. Split_reps: 5×(L6/R8,L7/R7) @ 20kg
           if (!parsed) {
-            const srMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)kg/);
+            const srMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*([\d.]+)kg/);
             if (srMatch && srMatch[2].includes('L') && srMatch[2].includes('/R')) {
               const pairs = srMatch[2].split(',').map(p => {
                 const lr = p.trim().match(/L(\d+)\/R(\d+)/);
@@ -1374,9 +1374,9 @@ const Markdown = (function() {
             }
           }
 
-          // 7a. Per-set weights: 3×[6 @41.3, 6 @40, 6 @38] kg
+          // 7a. Per-set weights: 3×(6 @41.3, 6 @40, 6 @38) kg
           if (!parsed) {
-            const perSetMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*(\w+)?/);
+            const perSetMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*(\w+)?/);
             if (perSetMatch && perSetMatch[2].includes('@')) {
               const entries = perSetMatch[2].split(',').map(e => {
                 const parts = e.trim().split(/\s*@/);
@@ -1386,10 +1386,10 @@ const Markdown = (function() {
             }
           }
 
-          // 7b. Standard weight×reps: 5×[6,8,6] @ 50kg or @ BW
+          // 7b. Standard weight×reps: 5×(6,8,6) @ 50kg or @ BW
           if (!parsed) {
-            const stdMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)/);
-            const bwMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*BW/);
+            const stdMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*([\d.]+)/);
+            const bwMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*BW/);
             const m = stdMatch || bwMatch;
             if (m) {
               const repsArr = m[2].split(',').map(r => r.trim());
@@ -3172,7 +3172,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 // =====================================================
 // APP INIT
