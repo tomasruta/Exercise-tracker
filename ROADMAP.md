@@ -4,8 +4,13 @@
 (nothing active)
 
 ## Next
-- [ ] Form cues update workflow (bigger discussion — how to incorporate session notes into permanent cues)
 - [ ] Consider service worker for true offline PWA
+- [ ] Cache-busting for GitHub Pages updates (version query param or service worker)
+
+## Ideas — Form Cues Workflow
+- [ ] **Preferred flow**: Update canonical cues via Claude Code → push to GitHub Pages → auto-syncs to phone. Better than in-app editing because cues live in source of truth (HTML file), not scattered in localStorage. User exports session notes to Obsidian, reviews with AI, then asks Claude Code to update cues in FORM_CUES/PROGRAMME constants.
+- [ ] In-app editable cues (already built) remain as fallback for quick gym-side tweaks
+- [ ] Bulk cue import: paste structured cues from AI review into Claude Code to update multiple exercises at once
 
 ## Later
 - [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
@@ -18,6 +23,12 @@
 - [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
 
 ## Done
+- [x] Export bug fix: robust per-set weight comparison with parseFloat + floating-point tolerance
+- [x] Session data viewer: tap session in Settings → per-exercise breakdown with raw data
+- [x] Exercise history page (#/exercise/{id}): cues + progression + notes + "Copy notes for AI review"
+- [x] Editable cues: localStorage override for form cues with Edit/Save/Reset
+- [x] Inline last session notes + "View full history →" link on exercise detail page
+- [x] resolveDisplayName exposed from Markdown module for reuse
 - [x] Full tracker built — single HTML file, all 6 workouts, ~80 exercises
 - [x] Hash-based SPA routing, dark mode, iOS PWA meta tags
 - [x] Exercise detail with weight/reps inputs, auto-bump, progression banners

@@ -398,6 +398,41 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .workout-notes { margin-top: 20px; padding-top: 16px; border-top: 2px solid var(--border); }
 .workout-notes label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; color: var(--text2); }
 .workout-notes .notes-field { margin-top: 0; margin-bottom: 12px; }
+
+/* ===== SESSION DETAIL VIEW ===== */
+.session-detail-item {
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.session-detail-item:last-child { border-bottom: none; }
+.session-detail-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 4px; }
+.session-detail-data { font-size: 0.85rem; color: var(--text2); font-family: monospace; }
+.session-detail-notes { font-size: 0.8rem; color: var(--text3); font-style: italic; margin-top: 4px; }
+
+/* ===== EXERCISE HISTORY PAGE ===== */
+.history-cues {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px; margin-bottom: 16px;
+}
+.history-cues-label { font-weight: 600; font-size: 0.85rem; color: var(--text2); margin-bottom: 8px; }
+.history-cues-text { font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; }
+.history-cues textarea {
+  width: 100%; min-height: 100px; border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px; font-size: 0.85rem; line-height: 1.5;
+  background: var(--bg-input); color: var(--text); resize: vertical;
+}
+.history-cues .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+.history-entry {
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.history-entry:last-child { border-bottom: none; }
+.history-entry-date { font-size: 0.8rem; color: var(--text3); margin-bottom: 4px; }
+.history-entry-data { font-weight: 500; font-size: 0.9rem; }
+.history-entry-notes { font-size: 0.8rem; color: var(--text3); font-style: italic; margin-top: 4px; white-space: pre-wrap; }
+.history-link {
+  display: inline-block; font-size: 0.8rem; color: var(--accent);
+  text-decoration: none; margin-top: 6px; cursor: pointer;
+}
+.history-link:active { opacity: 0.7; }
 </style>
 </head>
 <body>
@@ -747,7 +782,15 @@ const Data = (function() {
   function setChopDirection(dir) { localStorage.setItem(CHOP_KEY, dir); }
   function flipChopDirection() { setChopDirection(getChopDirection() === 'hi_lo' ? 'lo_hi' : 'hi_lo'); }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection };
+  function getUserCues(exerciseId) {
+    return localStorage.getItem(`gym-cues-${exerciseId}`) || null;
+  }
+  function saveUserCues(exerciseId, text) {
+    if (text && text.trim()) localStorage.setItem(`gym-cues-${exerciseId}`, text.trim());
+    else localStorage.removeItem(`gym-cues-${exerciseId}`);
+  }
+
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues };
 })();
 
 // =====================================================
@@ -871,7 +914,28 @@ const State = (function() {
     return null;
   }
 
-  return { init, startSession, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry };
+  function getExerciseHistory(exerciseId) {
+    const targetId = resolveId(exerciseId);
+    const sessions = Data.getSessions();
+    const results = [];
+    for (let i = sessions.length - 1; i >= 0; i--) {
+      const s = sessions[i];
+      const workout = PROGRAMME.find(w => w.id === s.workoutId);
+      if (!workout) continue;
+      for (const [idx, data] of Object.entries(s.exercises)) {
+        const ex = workout.exercises[parseInt(idx)];
+        if (!ex) continue;
+        if (resolveId(ex.id) === targetId && (
+          (data.sets && data.sets.length > 0) || data.done || data.doneL || data.doneR
+        )) {
+          results.push({ date: s.date, workoutId: s.workoutId, data, exercise: ex });
+        }
+      }
+    }
+    return results;
+  }
+
+  return { init, startSession, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory };
 })();
 
 // =====================================================
@@ -1060,8 +1124,8 @@ const Markdown = (function() {
       // Weight/distance (farmer's carry)
       if (s0.distance !== undefined) {
         const validSets = data.sets.filter(s => s.distance);
-        const weights = validSets.map(s => s.weight || 0);
-        const allSameWeight = weights.every(w => w === weights[0]);
+        const weights = validSets.map(s => parseFloat(s.weight) || 0);
+        const allSameWeight = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
         let setsStr, weightStr;
         if (allSameWeight) {
           setsStr = validSets.map(s => s.distance + 'm').join(', ');
@@ -1094,7 +1158,7 @@ const Markdown = (function() {
       if (s0.repsL !== undefined) {
         const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
         const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
-        const weight = data.weight || s0.weight || 0;
+        const weight = parseFloat(data.weight) || parseFloat(s0.weight) || 0;
         md += `- **${displayName}** — ${validSets.length}×[${setsStr}] @ ${weight}${wLabel}\n`;
         md += formatNotes(data.notes);
         md += '\n';
@@ -1105,14 +1169,14 @@ const Markdown = (function() {
       const validSets = data.sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0);
       if (validSets.length === 0) continue;
 
-      const weights = validSets.map(s => s.weight || 0);
-      const allSameWeight = weights.every(w => w === weights[0]);
+      const weights = validSets.map(s => parseFloat(s.weight) || 0);
+      const allSameWeight = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
       let setsStr, weightStr;
       if (allSameWeight) {
         setsStr = validSets.map(s => s.reps).join(', ');
         weightStr = weights[0] ? ` @ ${weights[0]}${wLabel}` : ' @ BW';
       } else {
-        setsStr = validSets.map(s => `${s.reps} @${s.weight||0}`).join(', ');
+        setsStr = validSets.map(s => `${s.reps} @${parseFloat(s.weight)||0}`).join(', ');
         weightStr = ` ${wLabel}`;
       }
 
@@ -1369,7 +1433,7 @@ const Markdown = (function() {
     return { sessions, matched, unmatched, unmatchedNames };
   }
 
-  return { exportSession, exportAll, importMarkdown, formatDate };
+  return { exportSession, exportAll, importMarkdown, formatDate, resolveDisplayName };
 })();
 
 // =====================================================
@@ -2214,19 +2278,41 @@ const Views = (function() {
     const existingData = State.getExerciseData(exIndex);
     const preFill = Progression.getPreFill(ex.id, effEx);
 
-    // Form cues — structured (FORM_CUES) or plain text fallback
+    // Form cues — user-edited (localStorage) > structured (FORM_CUES) > plain text fallback
     let cuesHtml = '';
+    const userCues = Data.getUserCues(ex.id);
     const structuredCues = getStructuredCues(ex);
-    if (structuredCues || ex.formCues || ex.notes) {
-      const cueContent = structuredCues
-        ? renderStructuredCues(structuredCues)
-        : (ex.formCues ? `<div style="margin-bottom:6px;">${ex.formCues}</div>` : '');
+    const hasAnyCues = userCues || structuredCues || ex.formCues || ex.notes;
+
+    // Last session notes from history (not from current session)
+    const historyForNotes = State.getExerciseHistory(ex.id);
+    const lastHistoryNotes = historyForNotes.length > 0 && historyForNotes[0].data.notes ? historyForNotes[0] : null;
+
+    if (hasAnyCues || lastHistoryNotes) {
+      let cueContent = '';
+      if (userCues) {
+        cueContent = `<div style="margin-bottom:6px;white-space:pre-wrap;">${userCues}</div>`;
+      } else if (structuredCues) {
+        cueContent = renderStructuredCues(structuredCues);
+      } else if (ex.formCues) {
+        cueContent = `<div style="margin-bottom:6px;">${ex.formCues}</div>`;
+      }
+
+      const lastNotesHtml = lastHistoryNotes
+        ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+            <div style="font-size:0.75rem;font-weight:600;color:var(--text3);margin-bottom:4px;">Last session notes (${Markdown.formatDate(lastHistoryNotes.date)})</div>
+            <div style="font-size:0.8rem;color:var(--text3);font-style:italic;white-space:pre-wrap;">${lastHistoryNotes.data.notes}</div>
+          </div>`
+        : '';
+
       cuesHtml = `
         <div class="cue-section collapsed" id="cue-section">
           <button class="cue-toggle" onclick="document.getElementById('cue-section').classList.toggle('collapsed')">Reference & Cues</button>
           <div class="cue-body">
             ${cueContent}
-            ${ex.notes ? `<div style="color:var(--text3);font-style:italic;margin-top:6px;">${ex.notes}</div>` : ''}
+            ${ex.notes && !userCues ? `<div style="color:var(--text3);font-style:italic;margin-top:6px;">${ex.notes}</div>` : ''}
+            ${lastNotesHtml}
+            <a class="history-link" onclick="Router.go('/exercise/${ex.id}')">View full history →</a>
           </div>
         </div>`;
     }
@@ -2691,8 +2777,8 @@ const Views = (function() {
         const exported = s.exported ? '✅' : '⚠️';
 
         sessionRows += `
-          <div class="summary-item" style="display:flex;align-items:center;gap:10px;">
-            <div style="flex:1;">
+          <div class="summary-item" style="display:flex;align-items:center;gap:8px;">
+            <div style="flex:1;cursor:pointer;" onclick="Router.go('/session/${i}')">
               <div class="summary-name">${exported} W${s.workoutId} — ${Markdown.formatDate(s.date)}</div>
               <div class="summary-sets">${wName} · ${exCount} exercises${s.exported ? ' · Exported' : ' · Not exported'}</div>
             </div>
@@ -2759,7 +2845,203 @@ const Views = (function() {
     renderSettings();
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, _triggerAutoSave, _updateSledDerived };
+  // ---- Shared helper: format exercise data as compact string ----
+  function formatExerciseDataCompact(data, ex) {
+    if (data.done !== undefined || data.doneL !== undefined) {
+      if (data.doneL !== undefined) {
+        const tL = data.timeL ? `(${data.timeL}s)` : '';
+        const tR = data.timeR ? `(${data.timeR}s)` : '';
+        return `L${data.doneL ? '✅' : '—'}${tL} R${data.doneR ? '✅' : '—'}${tR}`;
+      }
+      const t = data.time ? `(${data.time}s)` : '';
+      return `${data.done ? '✅' : '—'}${t}`;
+    }
+    if (!data.sets || data.sets.length === 0) return '—';
+    const s0 = data.sets[0];
+    const wLabel = ex?.weightLabel || 'kg';
+    if (s0.lengths !== undefined) {
+      return data.sets.map(s => `${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}`).join(', ');
+    }
+    if (s0.distance !== undefined) {
+      return data.sets.map(s => `${s.weight||0}${wLabel}/h × ${s.distance}m`).join(', ');
+    }
+    if (s0.weightL !== undefined) {
+      return data.sets.map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(', ');
+    }
+    if (s0.repsL !== undefined) {
+      return `${data.weight||0}${wLabel} — ` + data.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+    }
+    // Standard weight×reps
+    const validSets = data.sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0);
+    if (validSets.length === 0) return '—';
+    const weights = validSets.map(s => parseFloat(s.weight) || 0);
+    const allSame = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
+    if (allSame) {
+      return `${validSets.length}×[${validSets.map(s => s.reps).join(', ')}] @ ${weights[0] ? weights[0] + wLabel : 'BW'}`;
+    }
+    return `${validSets.length}×[${validSets.map(s => `${s.reps}@${parseFloat(s.weight)||0}`).join(', ')}] ${wLabel}`;
+  }
+
+  // ---- Session Detail View ----
+  function renderSessionDetail(sessionIndex) {
+    const sessions = Data.getSessions();
+    const session = sessions[sessionIndex];
+    if (!session) { Router.go('/settings'); return; }
+    const workout = PROGRAMME.find(w => w.id === session.workoutId);
+    if (!workout) { Router.go('/settings'); return; }
+
+    let rows = '';
+    for (const [idx, data] of Object.entries(session.exercises)) {
+      const ex = workout.exercises[parseInt(idx)];
+      if (!ex || ex.isFence) continue;
+      const displayName = Markdown.resolveDisplayName(ex, data);
+      const dataStr = formatExerciseDataCompact(data, ex);
+      rows += `
+        <div class="session-detail-item">
+          <div class="session-detail-name">${displayName}</div>
+          <div class="session-detail-data">${dataStr}</div>
+          ${data.notes ? `<div class="session-detail-notes">${data.notes}</div>` : ''}
+        </div>`;
+    }
+
+    app.innerHTML = `
+      <div class="header">
+        <button class="back-btn" onclick="Router.go('/settings')">← Settings</button>
+        <h1>Session Detail</h1>
+      </div>
+      <div class="content">
+        <div class="summary-section">
+          <h3>W${session.workoutId} — ${Markdown.formatDate(session.date)}</h3>
+          <div style="font-size:0.8rem;color:var(--text3);margin-bottom:12px;">${workout.name} · ${Object.keys(session.exercises).length} exercises</div>
+          ${session.overall ? `<div style="margin-bottom:8px;"><strong>Overall:</strong> ${session.overall}</div>` : ''}
+          ${session.injuries ? `<div style="margin-bottom:8px;"><strong>Injuries:</strong> ${session.injuries}</div>` : ''}
+          ${rows}
+        </div>
+      </div>`;
+  }
+
+  // ---- Exercise History Page ----
+  function renderExerciseHistory(exerciseId) {
+    // Find exercise definition across all workouts
+    let exDef = null;
+    for (const w of PROGRAMME) {
+      const found = w.exercises.find(e => e.id === exerciseId);
+      if (found) { exDef = found; break; }
+    }
+    if (!exDef) { Router.go('/'); return; }
+
+    const history = State.getExerciseHistory(exerciseId);
+    const userCues = Data.getUserCues(exerciseId);
+    const structuredCues = getStructuredCues(exDef);
+    const defaultCuesText = structuredCues
+      ? [
+          ...(structuredCues.setup || []).map(s => `Setup: ${s}`),
+          ...(structuredCues.exec || []).map(s => `Do: ${s}`),
+          ...(structuredCues.mistakes || []).map(s => `Don't: ${s}`),
+          ...(structuredCues.you || []).map(s => `You: ${s}`)
+        ].join('\n')
+      : (exDef.formCues || '');
+
+    const displayCues = userCues !== null ? userCues : defaultCuesText;
+
+    // History entries
+    let entriesHtml = '';
+    if (history.length === 0) {
+      entriesHtml = '<div style="color:var(--text3);text-align:center;padding:20px;">No sessions recorded yet.</div>';
+    } else {
+      for (const h of history.slice(0, 15)) {
+        const dataStr = formatExerciseDataCompact(h.data, h.exercise);
+        entriesHtml += `
+          <div class="history-entry">
+            <div class="history-entry-date">W${h.workoutId} — ${Markdown.formatDate(h.date)}</div>
+            <div class="history-entry-data">${dataStr}</div>
+            ${h.data.notes ? `<div class="history-entry-notes">${h.data.notes}</div>` : ''}
+          </div>`;
+      }
+    }
+
+    // Collect all notes for copy button
+    const allNotes = history.filter(h => h.data.notes).map(h => `${Markdown.formatDate(h.date)}: ${h.data.notes}`).join('\n\n');
+
+    app.innerHTML = `
+      <div class="header">
+        <button class="back-btn" onclick="history.back()">← Back</button>
+        <h1>${exDef.name}</h1>
+      </div>
+      <div class="content">
+        <div class="history-cues" id="history-cues-block">
+          <div class="history-cues-label">Form Cues ${userCues !== null ? '<span style="font-weight:400;color:var(--text3);">(custom)</span>' : ''}</div>
+          <div class="history-cues-text" id="cues-display">${displayCues || '<span style="color:var(--text3);">No cues yet — tap Edit to add.</span>'}</div>
+          <div class="btn-row" id="cues-view-btns">
+            <button class="btn btn-secondary" style="flex:1;font-size:0.8rem;" onclick="Views.editCues('${exerciseId}')">Edit cues</button>
+            ${userCues !== null ? `<button class="btn btn-secondary" style="flex:none;font-size:0.8rem;color:var(--red);border-color:var(--red);" onclick="Views.resetCues('${exerciseId}')">Reset</button>` : ''}
+          </div>
+          <div id="cues-edit-area" style="display:none;">
+            <textarea id="cues-editor">${displayCues}</textarea>
+            <div class="btn-row">
+              <button class="btn btn-primary" style="flex:1;font-size:0.8rem;" onclick="Views.saveCues('${exerciseId}')">Save</button>
+              <button class="btn btn-secondary" style="flex:1;font-size:0.8rem;" onclick="Views.cancelEditCues('${exerciseId}')">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-section">
+          <h3>Recent Sessions (${history.length})</h3>
+          ${entriesHtml}
+        </div>
+
+        ${allNotes ? `
+        <div style="margin-top:16px;">
+          <button class="btn btn-secondary" style="width:100%;font-size:0.85rem;" onclick="Views.copyNotesHistory('${exerciseId}')">Copy all notes for AI review</button>
+        </div>` : ''}
+      </div>`;
+  }
+
+  function editCues(exerciseId) {
+    document.getElementById('cues-display').style.display = 'none';
+    document.getElementById('cues-view-btns').style.display = 'none';
+    document.getElementById('cues-edit-area').style.display = 'block';
+    document.getElementById('cues-editor').focus();
+  }
+
+  function cancelEditCues(exerciseId) {
+    document.getElementById('cues-display').style.display = '';
+    document.getElementById('cues-view-btns').style.display = '';
+    document.getElementById('cues-edit-area').style.display = 'none';
+  }
+
+  function saveCues(exerciseId) {
+    const text = document.getElementById('cues-editor').value;
+    Data.saveUserCues(exerciseId, text);
+    renderExerciseHistory(exerciseId);
+  }
+
+  function resetCues(exerciseId) {
+    if (!confirm('Reset to default cues? Your custom cues will be removed.')) return;
+    Data.saveUserCues(exerciseId, '');
+    renderExerciseHistory(exerciseId);
+  }
+
+  function copyNotesHistory(exerciseId) {
+    const history = State.getExerciseHistory(exerciseId);
+    let exName = exerciseId;
+    for (const w of PROGRAMME) {
+      const found = w.exercises.find(e => e.id === exerciseId);
+      if (found) { exName = found.name; break; }
+    }
+    const text = `# ${exName} — Notes History\n\n` +
+      history.filter(h => h.data.notes).map(h => `**${Markdown.formatDate(h.date)}** (W${h.workoutId}):\n${h.data.notes}`).join('\n\n');
+
+    if (navigator.share) {
+      navigator.share({ title: `${exName} Notes`, text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text)
+        .then(() => alert('Notes copied to clipboard!'))
+        .catch(() => prompt('Copy:', text));
+    }
+  }
+
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, _triggerAutoSave, _updateSledDerived, renderSessionDetail, renderExerciseHistory, editCues, cancelEditCues, saveCues, resetCues, copyNotesHistory };
 })();
 
 // =====================================================
@@ -2782,6 +3064,12 @@ const Router = (function() {
     if (parts[0] === 'settings') {
       return { view: 'settings' };
     }
+    if (parts[0] === 'session' && parts[1] !== undefined) {
+      return { view: 'sessionDetail', sessionIndex: parseInt(parts[1]) };
+    }
+    if (parts[0] === 'exercise' && parts[1]) {
+      return { view: 'exerciseHistory', exerciseId: parts[1] };
+    }
     return { view: 'home' };
   }
 
@@ -2791,6 +3079,8 @@ const Router = (function() {
       case 'workout': Views.renderWorkout(r.workoutId); break;
       case 'exercise': Views.renderExercise(r.workoutId, r.exIndex); break;
       case 'settings': Views.renderSettings(); break;
+      case 'sessionDetail': Views.renderSessionDetail(r.sessionIndex); break;
+      case 'exerciseHistory': Views.renderExerciseHistory(r.exerciseId); break;
       case 'home': default: Views.renderHome(); break;
     }
   }
