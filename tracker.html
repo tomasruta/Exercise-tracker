@@ -404,9 +404,15 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   padding: 12px 0; border-bottom: 1px solid var(--border);
 }
 .session-detail-item:last-child { border-bottom: none; }
-.session-detail-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 4px; }
-.session-detail-data { font-size: 0.85rem; color: var(--text2); font-family: monospace; }
-.session-detail-notes { font-size: 0.8rem; color: var(--text3); font-style: italic; margin-top: 4px; }
+.session-detail-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
+.session-detail-notes { font-size: 0.8rem; color: var(--text3); font-style: italic; margin-top: 6px; white-space: pre-wrap; }
+.sd-sets { display: flex; flex-direction: column; gap: 2px; }
+.sd-set { font-size: 0.85rem; color: var(--text2); padding: 2px 0; }
+.sd-num {
+  display: inline-block; width: 18px; height: 18px; line-height: 18px;
+  text-align: center; border-radius: 50%; background: var(--bg-input);
+  font-size: 0.7rem; font-weight: 600; color: var(--text3); margin-right: 6px;
+}
 
 /* ===== EXERCISE HISTORY PAGE ===== */
 .history-cues {
@@ -415,12 +421,6 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 }
 .history-cues-label { font-weight: 600; font-size: 0.85rem; color: var(--text2); margin-bottom: 8px; }
 .history-cues-text { font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; }
-.history-cues textarea {
-  width: 100%; min-height: 100px; border: 1px solid var(--border);
-  border-radius: 8px; padding: 10px; font-size: 0.85rem; line-height: 1.5;
-  background: var(--bg-input); color: var(--text); resize: vertical;
-}
-.history-cues .btn-row { display: flex; gap: 8px; margin-top: 10px; }
 .history-entry {
   padding: 12px 0; border-bottom: 1px solid var(--border);
 }
@@ -2882,6 +2882,52 @@ const Views = (function() {
     return `${validSets.length}×[${validSets.map(s => `${s.reps}@${parseFloat(s.weight)||0}`).join(', ')}] ${wLabel}`;
   }
 
+  // ---- Format sets as readable HTML rows (not export format) ----
+  function formatSetsReadable(data, ex) {
+    const wLabel = ex?.weightLabel || 'kg';
+    if (data.done !== undefined || data.doneL !== undefined) {
+      if (data.doneL !== undefined) {
+        const tL = data.timeL ? ` (${Timer.formatTime(data.timeL)})` : '';
+        const tR = data.timeR ? ` (${Timer.formatTime(data.timeR)})` : '';
+        return `<div class="sd-sets"><div class="sd-set">L: ${data.doneL ? '✅' : '—'}${tL}</div><div class="sd-set">R: ${data.doneR ? '✅' : '—'}${tR}</div></div>`;
+      }
+      const t = data.time ? ` (${Timer.formatTime(data.time)})` : '';
+      return `<div class="sd-sets"><div class="sd-set">${data.done ? '✅' : '—'}${t}</div></div>`;
+    }
+    if (!data.sets || data.sets.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
+    const s0 = data.sets[0];
+
+    if (s0.lengths !== undefined) {
+      const sledLength = Data.getSledLength();
+      return `<div class="sd-sets">${data.sets.map((s, i) => {
+        const dist = s.lengths * sledLength;
+        return `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.weight||0}${wLabel} · ${s.lengths}L · ${Timer.formatTime(s.timeSeconds||0)}${dist ? ` (~${Math.round(dist)}m)` : ''}</div>`;
+      }).join('')}</div>`;
+    }
+    if (s0.distance !== undefined) {
+      return `<div class="sd-sets">${data.sets.map((s, i) =>
+        `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.weight||0}${wLabel}/hand · ${s.distance}m</div>`
+      ).join('')}</div>`;
+    }
+    if (s0.weightL !== undefined) {
+      return `<div class="sd-sets">${data.sets.map((s, i) =>
+        `<div class="sd-set"><span class="sd-num">${i+1}</span> L: ${s.weightL||0}${wLabel}×${s.repsL||0} · R: ${s.weightR||0}${wLabel}×${s.repsR||0}</div>`
+      ).join('')}</div>`;
+    }
+    if (s0.repsL !== undefined) {
+      const w = data.weight || 0;
+      return `<div class="sd-sets"><div class="sd-set" style="margin-bottom:4px;">${w}${wLabel}</div>${data.sets.map((s, i) =>
+        `<div class="sd-set"><span class="sd-num">${i+1}</span> L: ${s.repsL} · R: ${s.repsR}</div>`
+      ).join('')}</div>`;
+    }
+    // Standard weight×reps
+    const validSets = data.sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0);
+    if (validSets.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
+    return `<div class="sd-sets">${validSets.map((s, i) =>
+      `<div class="sd-set"><span class="sd-num">${i+1}</span> ${parseFloat(s.weight)||0}${wLabel} × ${s.reps}</div>`
+    ).join('')}</div>`;
+  }
+
   // ---- Session Detail View ----
   function renderSessionDetail(sessionIndex) {
     const sessions = Data.getSessions();
@@ -2895,11 +2941,11 @@ const Views = (function() {
       const ex = workout.exercises[parseInt(idx)];
       if (!ex || ex.isFence) continue;
       const displayName = Markdown.resolveDisplayName(ex, data);
-      const dataStr = formatExerciseDataCompact(data, ex);
+      const setsHtml = formatSetsReadable(data, ex);
       rows += `
         <div class="session-detail-item">
           <div class="session-detail-name">${displayName}</div>
-          <div class="session-detail-data">${dataStr}</div>
+          ${setsHtml}
           ${data.notes ? `<div class="session-detail-notes">${data.notes}</div>` : ''}
         </div>`;
     }
@@ -2969,21 +3015,10 @@ const Views = (function() {
         <h1>${exDef.name}</h1>
       </div>
       <div class="content">
-        <div class="history-cues" id="history-cues-block">
-          <div class="history-cues-label">Form Cues ${userCues !== null ? '<span style="font-weight:400;color:var(--text3);">(custom)</span>' : ''}</div>
-          <div class="history-cues-text" id="cues-display">${displayCues || '<span style="color:var(--text3);">No cues yet — tap Edit to add.</span>'}</div>
-          <div class="btn-row" id="cues-view-btns">
-            <button class="btn btn-secondary" style="flex:1;font-size:0.8rem;" onclick="Views.editCues('${exerciseId}')">Edit cues</button>
-            ${userCues !== null ? `<button class="btn btn-secondary" style="flex:none;font-size:0.8rem;color:var(--red);border-color:var(--red);" onclick="Views.resetCues('${exerciseId}')">Reset</button>` : ''}
-          </div>
-          <div id="cues-edit-area" style="display:none;">
-            <textarea id="cues-editor">${displayCues}</textarea>
-            <div class="btn-row">
-              <button class="btn btn-primary" style="flex:1;font-size:0.8rem;" onclick="Views.saveCues('${exerciseId}')">Save</button>
-              <button class="btn btn-secondary" style="flex:1;font-size:0.8rem;" onclick="Views.cancelEditCues('${exerciseId}')">Cancel</button>
-            </div>
-          </div>
-        </div>
+        ${displayCues ? `<div class="history-cues">
+          <div class="history-cues-label">Form Cues</div>
+          <div class="history-cues-text">${displayCues}</div>
+        </div>` : ''}
 
         <div class="summary-section">
           <h3>Recent Sessions (${history.length})</h3>
@@ -2997,30 +3032,6 @@ const Views = (function() {
       </div>`;
   }
 
-  function editCues(exerciseId) {
-    document.getElementById('cues-display').style.display = 'none';
-    document.getElementById('cues-view-btns').style.display = 'none';
-    document.getElementById('cues-edit-area').style.display = 'block';
-    document.getElementById('cues-editor').focus();
-  }
-
-  function cancelEditCues(exerciseId) {
-    document.getElementById('cues-display').style.display = '';
-    document.getElementById('cues-view-btns').style.display = '';
-    document.getElementById('cues-edit-area').style.display = 'none';
-  }
-
-  function saveCues(exerciseId) {
-    const text = document.getElementById('cues-editor').value;
-    Data.saveUserCues(exerciseId, text);
-    renderExerciseHistory(exerciseId);
-  }
-
-  function resetCues(exerciseId) {
-    if (!confirm('Reset to default cues? Your custom cues will be removed.')) return;
-    Data.saveUserCues(exerciseId, '');
-    renderExerciseHistory(exerciseId);
-  }
 
   function copyNotesHistory(exerciseId) {
     const history = State.getExerciseHistory(exerciseId);
@@ -3041,7 +3052,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, _triggerAutoSave, _updateSledDerived, renderSessionDetail, renderExerciseHistory, editCues, cancelEditCues, saveCues, resetCues, copyNotesHistory };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, _triggerAutoSave, _updateSledDerived, renderSessionDetail, renderExerciseHistory, copyNotesHistory };
 })();
 
 // =====================================================
