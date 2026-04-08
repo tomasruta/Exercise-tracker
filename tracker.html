@@ -299,6 +299,41 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .timer-past-goal { color: var(--green); font-weight: 800; }
 .timer-goal-flash { animation: goalFlash 0.5s ease-out 3; }
 @keyframes goalFlash { 0%, 100% { background: transparent; } 50% { background: var(--green-bg); } }
+.time-adjust { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+.time-adjust-btn {
+  padding: 6px 14px; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+  border: 1px solid var(--border); background: var(--bg-input); color: var(--text2);
+  cursor: pointer; min-height: 36px;
+}
+.time-adjust-btn:active { background: var(--border); }
+
+/* ===== PEEK VIEW ===== */
+.peek-section {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; margin-top: 16px; overflow: hidden;
+}
+.peek-toggle {
+  display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; font-weight: 600; font-size: 0.85rem;
+  background: none; border: none; width: 100%; text-align: left;
+  color: var(--text2); padding: 10px 14px;
+}
+.peek-toggle::after { content: '▼'; font-size: 0.65rem; color: var(--text3); transition: transform 0.2s; }
+.peek-section.collapsed .peek-toggle::after { transform: rotate(-90deg); }
+.peek-body { border-top: 1px solid var(--border); }
+.peek-section.collapsed .peek-body { display: none; }
+.peek-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  cursor: pointer; font-size: 0.85rem;
+}
+.peek-row:last-child { border-bottom: none; }
+.peek-row:active { background: var(--bg-input); }
+.peek-num { font-size: 0.75rem; color: var(--text3); min-width: 20px; text-align: right; }
+.peek-name { flex: 1; font-weight: 500; }
+.peek-meta { font-size: 0.75rem; color: var(--text3); }
+.peek-fence { padding: 8px 14px; font-size: 0.75rem; color: var(--fence-color); font-weight: 600; border-bottom: 1px solid var(--border); }
+.peek-fence:last-child { border-bottom: none; }
 
 /* ===== COMPLETION TOGGLES ===== */
 .completion-row {
@@ -1907,7 +1942,7 @@ const Views = (function() {
             <span class="timer-display${timeL >= seconds ? ' timer-past-goal' : ''}" id="timer-l">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
             <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
-              onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.getElementById('done-l').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${seconds});}">
+              onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.getElementById('done-l').value='true';document.getElementById('time-adjust-l').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${seconds});}">
               ${doneL ? 'DONE' : 'START'}
             </button>
           </div>
@@ -1916,7 +1951,7 @@ const Views = (function() {
             <span class="timer-display${timeR >= seconds ? ' timer-past-goal' : ''}" id="timer-r">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
             <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
-              onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.getElementById('done-r').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${seconds});}">
+              onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.getElementById('done-r').value='true';document.getElementById('time-adjust-r').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${seconds});}">
               ${doneR ? 'DONE' : 'START'}
             </button>
           </div>
@@ -1924,6 +1959,18 @@ const Views = (function() {
           <input type="hidden" id="done-r" value="${doneR}">
           <input type="hidden" id="time-l" value="${timeL}">
           <input type="hidden" id="time-r" value="${timeR}">
+          <div class="time-adjust" id="time-adjust-l" style="${doneL ? '' : 'display:none'}">
+            <span style="font-size:0.75rem;color:var(--text3);font-weight:600;">L</span>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',60)">+1min</button>
+          </div>
+          <div class="time-adjust" id="time-adjust-r" style="${doneR ? '' : 'display:none'}">
+            <span style="font-size:0.75rem;color:var(--text3);font-weight:600;">R</span>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',60)">+1min</button>
+          </div>
         </div>`;
     }
     const done = existingData?.done || false;
@@ -1934,9 +1981,14 @@ const Views = (function() {
           <span class="timer-display${time >= seconds ? ' timer-past-goal' : ''}" id="timer-main">${done && time ? Timer.formatTime(time) : '0:00'}</span>
           <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
           <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
-            onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.getElementById('done-main').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${seconds});}">
+            onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.getElementById('done-main').value='true';document.getElementById('time-adjust-main').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${seconds});}">
             ${done ? 'DONE' : 'START'}
           </button>
+        </div>
+        <div class="time-adjust" id="time-adjust-main" style="${done ? '' : 'display:none'}">
+          <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',-30)">−30s</button>
+          <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',30)">+30s</button>
+          <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',60)">+1min</button>
         </div>
         <input type="hidden" id="done-main" value="${done}">
         <input type="hidden" id="time-main" value="${time}">
@@ -1960,18 +2012,30 @@ const Views = (function() {
               <span class="timer-display${timeL >= s ? ' timer-past-goal' : ''}" id="timer-l">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
               <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
               <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
-                onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.querySelector('.completion-toggle[data-side=L]').classList.add('done');document.querySelector('.completion-toggle[data-side=L] .check-box').textContent='✅';document.getElementById('done-l').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${s});}">${doneL ? 'DONE' : 'START'}</button>
+                onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.querySelector('.completion-toggle[data-side=L]').classList.add('done');document.querySelector('.completion-toggle[data-side=L] .check-box').textContent='✅';document.getElementById('done-l').value='true';document.getElementById('time-adjust-l').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${s});}">${doneL ? 'DONE' : 'START'}</button>
             </div>
             <div class="timer-row">
               <span class="timer-side">R</span>
               <span class="timer-display${timeR >= s ? ' timer-past-goal' : ''}" id="timer-r">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
               <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
               <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
-                onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.querySelector('.completion-toggle[data-side=R]').classList.add('done');document.querySelector('.completion-toggle[data-side=R] .check-box').textContent='✅';document.getElementById('done-r').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${s});}">${doneR ? 'DONE' : 'START'}</button>
+                onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.querySelector('.completion-toggle[data-side=R]').classList.add('done');document.querySelector('.completion-toggle[data-side=R] .check-box').textContent='✅';document.getElementById('done-r').value='true';document.getElementById('time-adjust-r').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${s});}">${doneR ? 'DONE' : 'START'}</button>
             </div>
           </div>
           <input type="hidden" id="time-l" value="${timeL}">
-          <input type="hidden" id="time-r" value="${timeR}">`;
+          <input type="hidden" id="time-r" value="${timeR}">
+          <div class="time-adjust" id="time-adjust-l" style="${doneL ? '' : 'display:none'}">
+            <span style="font-size:0.75rem;color:var(--text3);font-weight:600;">L</span>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',60)">+1min</button>
+          </div>
+          <div class="time-adjust" id="time-adjust-r" style="${doneR ? '' : 'display:none'}">
+            <span style="font-size:0.75rem;color:var(--text3);font-weight:600;">R</span>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',60)">+1min</button>
+          </div>`;
       }
       return `
         <div class="completion-row">
@@ -1998,7 +2062,12 @@ const Views = (function() {
             <span class="timer-display${time >= ex.timerSeconds ? ' timer-past-goal' : ''}" id="timer-main">${done && time ? Timer.formatTime(time) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(ex.timerSeconds)}</span>
             <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
-              onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.querySelector('.completion-toggle').classList.add('done');document.querySelector('.completion-toggle .check-box').textContent='✅';document.getElementById('done-main').value='true';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${ex.timerSeconds});}">${done ? 'DONE' : 'START'}</button>
+              onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.querySelector('.completion-toggle').classList.add('done');document.querySelector('.completion-toggle .check-box').textContent='✅';document.getElementById('done-main').value='true';document.getElementById('time-adjust-main').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${ex.timerSeconds});}">${done ? 'DONE' : 'START'}</button>
+          </div>
+          <div class="time-adjust" id="time-adjust-main" style="${done ? '' : 'display:none'}">
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',60)">+1min</button>
           </div>
         </div>
         <input type="hidden" id="time-main" value="${time}">`;
@@ -2087,6 +2156,44 @@ const Views = (function() {
     if (_currentRenderCtx) {
       renderExercise(_currentRenderCtx.workoutId, _currentRenderCtx.exIndex);
     }
+  }
+
+  // ---- Peek view: upcoming exercises ----
+  function renderPeekView(workout, currentExIndex) {
+    const remaining = [];
+    let exNum = 0;
+    for (let i = 0; i < workout.exercises.length; i++) {
+      const ex = workout.exercises[i];
+      if (ex.isFence) {
+        if (i > currentExIndex) remaining.push({ isFence: true, note: ex.fenceNote });
+        continue;
+      }
+      exNum++;
+      if (i <= currentExIndex) continue;
+      const effEx = getEffectiveExercise(ex);
+      const tt = getEffectiveTrackingType(ex);
+      let meta = '';
+      if (tt === 'duration' || tt === 'completion') meta = ex.reps;
+      else if (tt === 'sled') meta = 'Sled';
+      else meta = `${effEx.sets}×${effEx.reps}`;
+      const completion = State.getExerciseCompletionStatus(i, ex.sets);
+      const done = completion.status === 'complete' ? ' ✅' : '';
+      remaining.push({ index: i, num: exNum, name: ex.name, meta, flow: ex.flow, done });
+    }
+    if (remaining.length === 0) return '';
+    const rows = remaining.map(r => {
+      if (r.isFence) return `<div class="peek-fence">🥤 ${r.note}</div>`;
+      return `<div class="peek-row" onclick="Views.saveAndBack(${workout.id}, ${currentExIndex});setTimeout(()=>Router.go('/w/${workout.id}/e/${r.index}'),50)">
+        <span class="peek-num">${r.num}</span>
+        <span class="peek-name">${r.name}${r.done}</span>
+        <span class="peek-meta">${r.meta}${r.flow === 'SS' ? ' <span class="badge badge-ss" style="font-size:0.6rem;">SS</span>' : ''}</span>
+      </div>`;
+    }).join('');
+    return `
+      <div class="peek-section collapsed" id="peek-section">
+        <button class="peek-toggle" onclick="document.getElementById('peek-section').classList.toggle('collapsed')">Up next (${remaining.filter(r => !r.isFence).length} remaining)</button>
+        <div class="peek-body">${rows}</div>
+      </div>`;
   }
 
   // ---- Main exercise detail view ----
@@ -2182,6 +2289,7 @@ const Views = (function() {
         <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
           oninput="Views._triggerAutoSave()">${existingNotes}</textarea>
         <div id="progression-banner"></div>
+        ${renderPeekView(workout, exIndex)}
       </div>
       <div class="save-bar">
         <span class="auto-saved" id="auto-save-status">Auto-saved</span>
@@ -2197,6 +2305,18 @@ const Views = (function() {
     });
 
     if (existingData) Views.updateBanner(ex);
+  }
+
+  // Adjust recorded time for a completed hold timer
+  function adjustTime(timerId, delta) {
+    const timeInput = document.getElementById(timerId.replace('timer-', 'time-'));
+    if (!timeInput) return;
+    const current = parseInt(timeInput.value) || 0;
+    const newTime = Math.max(0, current + delta);
+    timeInput.value = newTime;
+    const display = document.getElementById(timerId);
+    if (display) display.textContent = Timer.formatTime(newTime);
+    _triggerAutoSave();
   }
 
   // Trigger auto-save using stored context
@@ -2639,7 +2759,7 @@ const Views = (function() {
     renderSettings();
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, _triggerAutoSave, _updateSledDerived };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, _triggerAutoSave, _updateSledDerived };
 })();
 
 // =====================================================
