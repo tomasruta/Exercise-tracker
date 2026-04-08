@@ -1191,8 +1191,8 @@ const Markdown = (function() {
         const repValues = validSets.map(s => parseInt(s.reps)).filter(r => !isNaN(r));
         const over = repValues.filter(r => r > high);
         const under = repValues.filter(r => r < low);
-        if (over.length > 0) md += `  - ⬆️ ${over.length} set${over.length > 1 ? 's' : ''} above target ${high}\n`;
-        if (under.length > 0) md += `  - ⬇️ ${under.length} set${under.length > 1 ? 's' : ''} below target ${low}\n`;
+        if (over.length > 0) md += `  - ⬆️ ${over.length} set${over.length > 1 ? 's' : ''} above target ${high} reps\n`;
+        if (under.length > 0) md += `  - ⬇️ ${under.length} set${under.length > 1 ? 's' : ''} below target ${low} reps\n`;
       }
 
       md += formatNotes(data.notes);
