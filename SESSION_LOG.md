@@ -1,5 +1,20 @@
 # Session Log
 
+## 2026-04-08 — Session 6: Peek View + Adjust Time
+
+**Built:**
+- Peek view: collapsible "Up next (N remaining)" section on exercise detail screen. Shows remaining exercises with number, name, sets×reps, superset badges, completion checkmarks, and malto fences. Tap any row to navigate directly.
+- Adjust time buttons: −30s / +30s / +1min appear after any hold timer finishes (DONE state). Works for duration and completion types, both unilateral (L/R labeled) and regular. Also visible when returning to already-completed exercises.
+
+**Decisions:**
+- Peek view collapsed by default to keep exercise screen uncluttered
+- Adjust buttons include −30s for corrections (not just +30s/+1min)
+- Peek row tap auto-saves current exercise before navigating
+
+**Next:**
+- Form cues update workflow
+- Service worker for true offline PWA
+
 ## 2026-04-06 — Initial Build + Session Management
 
 **Built:**

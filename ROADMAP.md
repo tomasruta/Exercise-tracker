@@ -4,8 +4,6 @@
 (nothing active)
 
 ## Next
-- [ ] Peek view: upcoming exercises list while on exercise screen (swipe/tap to see remaining exercises, equipment needed, supersets)
-- [ ] Adjust time post-exercise: "+30s", "+1min", "+custom" buttons after timed exercises
 - [ ] Form cues update workflow (bigger discussion — how to incorporate session notes into permanent cues)
 - [ ] Consider service worker for true offline PWA
 
@@ -62,3 +60,5 @@
 - [x] Timer: 2.5rem display + green flash animation at target time
 - [x] Variant fallback rep scheme: ham curl (seated/prone) → 3×10-12 instead of Nordic's 5×5
 - [x] kg label consistency in split_weight and split_reps renderers
+- [x] Peek view: collapsible "Up next" list on exercise detail screen with remaining exercises, completion status, tap-to-navigate
+- [x] Adjust time: −30s / +30s / +1min buttons after timed exercises (duration + completion, unilateral + regular)
