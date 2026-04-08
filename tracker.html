@@ -286,7 +286,8 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
 }
 .timer-side { font-weight: 600; font-size: 0.85rem; color: var(--text2); min-width: 44px; }
-.timer-display { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; flex: 1; text-align: center; }
+.partial-status { font-size: 0.75rem; color: var(--amber); font-weight: 600; }
+.timer-display { font-size: 2.5rem; font-weight: 700; font-variant-numeric: tabular-nums; flex: 1; text-align: center; }
 .timer-btn {
   padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;
   border: none; cursor: pointer; min-height: 40px; min-width: 72px;
@@ -295,7 +296,9 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .timer-btn-pause { background: var(--amber); color: #fff; }
 .timer-btn-done { background: var(--green-bg); color: var(--green); }
 .timer-goal { font-size: 0.85rem; color: var(--text-secondary); font-weight: 400; margin-left: 4px; }
-.timer-past-goal { color: var(--green); }
+.timer-past-goal { color: var(--green); font-weight: 800; }
+.timer-goal-flash { animation: goalFlash 0.5s ease-out 3; }
+@keyframes goalFlash { 0%, 100% { background: transparent; } 50% { background: var(--green-bg); } }
 
 /* ===== COMPLETION TOGGLES ===== */
 .completion-row {
@@ -404,8 +407,8 @@ const VARIANTS = {
   ],
   nordicCurl: [
     { id: 'nordic', label: 'Nordic curl', trackingType: 'weight_reps', isDefault: true },
-    { id: 'ham-curl-seated', label: 'Ham curl (seated)', trackingType: 'weight_reps', isDefault: false },
-    { id: 'ham-curl-prone', label: 'Ham curl (prone)', trackingType: 'weight_reps', isDefault: false }
+    { id: 'ham-curl-seated', label: 'Ham curl (seated)', trackingType: 'weight_reps', isDefault: false, sets: 3, reps: '10-12', repRange: [10, 12], progressionType: 'compound' },
+    { id: 'ham-curl-prone', label: 'Ham curl (prone)', trackingType: 'weight_reps', isDefault: false, sets: 3, reps: '10-12', repRange: [10, 12], progressionType: 'compound' }
   ]
 };
 
@@ -757,22 +760,36 @@ const State = (function() {
     return wip.exercises[exIndex];
   }
 
-  function isExerciseLogged(exIndex) {
-    if (!wip || !wip.exercises[exIndex]) return false;
+  function getExerciseCompletionStatus(exIndex, expectedSets) {
+    if (!wip || !wip.exercises[exIndex]) return { status: 'none', filled: 0, total: expectedSets || 0 };
     const data = wip.exercises[exIndex];
-    // Completion type: check if done/doneL/doneR is set
-    if (data.done || data.doneL || data.doneR) return true;
-    // Sled: check if any set has lengths
-    if (data.sets && data.sets.some(s => s.lengths)) return true;
-    // Weight/distance: check if any set has distance
-    if (data.sets && data.sets.some(s => s.distance)) return true;
-    // Standard/unilateral: check reps
-    if (data.sets && data.sets.some(s => {
-      if (s.reps !== null && s.reps !== undefined && s.reps !== '') return true;
-      if (s.repsL !== null && s.repsL !== undefined && s.repsL !== '') return true;
-      return false;
-    })) return true;
-    return false;
+
+    // Completion type (done/doneL/doneR)
+    if (data.done !== undefined && data.doneL === undefined) {
+      return { status: data.done ? 'complete' : 'none', filled: data.done ? 1 : 0, total: 1 };
+    }
+    if (data.doneL !== undefined) {
+      const filled = (data.doneL ? 1 : 0) + (data.doneR ? 1 : 0);
+      return { status: filled === 2 ? 'complete' : filled > 0 ? 'partial' : 'none', filled, total: 2 };
+    }
+
+    // Set-based types
+    if (!data.sets || data.sets.length === 0) return { status: 'none', filled: 0, total: expectedSets || 0 };
+
+    const total = expectedSets || data.sets.length;
+    let filled = 0;
+    for (const s of data.sets) {
+      if (s.lengths) { filled++; continue; }
+      if (s.distance) { filled++; continue; }
+      if (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) { filled++; continue; }
+      if (s.repsL !== null && s.repsL !== undefined && s.repsL !== '') { filled++; continue; }
+    }
+    const status = filled === 0 ? 'none' : filled >= total ? 'complete' : 'partial';
+    return { status, filled, total };
+  }
+
+  function isExerciseLogged(exIndex) {
+    return getExerciseCompletionStatus(exIndex).status !== 'none';
   }
 
   function finishSession() {
@@ -819,7 +836,7 @@ const State = (function() {
     return null;
   }
 
-  return { init, startSession, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, finishSession, abandonSession, getLastEntry };
+  return { init, startSession, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry };
 })();
 
 // =====================================================
@@ -942,6 +959,19 @@ const Markdown = (function() {
     return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  function resolveDisplayName(ex, data) {
+    if (!data.variant || !ex.variants) return ex.name;
+    const variant = ex.variants.find(v => v.id === data.variant);
+    if (!variant || variant.isDefault) return ex.name;
+    return variant.label;
+  }
+
+  function formatNotes(notes) {
+    if (!notes) return '';
+    const lines = notes.split('\n').filter(l => l.trim());
+    return lines.map((line, i) => i === 0 ? `  - ${line}\n` : `    ${line}\n`).join('');
+  }
+
   function exportSession(session) {
     const workout = PROGRAMME.find(w => w.id === session.workoutId);
     if (!workout) return '';
@@ -956,19 +986,24 @@ const Markdown = (function() {
       const ex = workout.exercises[parseInt(idx)];
       if (!ex || ex.isFence) continue;
 
-      const variantStr = data.variant ? ` [${data.variant}]` : '';
+      const displayName = resolveDisplayName(ex, data);
+      const wLabel = ex.weightLabel || 'kg';
+      // Resolve variant overrides for repRange
+      const activeVariant = data.variant && ex.variants ? ex.variants.find(v => v.id === data.variant) : null;
+      const effectiveRepRange = activeVariant?.repRange || ex.repRange;
 
       // Duration/completion exercises
       if (data.done !== undefined || data.doneL !== undefined) {
         if (data.doneL !== undefined) {
           const tL = data.timeL ? `(${data.timeL}s)` : '';
           const tR = data.timeR ? `(${data.timeR}s)` : '';
-          md += `- **${ex.name}**${variantStr} — L${data.doneL ? '✅' : '—'}${tL} R${data.doneR ? '✅' : '—'}${tR}\n`;
+          md += `- **${displayName}** — L${data.doneL ? '✅' : '—'}${tL} R${data.doneR ? '✅' : '—'}${tR}\n`;
         } else {
           const t = data.time ? `(${data.time}s)` : '';
-          md += `- **${ex.name}**${variantStr} — ${data.done ? '✅' : '—'}${t}\n`;
+          md += `- **${displayName}** — ${data.done ? '✅' : '—'}${t}\n`;
         }
-        if (data.notes) md += `  - ${data.notes}\n`;
+        md += formatNotes(data.notes);
+        md += '\n';
         continue;
       }
 
@@ -980,52 +1015,88 @@ const Markdown = (function() {
         const sledLength = Data.getSledLength();
         for (const s of data.sets) {
           const dist = s.lengths * sledLength;
-          md += `- **${ex.name}**${variantStr} — 1×[${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}] @ ${s.weight||0}kg (length = ${sledLength}m, total ~${Math.round(dist)}m)\n`;
+          md += `- **${displayName}** — 1×[${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}] @ ${s.weight||0}kg (length = ${sledLength}m, total ~${Math.round(dist)}m)\n`;
         }
-        if (data.notes) md += `  - ${data.notes}\n`;
+        md += formatNotes(data.notes);
+        md += '\n';
         continue;
       }
 
       // Weight/distance (farmer's carry)
       if (s0.distance !== undefined) {
-        const setsStr = data.sets.filter(s => s.distance).map(s => s.distance + 'm').join(',');
-        const weight = s0.weight || 0;
-        md += `- **${ex.name}**${variantStr} — ${data.sets.length}×[${setsStr}] @ ${weight}${ex.weightLabel || 'kg'}\n`;
-        if (data.notes) md += `  - ${data.notes}\n`;
+        const validSets = data.sets.filter(s => s.distance);
+        const weights = validSets.map(s => s.weight || 0);
+        const allSameWeight = weights.every(w => w === weights[0]);
+        let setsStr, weightStr;
+        if (allSameWeight) {
+          setsStr = validSets.map(s => s.distance + 'm').join(', ');
+          weightStr = ` @ ${weights[0]}${wLabel}`;
+        } else {
+          setsStr = validSets.map(s => `${s.distance}m @${s.weight||0}`).join(', ');
+          weightStr = ` ${wLabel}`;
+        }
+        md += `- **${displayName}** — ${validSets.length}×[${setsStr}]${weightStr}\n`;
+        md += formatNotes(data.notes);
+        md += '\n';
         continue;
       }
 
       // Unilateral split_weight
       if (s0.weightL !== undefined) {
-        const setsStr = data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L${s.repsL}/R${s.repsR}`).join(',');
-        md += `- **${ex.name}**${variantStr} — ${ex.sets}×[${setsStr}] @ L:${s0.weightL}kg R:${s0.weightR}kg\n`;
-        if (data.notes) md += `  - ${data.notes}\n`;
+        const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
+        const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+        const allSameW = validSets.every(s => s.weightL === validSets[0].weightL && s.weightR === validSets[0].weightR);
+        const wStr = allSameW
+          ? ` @ L:${validSets[0]?.weightL||0}${wLabel} R:${validSets[0]?.weightR||0}${wLabel}`
+          : ` @ varies`;
+        md += `- **${displayName}** — ${validSets.length}×[${setsStr}]${wStr}\n`;
+        md += formatNotes(data.notes);
+        md += '\n';
         continue;
       }
 
       // Unilateral split_reps
       if (s0.repsL !== undefined) {
-        const setsStr = data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L${s.repsL}/R${s.repsR}`).join(',');
+        const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
+        const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
         const weight = data.weight || s0.weight || 0;
-        md += `- **${ex.name}**${variantStr} — ${ex.sets}×[${setsStr}] @ ${weight}kg\n`;
-        if (data.notes) md += `  - ${data.notes}\n`;
+        md += `- **${displayName}** — ${validSets.length}×[${setsStr}] @ ${weight}${wLabel}\n`;
+        md += formatNotes(data.notes);
+        md += '\n';
         continue;
       }
 
-      // Standard weight×reps or reps_only
-      const setsStr = data.sets
-        .filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '')
-        .map(s => s.reps)
-        .join(',');
+      // Standard weight×reps or reps_only — filter empty/zero sets
+      const validSets = data.sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0);
+      if (validSets.length === 0) continue;
 
-      const weight = s0.weight;
-      const weightStr = weight ? ` @ ${weight}kg` : ' @ BW';
+      const weights = validSets.map(s => s.weight || 0);
+      const allSameWeight = weights.every(w => w === weights[0]);
+      let setsStr, weightStr;
+      if (allSameWeight) {
+        setsStr = validSets.map(s => s.reps).join(', ');
+        weightStr = weights[0] ? ` @ ${weights[0]}${wLabel}` : ' @ BW';
+      } else {
+        setsStr = validSets.map(s => `${s.reps} @${s.weight||0}`).join(', ');
+        weightStr = ` ${wLabel}`;
+      }
 
-      md += `- **${ex.name}**${variantStr} — ${ex.sets}×[${setsStr}]${weightStr}\n`;
-      if (data.notes) md += `  - ${data.notes}\n`;
+      md += `- **${displayName}** — ${validSets.length}×[${setsStr}]${weightStr}\n`;
+
+      // Flag rep discrepancies vs target range
+      if (effectiveRepRange) {
+        const [low, high] = effectiveRepRange;
+        const repValues = validSets.map(s => parseInt(s.reps)).filter(r => !isNaN(r));
+        const over = repValues.filter(r => r > high);
+        const under = repValues.filter(r => r < low);
+        if (over.length > 0) md += `  - ⬆️ ${over.length} set${over.length > 1 ? 's' : ''} above target ${high}\n`;
+        if (under.length > 0) md += `  - ⬇️ ${under.length} set${under.length > 1 ? 's' : ''} below target ${low}\n`;
+      }
+
+      md += formatNotes(data.notes);
+      md += '\n';
     }
 
-    md += '\n';
     return md;
   }
 
@@ -1042,7 +1113,7 @@ const Markdown = (function() {
     return md;
   }
 
-  // Build lookup map for fuzzy matching (includes old names via aliases)
+  // Build lookup map for fuzzy matching (includes old names via aliases + variant labels)
   function buildLookup() {
     const map = {};
     for (const w of PROGRAMME) {
@@ -1051,6 +1122,13 @@ const Markdown = (function() {
         if (ex.isFence) continue;
         const norm = ex.name.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!map[norm]) map[norm] = { id: ex.id, name: ex.name };
+        // Add variant labels so exported variant names can be re-imported
+        if (ex.variants) {
+          for (const v of ex.variants) {
+            const vNorm = v.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!map[vNorm]) map[vNorm] = { id: ex.id, name: ex.name, variantId: v.id };
+          }
+        }
       }
     }
     // Add old names that map to new IDs
@@ -1194,9 +1272,21 @@ const Markdown = (function() {
             }
           }
 
-          // 7. Standard weight×reps: 5×[6,8,6] @ 50kg or @ BW
+          // 7a. Per-set weights: 3×[6 @41.3, 6 @40, 6 @38] kg
           if (!parsed) {
-            const stdMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)kg/);
+            const perSetMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*(\w+)?/);
+            if (perSetMatch && perSetMatch[2].includes('@')) {
+              const entries = perSetMatch[2].split(',').map(e => {
+                const parts = e.trim().split(/\s*@/);
+                return { reps: parseInt(parts[0]) || parts[0].trim(), weight: parseFloat(parts[1]) || 0 };
+              });
+              parsed = { sets: entries };
+            }
+          }
+
+          // 7b. Standard weight×reps: 5×[6,8,6] @ 50kg or @ BW
+          if (!parsed) {
+            const stdMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*([\d.]+)/);
             const bwMatch = rest.match(/^(\d+)×\[([^\]]+)\]\s*@\s*BW/);
             const m = stdMatch || bwMatch;
             if (m) {
@@ -1213,7 +1303,9 @@ const Markdown = (function() {
             const exIdx = workout.exercises.findIndex(e => e.id === matched_.id);
             if (exIdx >= 0) {
               parsed.notes = '';
+              // Variant from brackets OR from variant-label match
               if (variantId) parsed.variant = variantId;
+              else if (matched_.variantId) parsed.variant = matched_.variantId;
               session.exercises[exIdx] = parsed;
               currentExNotes = exIdx;
               matched++;
@@ -1391,6 +1483,8 @@ const Timer = (function() {
         if (elapsed >= goalSeconds && !holdTimers[id].beeped) {
           holdTimers[id].beeped = true;
           el.classList.add('timer-past-goal');
+          const row = el.closest('.timer-row');
+          if (row) row.classList.add('timer-goal-flash');
           beep();
           vibrate();
         }
@@ -1581,8 +1675,10 @@ const Views = (function() {
   }
 
   function renderExRow(ex, index, num, workoutId) {
-    const logged = State.isExerciseLogged(index);
-    const statusIcon = logged ? '✅' : '';
+    const completion = State.getExerciseCompletionStatus(index, ex.sets);
+    const statusIcon = completion.status === 'complete' ? '✅'
+      : completion.status === 'partial' ? `<span class="partial-status">${completion.filled}/${completion.total}</span>`
+      : '';
     const lastEntry = State.getLastEntry(ex.id);
     const trackingType = getEffectiveTrackingType(ex);
 
@@ -1629,6 +1725,19 @@ const Views = (function() {
   function getEffectiveTrackingType(ex) {
     const variant = getActiveVariant(ex);
     return variant?.trackingType || ex.trackingType || 'weight_reps';
+  }
+
+  function getEffectiveExercise(ex) {
+    const variant = getActiveVariant(ex);
+    if (!variant) return ex;
+    return {
+      ...ex,
+      trackingType: variant.trackingType || ex.trackingType,
+      sets: variant.sets !== undefined ? variant.sets : ex.sets,
+      reps: variant.reps !== undefined ? variant.reps : ex.reps,
+      repRange: variant.repRange || ex.repRange,
+      progressionType: variant.progressionType || ex.progressionType,
+    };
   }
 
   function getStructuredCues(ex) {
@@ -1729,6 +1838,7 @@ const Views = (function() {
   }
 
   function renderSplitWeightSets(ex, existingData, preFill) {
+    const wLabel = ex.weightLabel || 'kg';
     const rLabel = ex.repsLabel || 'reps';
     let html = '';
     for (let s = 0; s < ex.sets; s++) {
@@ -1742,13 +1852,13 @@ const Views = (function() {
           <div class="uni-set-label">Set ${s + 1}</div>
           <div class="uni-side-row">
             <span class="uni-side-label">L</span>
-            <input type="number" class="set-input wl-input" inputmode="decimal" step="0.5" placeholder="kg" value="${wL}" data-set="${s}">
+            <input type="number" class="set-input wl-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${wL}" data-set="${s}">
             <span class="set-x">×</span>
             <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rL}" data-set="${s}">
           </div>
           <div class="uni-side-row">
             <span class="uni-side-label">R</span>
-            <input type="number" class="set-input wr-input" inputmode="decimal" step="0.5" placeholder="kg" value="${wR}" data-set="${s}">
+            <input type="number" class="set-input wr-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${wR}" data-set="${s}">
             <span class="set-x">×</span>
             <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rR}" data-set="${s}">
           </div>
@@ -1758,12 +1868,13 @@ const Views = (function() {
   }
 
   function renderSplitRepsSets(ex, existingData, preFill) {
+    const wLabel = ex.weightLabel || 'kg';
     const rLabel = ex.repsLabel || 'reps';
     const sharedWeight = existingData?.weight ?? (preFill.weight || 0);
     let html = `
       <div class="split-reps-weight">
         <label>Weight (both sides)</label>
-        <input type="number" class="set-input shared-weight-input" inputmode="decimal" step="0.5" placeholder="kg" value="${sharedWeight}" style="max-width:140px;">
+        <input type="number" class="set-input shared-weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${sharedWeight}" style="max-width:140px;">
         ${preFill.bumped && !existingData ? `<div class="bump-note" style="padding-left:0;">Auto-bumped from ${preFill.from}kg</div>` : ''}
       </div>`;
     for (let s = 0; s < ex.sets; s++) {
@@ -1990,10 +2101,11 @@ const Views = (function() {
 
     const totalEx = workout.exercises.filter(e => !e.isFence).length;
     const exNum = workout.exercises.slice(0, exIndex + 1).filter(e => !e.isFence).length;
+    const effEx = getEffectiveExercise(ex);
     const trackingType = getEffectiveTrackingType(ex);
     const lastEntry = State.getLastEntry(ex.id);
     const existingData = State.getExerciseData(exIndex);
-    const preFill = Progression.getPreFill(ex.id, ex);
+    const preFill = Progression.getPreFill(ex.id, effEx);
 
     // Form cues — structured (FORM_CUES) or plain text fallback
     let cuesHtml = '';
@@ -2031,23 +2143,23 @@ const Views = (function() {
       chopHtml = `<div class="chop-direction" onclick="Views.toggleChopDirection()">${label} <span style="font-weight:400;font-size:0.8rem;color:var(--text3);">(${session})</span></div>`;
     }
 
-    // Type-specific inputs
+    // Type-specific inputs (use effEx for set counts and rep ranges)
     let inputsHtml = '';
     switch (trackingType) {
       case 'duration':
-        inputsHtml = renderDurationExercise(ex, existingData); break;
+        inputsHtml = renderDurationExercise(effEx, existingData); break;
       case 'completion':
-        inputsHtml = renderCompletionExercise(ex, existingData); break;
+        inputsHtml = renderCompletionExercise(effEx, existingData); break;
       case 'sled':
-        inputsHtml = renderSledSets(ex, existingData); break;
+        inputsHtml = renderSledSets(effEx, existingData); break;
       case 'weight_distance':
-        inputsHtml = renderWeightDistanceSets(ex, existingData, preFill); break;
+        inputsHtml = renderWeightDistanceSets(effEx, existingData, preFill); break;
       case 'reps_only':
-        inputsHtml = renderRepsOnlySets(ex, existingData, preFill); break;
+        inputsHtml = renderRepsOnlySets(effEx, existingData, preFill); break;
       case 'weight_reps': default:
-        if (ex.unilateral === 'split_weight') inputsHtml = renderSplitWeightSets(ex, existingData, preFill);
-        else if (ex.unilateral === 'split_reps') inputsHtml = renderSplitRepsSets(ex, existingData, preFill);
-        else inputsHtml = renderWeightRepsSets(ex, existingData, preFill);
+        if (effEx.unilateral === 'split_weight') inputsHtml = renderSplitWeightSets(effEx, existingData, preFill);
+        else if (effEx.unilateral === 'split_reps') inputsHtml = renderSplitRepsSets(effEx, existingData, preFill);
+        else inputsHtml = renderWeightRepsSets(effEx, existingData, preFill);
         break;
     }
 
@@ -2060,7 +2172,7 @@ const Views = (function() {
       </div>
       <div class="content ex-detail">
         <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}</div>
-        <div class="ex-target">${ex.sets} × ${ex.reps}${ex.repRange ? ` (range: ${ex.repRange[0]}-${ex.repRange[1]})` : ''}</div>
+        <div class="ex-target">${effEx.sets} × ${effEx.reps}${effEx.repRange ? ` (range: ${effEx.repRange[0]}-${effEx.repRange[1]})` : ''}</div>
         ${ssInfo}
         ${variantHtml}
         ${chopHtml}
@@ -2111,6 +2223,7 @@ const Views = (function() {
     if (!workout) return;
     const ex = workout.exercises[exIndex];
     if (!ex) return;
+    const effEx = getEffectiveExercise(ex);
     const trackingType = getEffectiveTrackingType(ex);
     const notes = document.getElementById('ex-notes')?.value || '';
     const variant = getActiveVariant(ex);
@@ -2119,7 +2232,7 @@ const Views = (function() {
 
     switch (trackingType) {
       case 'duration': {
-        if (ex.unilateral) {
+        if (effEx.unilateral) {
           data.doneL = document.getElementById('done-l')?.value === 'true';
           data.doneR = document.getElementById('done-r')?.value === 'true';
           const tL = parseInt(document.getElementById('time-l')?.value) || 0;
@@ -2134,7 +2247,7 @@ const Views = (function() {
         break;
       }
       case 'completion': {
-        if (ex.unilateral) {
+        if (effEx.unilateral) {
           data.doneL = document.getElementById('done-l')?.value === 'true';
           data.doneR = document.getElementById('done-r')?.value === 'true';
           const tL = parseInt(document.getElementById('time-l')?.value) || 0;
@@ -2150,7 +2263,7 @@ const Views = (function() {
       }
       case 'sled': {
         data.sets = [];
-        for (let s = 0; s < (ex.sets || 1); s++) {
+        for (let s = 0; s < (effEx.sets || 1); s++) {
           const w = document.querySelector(`.sled-weight[data-set="${s}"]`);
           const l = document.querySelector(`.sled-lengths[data-set="${s}"]`);
           const t = document.querySelector(`.sled-time[data-set="${s}"]`);
@@ -2167,7 +2280,7 @@ const Views = (function() {
       }
       case 'weight_distance': {
         data.sets = [];
-        for (let s = 0; s < ex.sets; s++) {
+        for (let s = 0; s < effEx.sets; s++) {
           const w = document.querySelector(`.wd-weight[data-set="${s}"]`);
           const d = document.querySelector(`.wd-distance[data-set="${s}"]`);
           data.sets.push({
@@ -2179,16 +2292,16 @@ const Views = (function() {
       }
       case 'reps_only': {
         data.sets = [];
-        for (let s = 0; s < ex.sets; s++) {
+        for (let s = 0; s < effEx.sets; s++) {
           const r = document.querySelector(`.reps-input[data-set="${s}"]`);
           data.sets.push({ reps: r ? (r.value === '' ? '' : parseInt(r.value) || r.value) : '' });
         }
         break;
       }
       case 'weight_reps': default: {
-        if (ex.unilateral === 'split_weight') {
+        if (effEx.unilateral === 'split_weight') {
           data.sets = [];
-          for (let s = 0; s < ex.sets; s++) {
+          for (let s = 0; s < effEx.sets; s++) {
             data.sets.push({
               weightL: parseFloat(document.querySelector(`.wl-input[data-set="${s}"]`)?.value) || 0,
               repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
@@ -2196,10 +2309,10 @@ const Views = (function() {
               repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
             });
           }
-        } else if (ex.unilateral === 'split_reps') {
+        } else if (effEx.unilateral === 'split_reps') {
           data.weight = parseFloat(document.querySelector('.shared-weight-input')?.value) || 0;
           data.sets = [];
-          for (let s = 0; s < ex.sets; s++) {
+          for (let s = 0; s < effEx.sets; s++) {
             data.sets.push({
               repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
               repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
@@ -2207,7 +2320,7 @@ const Views = (function() {
           }
         } else {
           data.sets = [];
-          for (let s = 0; s < ex.sets; s++) {
+          for (let s = 0; s < effEx.sets; s++) {
             const wInput = document.querySelector(`.weight-input[data-set="${s}"]`);
             const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
             data.sets.push({
@@ -2238,24 +2351,25 @@ const Views = (function() {
   function updateBanner(exercise) {
     const bannerEl = document.getElementById('progression-banner');
     if (!bannerEl) return;
+    const effEx = getEffectiveExercise(exercise);
     const trackingType = getEffectiveTrackingType(exercise);
     if (trackingType !== 'weight_reps' && trackingType !== 'reps_only') { bannerEl.innerHTML = ''; return; }
 
     const sets = [];
-    if (exercise.unilateral === 'split_reps') {
-      for (let s = 0; s < exercise.sets; s++) {
+    if (effEx.unilateral === 'split_reps') {
+      for (let s = 0; s < effEx.sets; s++) {
         const rl = document.querySelector(`.rl-input[data-set="${s}"]`);
         const rr = document.querySelector(`.rr-input[data-set="${s}"]`);
         if (rl?.value && rr?.value) sets.push({ repsL: rl.value, repsR: rr.value });
       }
     } else {
-      for (let s = 0; s < exercise.sets; s++) {
+      for (let s = 0; s < effEx.sets; s++) {
         const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
         if (rInput?.value) sets.push({ reps: rInput.value });
       }
     }
 
-    const banner = Progression.getBanner(sets, exercise);
+    const banner = Progression.getBanner(sets, effEx);
     if (!banner) { bannerEl.innerHTML = ''; return; }
     const cls = banner.type === 'green' ? 'banner-green' : banner.type === 'amber' ? 'banner-amber' : 'banner-atg';
     const icon = banner.type === 'green' ? '✅ ' : banner.type === 'amber' ? '⚠️ ' : '💡 ';
