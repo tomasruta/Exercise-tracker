@@ -4,12 +4,17 @@
 (nothing active)
 
 ## Next
+- [ ] Peek view: upcoming exercises list while on exercise screen (swipe/tap to see remaining exercises, equipment needed, supersets)
+- [ ] Adjust time post-exercise: "+30s", "+1min", "+custom" buttons after timed exercises
+- [ ] Form cues update workflow (bigger discussion — how to incorporate session notes into permanent cues)
 - [ ] Consider service worker for true offline PWA
 
 ## Later
 - [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
 - [ ] Split_reps double progression banner (per-side status: L ready / R not yet)
 - [ ] Cross-exercise trend tracking (idea: visual progression across sessions)
+- [ ] Equipment variant selector for more exercises (back squat: Smith vs free bar, hack squat: machine vs barbell)
+- [ ] Variant prefillReps should match variant's rep range (currently inherits base exercise's prefill)
 
 ## Ideas
 - [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
@@ -49,3 +54,11 @@
 - [x] Delete individual sessions from history
 - [x] Stretch hold timer: count-up timer records actual hold time (was preset countdown only)
 - [x] Markdown export/import round-trip for hold times: `L✅(52s) R✅(65s)`
+- [x] Post-gym-session UX overhaul (Session 5): export formatting, checkmark logic, timer size, variant rep schemes
+- [x] Export: per-set weights, multi-line notes indentation, zero set filtering, Obsidian-friendly formatting
+- [x] Export: variant display names replace bracket syntax, rep discrepancy flags
+- [x] Import: per-set weight format + variant label matching (round-trip verified)
+- [x] Checkmark: exercise-level ✅ only on full completion, partial shows "2/5" in amber
+- [x] Timer: 2.5rem display + green flash animation at target time
+- [x] Variant fallback rep scheme: ham curl (seated/prone) → 3×10-12 instead of Nordic's 5×5
+- [x] kg label consistency in split_weight and split_reps renderers

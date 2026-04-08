@@ -133,3 +133,38 @@
 - Service worker for true offline PWA
 - Split_reps double progression banner (per-side L/R status)
 - Cross-exercise trend tracking (idea)
+
+## 2026-04-08 (Session 5) — Post-Gym-Session UX Overhaul
+
+**Context:** User's first real gym session with the app (W1, 7 April 2026). Exported session to Obsidian and reported multiple friction points.
+
+**Built:**
+- Export: per-set weight display when weights differ across sets (`5×[6 @41.3, 6 @40, 6 @38]`)
+- Export: multi-line notes properly indented (4-space continuation) for Obsidian readability
+- Export: empty/zero sets filtered out (was showing `5×[15,15,20,0,0]` for 3 actual sets)
+- Export: blank line between exercises for clean Obsidian rendering
+- Export: variant display name replaces bracket syntax — "Ham curl (seated)" not "Nordic curl [ham-curl-seated]" (brackets triggered Obsidian internal link rendering in purple)
+- Export: rep discrepancy flags (`⬆️ 3 sets above target 12` / `⬇️ below target`)
+- Import: new per-set weight format parser + variant label→exercise ID matching with auto-variant detection
+- Checkmark: ✅ only on full exercise completion (all sets filled). Partial shows `2/5` in amber.
+- Timer: display enlarged to 2.5rem (was 1.5rem) for gym readability
+- Timer: green flash animation on `.timer-row` when hold timer reaches goal time
+- Variant fallback rep scheme: ham curl (seated/prone) → `sets: 3, reps: '10-12', repRange: [10, 12]` overrides Nordic's 5×5
+- `getEffectiveExercise()` helper threads variant overrides through renderers, autoSave, updateBanner, and export
+- kg label: fixed hardcoded `placeholder="kg"` in split_weight and split_reps renderers (now uses `ex.weightLabel || 'kg'`)
+
+**Verified:**
+- Export round-trip: varying weights preserved, variant labels matched on import, notes indented
+- Variant switching: Nordic curl → Ham curl (seated) shows 3 sets at 10-12 range (was 5 sets at 5)
+- No JS errors in preview
+
+**Decisions:**
+- Per-set weight format: `reps @weight` inside brackets — compact, machine-parseable, import-compatible
+- Variant names in export replace exercise name entirely (not appended or bracketed) — cleaner for Obsidian
+- Deferred: peek view, adjust time post-exercise, form cues workflow, equipment variants for more exercises
+
+**Next:**
+- Peek view (upcoming exercises list while on exercise screen)
+- Adjust time post-exercise (+30s / +1min buttons)
+- Form cues update workflow (how to incorporate session notes into permanent cues)
+- Equipment variant expansion (back squat: Smith vs free bar, hack squat: machine vs barbell)
