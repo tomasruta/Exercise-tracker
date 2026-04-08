@@ -1,25 +1,36 @@
 # ATG Gym Workout Tracker — Roadmap
 
-## Now
+> **Two separate tracks** — see CLAUDE.md for details.
+> - **Tracker app**: features, UX, bugs, architecture (this roadmap, logged in SESSION_LOG.md)
+> - **Form cues content**: updating exercise cues from session notes (⚠️ prompt user first — no changes planned right now)
+
+---
+
+## Tracker App
+
+### Now
 (nothing active)
 
-## Next
+### Next
 - [ ] Consider service worker for true offline PWA
 
-## Ideas — Form Cues Workflow
-- [ ] **Preferred flow**: Update canonical cues via Claude Code → push to GitHub Pages → auto-syncs to phone. Better than in-app editing because cues live in source of truth (HTML file), not scattered in localStorage. User exports session notes to Obsidian, reviews with AI, then asks Claude Code to update cues in FORM_CUES/PROGRAMME constants.
-- [ ] In-app editable cues (already built) remain as fallback for quick gym-side tweaks
-- [ ] Bulk cue import: paste structured cues from AI review into Claude Code to update multiple exercises at once
-
-## Later
+### Later
 - [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
 - [ ] Split_reps double progression banner (per-side status: L ready / R not yet)
 - [ ] Cross-exercise trend tracking (idea: visual progression across sessions)
 - [ ] Equipment variant selector for more exercises (back squat: Smith vs free bar, hack squat: machine vs barbell)
 - [ ] Variant prefillReps should match variant's rep range (currently inherits base exercise's prefill)
 
-## Ideas
+### Ideas
 - [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
+
+---
+
+## Form Cues Content (separate track — prompt user before starting)
+
+- [ ] **Preferred flow**: Update canonical cues via Claude Code → push to GitHub Pages → auto-syncs to phone. User exports session notes to Obsidian, reviews with AI, then asks Claude Code to update cues in FORM_CUES/PROGRAMME constants.
+- [ ] In-app editable cues (already built) remain as fallback for quick gym-side tweaks
+- [ ] Bulk cue import: paste structured cues from AI review into Claude Code to update multiple exercises at once
 
 ## Done
 - [x] Export bug fix: robust per-set weight comparison with parseFloat + floating-point tolerance
