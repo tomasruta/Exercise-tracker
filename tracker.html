@@ -88,6 +88,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   min-height: 64px; transition: background 0.15s;
 }
 .workout-btn:active { background: var(--bg-input); }
+.workout-next { border-color: var(--accent); border-width: 2px; box-shadow: 0 0 0 1px var(--accent); }
 .workout-id {
   font-size: 1.3rem; font-weight: 700; color: var(--accent);
   min-width: 40px;
@@ -780,6 +781,26 @@ const Data = (function() {
     localStorage.setItem(VARIANT_PREFIX + exerciseId, variantId);
   }
 
+  const GYM_LIST_KEY = 'gym-gym-list';
+  const GYM_LAST_KEY = 'gym-last-gym';
+  const DEFAULT_GYM = 'Max Fitness Flora Praha';
+
+  function getGymList() {
+    try {
+      const list = JSON.parse(localStorage.getItem(GYM_LIST_KEY));
+      if (Array.isArray(list) && list.length > 0) return list;
+    } catch {}
+    return [DEFAULT_GYM];
+  }
+  function saveGymList(list) { localStorage.setItem(GYM_LIST_KEY, JSON.stringify(list)); }
+  function getLastGym() { return localStorage.getItem(GYM_LAST_KEY) || getGymList()[0]; }
+  function setLastGym(name) { localStorage.setItem(GYM_LAST_KEY, name); }
+  function addGym(name) {
+    const list = getGymList();
+    if (!list.includes(name)) { list.push(name); saveGymList(list); }
+    setLastGym(name);
+  }
+
   const CHOP_KEY = 'gym-chop-direction';
   function getChopDirection() { return localStorage.getItem(CHOP_KEY) || 'hi_lo'; }
   function setChopDirection(dir) { localStorage.setItem(CHOP_KEY, dir); }
@@ -793,7 +814,7 @@ const Data = (function() {
     else localStorage.removeItem(`gym-cues-${exerciseId}`);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues };
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym };
 })();
 
 // =====================================================
@@ -814,6 +835,7 @@ const State = (function() {
       exercises: {},
       overall: '',
       injuries: '',
+      gym: Data.getLastGym(),
     };
     Data.saveWIP(wip);
     return wip;
@@ -829,10 +851,11 @@ const State = (function() {
     Data.saveWIP(wip);
   }
 
-  function updateSessionNotes(overall, injuries) {
+  function updateSessionNotes(overall, injuries, gym) {
     if (!wip) return;
     wip.overall = overall;
     wip.injuries = injuries;
+    if (gym !== undefined) { wip.gym = gym; Data.setLastGym(gym); }
     Data.saveWIP(wip);
   }
 
@@ -1080,9 +1103,10 @@ const Markdown = (function() {
 
     let md = `## ${formatDate(session.date)} — Workout ${workout.id} (${workout.name})\n\n`;
 
+    if (session.gym) md += `**Gym:** ${session.gym}\n`;
     if (session.overall) md += `**Overall:** ${session.overall}\n`;
     if (session.injuries) md += `**Injuries:** ${session.injuries}\n`;
-    if (session.overall || session.injuries) md += '\n';
+    if (session.gym || session.overall || session.injuries) md += '\n';
 
     for (const [idx, data] of Object.entries(session.exercises)) {
       const ex = workout.exercises[parseInt(idx)];
@@ -1287,10 +1311,12 @@ const Markdown = (function() {
       const workout = PROGRAMME.find(w => w.id === workoutId);
       if (!workout) continue;
 
-      const session = { workoutId, date, startedAt: '', exercises: {}, overall: '', injuries: '' };
+      const session = { workoutId, date, startedAt: '', exercises: {}, overall: '', injuries: '', gym: '' };
 
-      // Parse overall/injuries
+      // Parse gym/overall/injuries
       for (const line of lines) {
+        const gymMatch = line.match(/\*\*Gym:\*\*\s*(.+)/);
+        if (gymMatch) session.gym = gymMatch[1];
         const overallMatch = line.match(/\*\*Overall:\*\*\s*(.+)/);
         if (overallMatch) session.overall = overallMatch[1];
         const injuryMatch = line.match(/\*\*Injur\w*:\*\*\s*(.+)/);
@@ -1645,6 +1671,13 @@ const Timer = (function() {
 const Views = (function() {
   const app = document.getElementById('app');
 
+  function getNextWorkoutId() {
+    const sessions = Data.getSessions();
+    if (sessions.length === 0) return 1;
+    const lastWorkoutId = sessions[sessions.length - 1].workoutId;
+    return (lastWorkoutId % PROGRAMME.length) + 1;
+  }
+
   function renderHome() {
     const wip = State.getWIP();
     let wipBanner = '';
@@ -1673,21 +1706,25 @@ const Views = (function() {
         </div>`;
     }
 
+    const nextId = wip ? null : getNextWorkoutId();
+
     app.innerHTML = `
       <div class="content">
         <h1 style="font-size:1.5rem;margin-bottom:20px;">Exercise Tracker</h1>
         ${wipBanner}
         ${unexportedBanner}
         <div class="workout-grid">
-          ${PROGRAMME.map(w => `
-            <button class="workout-btn" onclick="Router.go('/w/${w.id}')">
+          ${PROGRAMME.map(w => {
+            const isNext = !wip && w.id === nextId;
+            return `
+            <button class="workout-btn${isNext ? ' workout-next' : ''}" onclick="Router.go('/w/${w.id}')">
               <span class="workout-id">W${w.id}</span>
               <div class="workout-info">
-                <span class="workout-name">${w.name}</span>
+                <span class="workout-name">${w.name}${isNext ? ' <span style="font-size:0.7rem;font-weight:700;color:var(--accent);vertical-align:middle;margin-left:4px;">NEXT</span>' : ''}</span>
                 <span class="workout-sub">${w.subtitle} · ${w.exercises.filter(e => !e.isFence).length} exercises</span>
               </div>
-            </button>
-          `).join('')}
+            </button>`;
+          }).join('')}
         </div>
         <div class="home-actions">
           <button class="btn btn-secondary" onclick="Router.go('/settings')">Settings & History</button>
@@ -1763,12 +1800,20 @@ const Views = (function() {
         <div class="workout-notes">
           <label>How did it feel overall?</label>
           <textarea class="notes-field" id="overall-notes" placeholder="Speak or type..."
-            oninput="State.updateSessionNotes(this.value, document.getElementById('injury-notes').value)"
+            oninput="Views._syncSessionNotes()"
           >${wipData?.overall || ''}</textarea>
           <label>Injuries / concerns</label>
           <textarea class="notes-field" id="injury-notes" placeholder="Any pain, tweaks, flags..."
-            oninput="State.updateSessionNotes(document.getElementById('overall-notes').value, this.value)"
+            oninput="Views._syncSessionNotes()"
           >${wipData?.injuries || ''}</textarea>
+          <label>Gym</label>
+          <div style="display:flex;gap:8px;">
+            <select class="notes-field" id="gym-select" style="min-height:48px;padding:10px;flex:1;"
+              onchange="if(this.value==='__add_new__'){Views._addNewGym();}else{Views._syncSessionNotes();}">
+              ${Data.getGymList().map(g => `<option value="${g}" ${g === (wipData?.gym || Data.getLastGym()) ? 'selected' : ''}>${g}</option>`).join('')}
+              <option value="__add_new__">+ Add new gym…</option>
+            </select>
+          </div>
         </div>
         <div style="margin-top:16px;padding-bottom:20px;">
           <button class="btn btn-success" onclick="Views.finishWorkout(${workoutId})">Finish & Copy Session</button>
@@ -2711,6 +2756,7 @@ const Views = (function() {
           <div style="color:var(--text2);margin-top:4px;">${Markdown.formatDate(session.date)}</div>
         </div>
 
+        ${session.gym ? `<div style="text-align:center;font-size:0.85rem;color:var(--text2);margin-bottom:12px;">📍 ${session.gym}</div>` : ''}
         ${session.overall ? `<div class="summary-section"><h3>Overall</h3><div class="summary-item">${session.overall}</div></div>` : ''}
         ${session.injuries ? `<div class="summary-section"><h3>Injuries / Concerns</h3><div class="summary-item" style="color:var(--amber);">${session.injuries}</div></div>` : ''}
 
@@ -3019,7 +3065,7 @@ const Views = (function() {
       <div class="content">
         <div class="summary-section">
           <h3>W${session.workoutId} — ${Markdown.formatDate(session.date)}</h3>
-          <div style="font-size:0.8rem;color:var(--text3);margin-bottom:12px;">${workout.name} · ${Object.keys(session.exercises).length} exercises</div>
+          <div style="font-size:0.8rem;color:var(--text3);margin-bottom:12px;">${workout.name} · ${Object.keys(session.exercises).length} exercises${session.gym ? ` · ${session.gym}` : ''}</div>
           ${session.overall ? `<div style="margin-bottom:8px;"><strong>Overall:</strong> ${session.overall}</div>` : ''}
           ${session.injuries ? `<div style="margin-bottom:8px;"><strong>Injuries:</strong> ${session.injuries}</div>` : ''}
           ${rows}
@@ -3113,7 +3159,29 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, _triggerAutoSave, _updateSledDerived, renderSessionDetail, renderExerciseHistory, copyNotesHistory };
+  function _syncSessionNotes() {
+    const overall = document.getElementById('overall-notes')?.value || '';
+    const injuries = document.getElementById('injury-notes')?.value || '';
+    const gymSel = document.getElementById('gym-select');
+    const gym = gymSel ? gymSel.value : undefined;
+    State.updateSessionNotes(overall, injuries, gym);
+  }
+
+  function _addNewGym() {
+    const name = prompt('Enter new gym name:');
+    if (name && name.trim()) {
+      Data.addGym(name.trim());
+      // Re-render to show updated select
+      const wip = State.getWIP();
+      if (wip) renderWorkout(wip.workoutId);
+    } else {
+      // Reset select to previous value
+      const gymSel = document.getElementById('gym-select');
+      if (gymSel) gymSel.value = State.getWIP()?.gym || Data.getLastGym();
+    }
+  }
+
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, _triggerAutoSave, _updateSledDerived, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym };
 })();
 
 // =====================================================
