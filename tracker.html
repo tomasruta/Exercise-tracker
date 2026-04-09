@@ -2195,7 +2195,7 @@ const Views = (function() {
       ${timerHtml}`;
   }
 
-  function renderSledSets(ex, existingData) {
+  function renderSledSets(ex, existingData, lastEntry) {
     const sledLength = Data.getSledLength();
     let html = `
       <div class="sled-persistent">
@@ -2209,8 +2209,9 @@ const Views = (function() {
     html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr 48px;"><span></span><span>kg</span><span>lengths</span><span>time</span><span></span></div>`;
     for (let s = 0; s < numSets; s++) {
       const existing = existingData?.sets?.[s];
-      const weight = existing?.weight ?? '';
-      const lengths = existing?.lengths ?? '';
+      const lastSet = lastEntry?.sets?.[s];
+      const weight = existing?.weight ?? (lastSet?.weight ?? '');
+      const lengths = existing?.lengths ?? (lastSet?.lengths ?? '');
       const timeStr = existing?.timeSeconds ? Timer.formatTime(existing.timeSeconds) : '';
       html += `
         <div class="sled-set-row">
@@ -2392,7 +2393,7 @@ const Views = (function() {
       case 'completion':
         inputsHtml = renderCompletionExercise(effEx, existingData); break;
       case 'sled':
-        inputsHtml = renderSledSets(effEx, existingData); break;
+        inputsHtml = renderSledSets(effEx, existingData, lastEntry); break;
       case 'weight_distance':
         inputsHtml = renderWeightDistanceSets(effEx, existingData, preFill); break;
       case 'reps_only':
@@ -2409,7 +2410,7 @@ const Views = (function() {
     app.innerHTML = `
       <div class="header">
         <button class="back-btn" onclick="Views.saveAndBack(${workoutId}, ${exIndex})">← Back</button>
-        <h1>W${workoutId} — ${exNum}/${totalEx}</h1>
+        <h1>W${workoutId} — ${exNum} out of ${totalEx}</h1>
       </div>
       <div class="content ex-detail">
         <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}</div>
@@ -2436,6 +2437,8 @@ const Views = (function() {
         Views._triggerAutoSave();
         Views.updateBanner(ex);
       });
+      // Select all on focus so tapping a pre-filled "0" lets you type immediately
+      input.addEventListener('focus', () => input.select());
     });
 
     if (existingData) Views.updateBanner(ex);
