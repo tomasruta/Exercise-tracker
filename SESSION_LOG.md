@@ -1,6 +1,27 @@
 # Session Log
 
-## 2026-04-09 (Session 4) — Exercise Merge + Progression Audit
+## 2026-04-09 (Session 5) — Per-Set Weight for Split Reps + W2 Reorder
+
+**Context:** User mid-workout on W2, reported that split_reps exercises (ATG split squat, ATG lunge) only had one shared weight input but weight changes every set.
+
+**Built:**
+- Per-set weight input for `split_reps` exercises: each set row now has its own weight field alongside L/R reps (was a single shared "Weight (both sides)" input)
+- New CSS grid layout for `.split-reps-row`: 6-column grid (set label, weight, L, L reps, R, R reps) with `.split-reps-header`
+- New `.sr-weight-input` class for per-set weight DOM queries
+- Backward compatible data loading: old format (`data.weight` as shared value) populates all per-set weight fields on render
+- Updated all display paths: `formatExerciseDataCompact`, `formatSetsReadable`, markdown export, last-session detail, exercise row meta — all handle both old (shared `data.weight`) and new (per-set `sets[].weight`) formats
+- W2 exercise reorder: RDL moved before ATG split squat, malto fence placed right after RDL
+
+**Decisions:**
+- Data format change: `{ weight: 10, sets: [{ repsL, repsR }] }` → `{ sets: [{ weight: 10, repsL, repsR }] }` — aligns with standard `weight_reps` per-set storage
+- Deployed mid-workout to `main` via GitHub Pages (user request) — localStorage data preserved since it's browser-local
+- Accepted RDL data loss on current WIP session due to index-based exercise storage shifting during reorder — user confirmed acceptable
+
+**Lesson learned:**
+- Reordering exercises mid-workout orphans WIP data (stored by array index, not exercise ID). Should warn user before pushing programme changes during active sessions.
+
+**Next:**
+- Nothing queued
 
 **Built:**
 - Merged "Dips" (W6) and "Weighted dips" (W2) into single `weighted-dips` exercise — shared history across workouts
