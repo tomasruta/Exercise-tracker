@@ -608,7 +608,7 @@ const PROGRAMME = [
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'pullup-overhand', name: 'Weighted pull-up (overhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Pronated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
-      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-overhand', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-overhand', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
       { id: 'scott-curl', name: 'Scott curl (Zottman)', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', variants: VARIANTS.scottCurl, formCues: '', notes: '', isNew: true }
     ]
   },
@@ -696,8 +696,8 @@ const PROGRAMME = [
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
       { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', progressionType: 'atg', prefillReps: 12, formCues: '', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'band-pull-apart', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
-      { id: 'pullup-neutral', name: 'Weighted neutral pull-up', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Neutral/hammer grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
-      { id: 'dips', name: 'Dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-neutral', repRange: [6, 8], progressionType: 'compound', formCues: '', notes: '' },
+      { id: 'pullup-neutral', name: 'Weighted neutral pull-up', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Neutral/hammer grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
+      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-neutral', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
       { id: 'cable-chop', name: 'Half-kneel cable chop', sets: 3, reps: '10/side', flow: 'SS', supersetWith: 'oh-tricep-ext', unilateral: 'split_weight', prefillReps: 10, formCues: '', notes: '', isNew: true },
       { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'cable-chop', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]

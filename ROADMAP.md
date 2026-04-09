@@ -23,6 +23,8 @@
 - [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
 
 ## Done
+- [x] Merged Dips + Weighted dips into single `weighted-dips` exercise (shared history across W2/W6)
+- [x] Double progression audit: weighted dips, pull-ups, chin-ups, neutral pull-ups all correctly wired (auto-bump +2.5kg when all sets hit top of 6-8 range)
 - [x] Export bug fix: robust per-set weight comparison with parseFloat + floating-point tolerance
 - [x] Session data viewer: tap session in Settings → per-exercise breakdown with raw data
 - [x] Exercise history page (#/exercise/{id}): cues + progression + notes + "Copy notes for AI review"
