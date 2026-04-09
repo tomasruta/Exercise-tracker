@@ -364,11 +364,13 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 }
 .uni-side-label { font-size: 0.75rem; font-weight: 700; color: var(--text3); text-align: center; }
 
-/* Split reps: shared weight + L/R reps */
-.split-reps-weight { margin-bottom: 12px; }
-.split-reps-weight label { font-size: 0.8rem; font-weight: 600; color: var(--text2); display: block; margin-bottom: 4px; }
+/* Split reps: per-set weight + L/R reps */
+.split-reps-header {
+  display: grid; grid-template-columns: 50px 1fr 24px 1fr 24px 1fr; gap: 6px;
+  padding: 0 0 6px; font-size: 0.75rem; color: var(--text3); font-weight: 600; text-transform: uppercase;
+}
 .split-reps-row {
-  display: grid; grid-template-columns: 50px 28px 1fr 28px 1fr; gap: 6px;
+  display: grid; grid-template-columns: 50px 1fr 24px 1fr 24px 1fr; gap: 6px;
   align-items: center; margin-bottom: 8px;
 }
 
@@ -1003,7 +1005,8 @@ const Progression = (function() {
     }
 
     if (exercise.unilateral === 'split_reps') {
-      const lastWeight = last.weight || last.sets[0]?.weight || 0;
+      // New format: per-set weight; old format: shared last.weight
+      const lastWeight = last.sets[0]?.weight ?? last.weight ?? 0;
       if (exercise.repRange && shouldAutoBump(last.sets, exercise.repRange, 'split_reps')) {
         const step = getWeightStep(exercise.progressionType);
         if (step > 0) {
@@ -1184,9 +1187,23 @@ const Markdown = (function() {
       // Unilateral split_reps
       if (s0.repsL !== undefined) {
         const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
-        const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
-        const weight = parseFloat(data.weight) || parseFloat(s0.weight) || 0;
-        md += `- **${displayName}** — ${validSets.length}×(${setsStr}) @ ${weight}${wLabel}\n`;
+        if (s0.weight !== undefined) {
+          // New format: per-set weight
+          const weights = validSets.map(s => parseFloat(s.weight) || 0);
+          const allSameW = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
+          if (allSameW) {
+            const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+            md += `- **${displayName}** — ${validSets.length}×(${setsStr}) @ ${weights[0]}${wLabel}\n`;
+          } else {
+            const setsStr = validSets.map(s => `${s.weight||0}${wLabel} L${s.repsL}/R${s.repsR}`).join(', ');
+            md += `- **${displayName}** — ${setsStr}\n`;
+          }
+        } else {
+          // Old format: shared weight
+          const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+          const weight = parseFloat(data.weight) || 0;
+          md += `- **${displayName}** — ${validSets.length}×(${setsStr}) @ ${weight}${wLabel}\n`;
+        }
         md += formatNotes(data.notes);
         md += '\n';
         continue;
@@ -1930,7 +1947,11 @@ const Views = (function() {
       if (s0.weightL !== undefined) {
         detail = lastEntry.sets.map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(', ');
       } else if (s0.repsL !== undefined) {
-        detail = `${lastEntry.weight||0}kg — ` + lastEntry.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+        if (s0.weight !== undefined) {
+          detail = lastEntry.sets.map(s => `${s.weight||0}kg L${s.repsL}/R${s.repsR}`).join(', ');
+        } else {
+          detail = `${lastEntry.weight||0}kg — ` + lastEntry.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+        }
       } else if (s0.lengths !== undefined) {
         detail = lastEntry.sets.map(s => `${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}`).join(', ');
       } else if (s0.distance !== undefined) {
@@ -2017,25 +2038,24 @@ const Views = (function() {
   function renderSplitRepsSets(ex, existingData, preFill) {
     const wLabel = ex.weightLabel || 'kg';
     const rLabel = ex.repsLabel || 'reps';
-    const sharedWeight = existingData?.weight ?? (preFill.weight || 0);
-    let html = `
-      <div class="split-reps-weight">
-        <label>Weight (both sides)</label>
-        <input type="number" class="set-input shared-weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${sharedWeight}" style="max-width:140px;">
-        ${preFill.bumped && !existingData ? `<div class="bump-note" style="padding-left:0;">Auto-bumped from ${preFill.from}kg</div>` : ''}
-      </div>`;
+    // Backward compat: old data has existingData.weight as shared value
+    const fallbackWeight = existingData?.weight ?? (preFill.weight || 0);
+    let html = `<div class="split-reps-header"><span></span><span>${wLabel}</span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
     for (let s = 0; s < ex.sets; s++) {
       const existing = existingData?.sets?.[s];
+      const weight = existing?.weight ?? fallbackWeight;
       const rL = existing?.repsL ?? (ex.prefillReps || '');
       const rR = existing?.repsR ?? (ex.prefillReps || '');
       html += `
         <div class="split-reps-row">
           <span class="set-label">Set ${s + 1}</span>
+          <input type="number" class="set-input sr-weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${weight}" data-set="${s}">
           <span class="uni-side-label">L</span>
           <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rL}" data-set="${s}">
           <span class="uni-side-label">R</span>
           <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rR}" data-set="${s}">
-        </div>`;
+        </div>
+        ${s === 0 && preFill.bumped && !existingData ? `<div class="bump-note">Auto-bumped from ${preFill.from}kg</div>` : ''}`;
     }
     return html;
   }
@@ -2432,7 +2452,7 @@ const Views = (function() {
       </div>`;
 
     // Add listeners for all inputs
-    document.querySelectorAll('.weight-input, .reps-input, .wl-input, .wr-input, .rl-input, .rr-input, .shared-weight-input, .sled-weight, .sled-lengths, .sled-time, .wd-weight, .wd-distance').forEach(input => {
+    document.querySelectorAll('.weight-input, .reps-input, .wl-input, .wr-input, .rl-input, .rr-input, .sr-weight-input, .sled-weight, .sled-lengths, .sled-time, .wd-weight, .wd-distance').forEach(input => {
       input.addEventListener('input', () => {
         Views._triggerAutoSave();
         Views.updateBanner(ex);
@@ -2567,10 +2587,10 @@ const Views = (function() {
             });
           }
         } else if (effEx.unilateral === 'split_reps') {
-          data.weight = parseFloat(document.querySelector('.shared-weight-input')?.value) || 0;
           data.sets = [];
           for (let s = 0; s < effEx.sets; s++) {
             data.sets.push({
+              weight: parseFloat(document.querySelector(`.sr-weight-input[data-set="${s}"]`)?.value) || 0,
               repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
               repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
             });
@@ -2979,6 +2999,15 @@ const Views = (function() {
       return data.sets.map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(', ');
     }
     if (s0.repsL !== undefined) {
+      // New format: per-set weight; old format: shared data.weight
+      if (s0.weight !== undefined) {
+        const weights = data.sets.map(s => parseFloat(s.weight) || 0);
+        const allSameW = weights.every(w => Math.abs(w - weights[0]) < 0.01);
+        if (allSameW) {
+          return `${weights[0]}${wLabel} — ` + data.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+        }
+        return data.sets.map(s => `${s.weight||0}${wLabel} L${s.repsL}/R${s.repsR}`).join(', ');
+      }
       return `${data.weight||0}${wLabel} — ` + data.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
     }
     // Standard weight×reps
@@ -3025,6 +3054,12 @@ const Views = (function() {
       ).join('')}</div>`;
     }
     if (s0.repsL !== undefined) {
+      // New format: per-set weight; old format: shared data.weight
+      if (s0.weight !== undefined) {
+        return `<div class="sd-sets">${data.sets.map((s, i) =>
+          `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.weight||0}${wLabel} · L: ${s.repsL} · R: ${s.repsR}</div>`
+        ).join('')}</div>`;
+      }
       const w = data.weight || 0;
       return `<div class="sd-sets"><div class="sd-set" style="margin-bottom:4px;">${w}${wLabel}</div>${data.sets.map((s, i) =>
         `<div class="sd-set"><span class="sd-num">${i+1}</span> L: ${s.repsL} · R: ${s.repsR}</div>`
