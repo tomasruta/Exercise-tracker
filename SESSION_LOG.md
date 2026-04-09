@@ -1,5 +1,28 @@
 # Session Log
 
+## 2026-04-09 (Session 4) — Exercise Merge + Progression Audit
+
+**Built:**
+- Merged "Dips" (W6) and "Weighted dips" (W2) into single `weighted-dips` exercise — shared history across workouts
+- Added form cues to weighted dips matching pull-up pattern
+- Fixed broken superset reference (W6 pullup-neutral → old `dips` ID)
+
+**Decisions:**
+- Single ID for dips across workouts = progression carries over (hit 3×8 in W2, auto-bumps in W6). Same pattern already used for RDL, incline press, etc.
+
+**Audit findings:**
+- Full review of all ~80 exercises across 6 workouts
+- 11 compound exercises (+2.5kg step) — all correct
+- 8 isolation exercises (+1kg step) — all correct
+- ~20 ATG exercises (form-based, no auto-bump) — all correct
+- ~15 no-progression exercises (duration, sled, completion, mobility) — all correct
+- Only bug found was the superset link (fixed)
+
+**Next:**
+- Nothing queued — tracker is clean
+
+---
+
 ## 2026-04-09 (Session 3) — Gym Tracking + Next Workout + UX Fixes
 
 **Built:**
