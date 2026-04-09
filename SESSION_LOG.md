@@ -1,5 +1,23 @@
 # Session Log
 
+## 2026-04-09 (Session 3) — Gym Tracking + Next Workout + UX Fixes
+
+**Built:**
+- Gym name tracking: dropdown selector on workout page (below Injuries/concerns), pre-selects last used gym, "Add new gym..." option. Stored in localStorage, included in markdown export (`**Gym:**`) and import. Default: Max Fitness Flora Praha.
+- Next workout indicator on home screen: blue accent border + NEXT badge on the workout button that follows the last completed session (W1→W2→...→W6→W1). Hidden when a session is in progress.
+- Sled exercise pre-fill: weight and lengths now pre-fill from last session (was the only exercise type missing pre-fill).
+- Zero-clearing on input focus: all number inputs auto-select on tap, so typing instantly replaces pre-filled "0" without manual deletion.
+- Exercise header readability: changed "W2 — 7/13" to "W2 — 7 out of 13".
+
+**Decisions:**
+- Gym selector placed after Injuries/concerns, before Finish button — bottom of workout page, low-friction location that doesn't slow down the main logging flow.
+- Next workout logic uses simple cycling (last session's workoutId % 6 + 1) — no complex scheduling needed since the programme is sequential W1→W6.
+- Sled pre-fill pulls directly from `lastEntry` (raw last session data) rather than the `Progression.getPreFill` system, since sled has no auto-bump logic.
+
+**Next:**
+- Test gym tracking end-to-end on iPhone (export round-trip, gym name persistence)
+- Consider service worker for offline PWA
+
 ## 2026-04-08 (Session 2) — Export Fix + Exercise History + Form Cues Workflow
 
 **Built:**

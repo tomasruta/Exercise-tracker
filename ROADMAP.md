@@ -3,6 +3,7 @@
 ## Now
 (nothing active)
 
+
 ## Next
 - [ ] Consider service worker for true offline PWA
 
@@ -79,3 +80,8 @@
 - [x] kg label consistency in split_weight and split_reps renderers
 - [x] Peek view: collapsible "Up next" list on exercise detail screen with remaining exercises, completion status, tap-to-navigate
 - [x] Adjust time: −30s / +30s / +1min buttons after timed exercises (duration + completion, unilateral + regular)
+- [x] Gym name tracking: selector on workout page, pre-selects last gym, "Add new gym" option, included in export/import
+- [x] Next workout indicator: blue border + NEXT badge on home screen, cycles W1→W6
+- [x] Sled pre-fill: weight and lengths from last session (was missing)
+- [x] Zero-clearing on focus: tapping pre-filled "0" auto-selects so typing replaces it
+- [x] Exercise header: "2/13" → "2 out of 13" for readability
