@@ -23,6 +23,8 @@
 - [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
 
 ## Done
+- [x] Session timing: live clock on workout page, duration on summary, time of day in export
+- [x] Manual timer override: tap completed timer display to enter custom seconds
 - [x] Merged Dips + Weighted dips into single `weighted-dips` exercise (shared history across W2/W6)
 - [x] Double progression audit: weighted dips, pull-ups, chin-ups, neutral pull-ups all correctly wired (auto-bump +2.5kg when all sets hit top of 6-8 range)
 - [x] Export bug fix: robust per-set weight comparison with parseFloat + floating-point tolerance

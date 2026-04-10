@@ -1,5 +1,25 @@
 # Session Log
 
+## 2026-04-10 (Session 6) — Session Timing + Manual Timer Override
+
+**Built:**
+- Live session clock on workout list view (`Started HH:MM · elapsed`) — ticks every second, auto-clears on route change
+- Session duration on summary screen (`HH:MM → HH:MM (Xh Ymin)`)
+- `**Time:**` line in markdown export (between Gym and Overall)
+- Manual timer override: tap completed timer display → prompt for custom seconds value
+- Timer helpers: `formatDuration(ms)` and `formatTimeOfDay(iso)` in Timer module
+- ROADMAP: merged trend line graph into cross-exercise trend tracking item
+
+**Decisions:**
+- Used existing `startedAt`/`completedAt` ISO timestamps — no data model changes needed
+- Session clock uses `window._sessionClockInterval` (global) so Views module can set it and Router module can clear it
+- Timer override uses `prompt()` — simple and works on iOS Safari; can upgrade to inline input later if needed
+- Time format: 24h (`en-GB`) to match Czech locale expectations
+
+**Verified:** Session clock ticking, summary shows times, markdown export includes Time line, iPhone SE viewport (375×667) — clock fits header without crowding
+
+**Next:** Trend line graph (Later in ROADMAP)
+
 ## 2026-04-09 (Session 5) — Per-Set Weight for Split Reps + W2 Reorder
 
 **Context:** User mid-workout on W2, reported that split_reps exercises (ATG split squat, ATG lunge) only had one shared weight input but weight changes every set.
