@@ -15,7 +15,7 @@
 ## Later
 - [ ] Programme rotation: when routine changes, regenerate PROGRAMME but keep IDs stable
 - [ ] Split_reps double progression banner (per-side status: L ready / R not yet)
-- [ ] Cross-exercise trend tracking (idea: visual progression across sessions)
+- [ ] Cross-exercise trend tracking with visual trend line graph (weight/reps progression over time per exercise)
 - [ ] Equipment variant selector for more exercises (back squat: Smith vs free bar, hack squat: machine vs barbell)
 - [ ] Variant prefillReps should match variant's rep range (currently inherits base exercise's prefill)
 

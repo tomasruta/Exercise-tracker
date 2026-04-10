@@ -1107,9 +1107,19 @@ const Markdown = (function() {
     let md = `## ${formatDate(session.date)} — Workout ${workout.id} (${workout.name})\n\n`;
 
     if (session.gym) md += `**Gym:** ${session.gym}\n`;
+    if (session.startedAt) {
+      const startTime = Timer.formatTimeOfDay(session.startedAt);
+      if (session.completedAt) {
+        const endTime = Timer.formatTimeOfDay(session.completedAt);
+        const durStr = Timer.formatDuration(new Date(session.completedAt) - new Date(session.startedAt));
+        md += `**Time:** ${startTime} → ${endTime} (${durStr})\n`;
+      } else {
+        md += `**Time:** ${startTime}\n`;
+      }
+    }
     if (session.overall) md += `**Overall:** ${session.overall}\n`;
     if (session.injuries) md += `**Injuries:** ${session.injuries}\n`;
-    if (session.gym || session.overall || session.injuries) md += '\n';
+    if (session.gym || session.startedAt || session.overall || session.injuries) md += '\n';
 
     for (const [idx, data] of Object.entries(session.exercises)) {
       const ex = workout.exercises[parseInt(idx)];
@@ -1679,7 +1689,18 @@ const Timer = (function() {
     Object.keys(stopwatches).forEach(k => delete stopwatches[k]);
   }
 
-  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, getHoldElapsed, isHoldActive, formatTime, cleanup, ensureAudio };
+  function formatDuration(ms) {
+    const totalMin = Math.floor(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h}h ${m}min` : `${m}min`;
+  }
+
+  function formatTimeOfDay(isoString) {
+    return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, ensureAudio };
 })();
 
 // =====================================================
@@ -1807,10 +1828,14 @@ const Views = (function() {
 
     const wipData = State.getWIP();
 
+    const startedAt = wipData?.startedAt;
+    const startTimeStr = startedAt ? Timer.formatTimeOfDay(startedAt) : '';
+
     app.innerHTML = `
       <div class="header">
         <button class="back-btn" onclick="Router.go('/')">← Home</button>
         <h1>W${workoutId} — ${workout.name}</h1>
+        ${startedAt ? `<div id="session-clock" style="font-size:0.8rem;color:var(--text2);margin-top:2px;">Started ${startTimeStr} · 0:00</div>` : ''}
       </div>
       <div class="content">
         <div class="exercise-list">${rows}</div>
@@ -1836,6 +1861,24 @@ const Views = (function() {
           <button class="btn btn-success" onclick="Views.finishWorkout(${workoutId})">Finish & Copy Session</button>
         </div>
       </div>`;
+
+    // Start session clock
+    if (startedAt) {
+      const startMs = new Date(startedAt).getTime();
+      function updateClock() {
+        const el = document.getElementById('session-clock');
+        if (!el) return;
+        const elapsed = Date.now() - startMs;
+        const totalSec = Math.floor(elapsed / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        const elapsedStr = h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+        el.textContent = `Started ${startTimeStr} · ${elapsedStr}`;
+      }
+      updateClock();
+      window._sessionClockInterval = setInterval(updateClock, 1000);
+    }
   }
 
   function renderExRow(ex, index, num, workoutId) {
@@ -2071,7 +2114,7 @@ const Views = (function() {
         <div class="timer-block">
           <div class="timer-row">
             <span class="timer-side">LEFT</span>
-            <span class="timer-display${timeL >= seconds ? ' timer-past-goal' : ''}" id="timer-l">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
+            <span class="timer-display${timeL >= seconds ? ' timer-past-goal' : ''}" id="timer-l" ${doneL ? `onclick="Views.setTimeManual('timer-l')" style="cursor:pointer;"` : ''}>${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
             <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
               onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.getElementById('done-l').value='true';document.getElementById('time-adjust-l').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${seconds});}">
@@ -2080,7 +2123,7 @@ const Views = (function() {
           </div>
           <div class="timer-row">
             <span class="timer-side">RIGHT</span>
-            <span class="timer-display${timeR >= seconds ? ' timer-past-goal' : ''}" id="timer-r">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
+            <span class="timer-display${timeR >= seconds ? ' timer-past-goal' : ''}" id="timer-r" ${doneR ? `onclick="Views.setTimeManual('timer-r')" style="cursor:pointer;"` : ''}>${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
             <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
               onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.getElementById('done-r').value='true';document.getElementById('time-adjust-r').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${seconds});}">
@@ -2110,7 +2153,7 @@ const Views = (function() {
     return `
       <div class="timer-block">
         <div class="timer-row">
-          <span class="timer-display${time >= seconds ? ' timer-past-goal' : ''}" id="timer-main">${done && time ? Timer.formatTime(time) : '0:00'}</span>
+          <span class="timer-display${time >= seconds ? ' timer-past-goal' : ''}" id="timer-main" ${done ? `onclick="Views.setTimeManual('timer-main')" style="cursor:pointer;"` : ''}>${done && time ? Timer.formatTime(time) : '0:00'}</span>
           <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
           <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
             onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.getElementById('done-main').value='true';document.getElementById('time-adjust-main').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${seconds});}">
@@ -2141,14 +2184,14 @@ const Views = (function() {
           <div class="timer-block" style="margin-top:12px;">
             <div class="timer-row">
               <span class="timer-side">L</span>
-              <span class="timer-display${timeL >= s ? ' timer-past-goal' : ''}" id="timer-l">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
+              <span class="timer-display${timeL >= s ? ' timer-past-goal' : ''}" id="timer-l" ${doneL ? `onclick="Views.setTimeManual('timer-l')" style="cursor:pointer;"` : ''}>${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
               <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
               <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
                 onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.querySelector('.completion-toggle[data-side=L]').classList.add('done');document.querySelector('.completion-toggle[data-side=L] .check-box').textContent='✅';document.getElementById('done-l').value='true';document.getElementById('time-adjust-l').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${s});}">${doneL ? 'DONE' : 'START'}</button>
             </div>
             <div class="timer-row">
               <span class="timer-side">R</span>
-              <span class="timer-display${timeR >= s ? ' timer-past-goal' : ''}" id="timer-r">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
+              <span class="timer-display${timeR >= s ? ' timer-past-goal' : ''}" id="timer-r" ${doneR ? `onclick="Views.setTimeManual('timer-r')" style="cursor:pointer;"` : ''}>${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
               <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
               <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
                 onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.querySelector('.completion-toggle[data-side=R]').classList.add('done');document.querySelector('.completion-toggle[data-side=R] .check-box').textContent='✅';document.getElementById('done-r').value='true';document.getElementById('time-adjust-r').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${s});}">${doneR ? 'DONE' : 'START'}</button>
@@ -2191,7 +2234,7 @@ const Views = (function() {
       timerHtml = `
         <div class="timer-block" style="margin-top:12px;">
           <div class="timer-row">
-            <span class="timer-display${time >= ex.timerSeconds ? ' timer-past-goal' : ''}" id="timer-main">${done && time ? Timer.formatTime(time) : '0:00'}</span>
+            <span class="timer-display${time >= ex.timerSeconds ? ' timer-past-goal' : ''}" id="timer-main" ${done ? `onclick="Views.setTimeManual('timer-main')" style="cursor:pointer;"` : ''}>${done && time ? Timer.formatTime(time) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(ex.timerSeconds)}</span>
             <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
               onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.querySelector('.completion-toggle').classList.add('done');document.querySelector('.completion-toggle .check-box').textContent='✅';document.getElementById('done-main').value='true';document.getElementById('time-adjust-main').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${ex.timerSeconds});}">${done ? 'DONE' : 'START'}</button>
@@ -2473,6 +2516,20 @@ const Views = (function() {
     timeInput.value = newTime;
     const display = document.getElementById(timerId);
     if (display) display.textContent = Timer.formatTime(newTime);
+    _triggerAutoSave();
+  }
+
+  function setTimeManual(timerId) {
+    const timeInput = document.getElementById(timerId.replace('timer-', 'time-'));
+    if (!timeInput) return;
+    const current = parseInt(timeInput.value) || 0;
+    const input = prompt('Enter time in seconds:', current);
+    if (input === null) return;
+    const val = parseInt(input);
+    if (isNaN(val) || val < 0) return;
+    timeInput.value = val;
+    const display = document.getElementById(timerId);
+    if (display) display.textContent = Timer.formatTime(val);
     _triggerAutoSave();
   }
 
@@ -2777,6 +2834,7 @@ const Views = (function() {
           <div style="font-size:2rem;">💪</div>
           <div style="font-size:1.1rem;font-weight:600;">W${session.workoutId} — ${workout.name}</div>
           <div style="color:var(--text2);margin-top:4px;">${Markdown.formatDate(session.date)}</div>
+          ${session.startedAt && session.completedAt ? `<div style="color:var(--text2);margin-top:4px;font-size:0.85rem;">${Timer.formatTimeOfDay(session.startedAt)} → ${Timer.formatTimeOfDay(session.completedAt)} (${Timer.formatDuration(new Date(session.completedAt) - new Date(session.startedAt))})</div>` : ''}
         </div>
 
         ${session.gym ? `<div style="text-align:center;font-size:0.85rem;color:var(--text2);margin-bottom:12px;">📍 ${session.gym}</div>` : ''}
@@ -3219,7 +3277,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, _triggerAutoSave, _updateSledDerived, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, _triggerAutoSave, _updateSledDerived, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym };
 })();
 
 // =====================================================
@@ -3251,7 +3309,12 @@ const Router = (function() {
     return { view: 'home' };
   }
 
+  function clearSessionClock() {
+    if (window._sessionClockInterval) { clearInterval(window._sessionClockInterval); window._sessionClockInterval = null; }
+  }
+
   function route() {
+    clearSessionClock();
     const r = parseHash();
     switch (r.view) {
       case 'workout': Views.renderWorkout(r.workoutId); break;
