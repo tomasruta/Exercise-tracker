@@ -9,7 +9,7 @@
 ## How to Run
 - Open `tracker.html` in any browser (works offline)
 - iPhone SE Safari is the primary target
-- File syncs across devices via iCloud/Google Drive
+- Deployed via GitHub Pages (tomasruta.github.io/Exercise-tracker/tracker.html)
 
 ## How to Test
 1. Open on iPhone Safari in airplane mode

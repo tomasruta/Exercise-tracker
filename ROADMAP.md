@@ -1,16 +1,10 @@
 # ATG Gym Workout Tracker — Roadmap
 
 ## Now
-(nothing active)
-
-## Recently Done (Session 8)
-- [x] Symlinked `strength-routine-2026-04-05.md` to `~/Documents/Health/Exercise/` (canonical copy)
-- [x] Updated CLAUDE.md with symlink section + on-session-start routine-check instructions
-- [x] Applied 6 routine changes: W2/W5 malto fence reorder (RDL pre-fence, split squat/lunge post-fence fuelled), calf stretch 2-position notation, reverse nordics BW-only, W6 Weighted dips, malto fence audit update
-
+- [ ] Service worker for true offline PWA (cold-start without signal)
 
 ## Next
-- [ ] Consider service worker for true offline PWA
+(nothing queued)
 
 ## Ideas — Form Cues Workflow
 - [ ] **Preferred flow**: Update canonical cues via Claude Code → push to GitHub Pages → auto-syncs to phone. Better than in-app editing because cues live in source of truth (HTML file), not scattered in localStorage. User exports session notes to Obsidian, reviews with AI, then asks Claude Code to update cues in FORM_CUES/PROGRAMME constants.
@@ -28,6 +22,11 @@
 - [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
 
 ## Done
+- [x] Session 6 spec amendments: W5 order fix (RDL→fence→ATG lunge), multi_timer calf stretch (4 positions), reps_only for reverse nordics/band pull-apart/lateral band walk/pigeon stretch, reps_only split_reps renderer
+- [x] Sled stopwatch readability fix: smaller font + wider button when running
+- [x] Symlinked `strength-routine-2026-04-05.md` to `~/Documents/Health/Exercise/` (canonical copy)
+- [x] Updated CLAUDE.md with symlink section + on-session-start routine-check instructions
+- [x] Applied 6 routine changes: W2/W5 malto fence reorder, calf stretch 2-position notation, reverse nordics BW-only, W6 Weighted dips, malto fence audit update
 - [x] Session timer start/stop: explicit Start Session button (no auto-start), End Session button locks timer, last-exercise prompt
 - [x] Home page: show last session date per workout, removed minutes/exercises subtitle
 - [x] Session timing: live clock on workout page, duration on summary, time of day in export

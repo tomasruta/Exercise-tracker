@@ -1,5 +1,33 @@
 # Session Log
 
+## 2026-04-11 (Session 9) — Spec Amendments + QA
+
+**Built:**
+- Applied all 8 changes from `gym-tracker-spec-amendment-session6.md`
+- W5 exercise order: RDL → MALTO FENCE → ATG lunge (was ATG lunge first)
+- Calf stretch (W2, W5): new `multi_timer` type — 4 sequential positions (L straight, L bent, R straight, R bent x 45s each, auto-advances between positions)
+- Reverse nordics (W4): `reps_only` — no weight field (bodyweight only)
+- Band pull-apart (W6): `reps_only` — no weight field
+- Lateral band walk (W3): `reps_only` with `split_reps` (L/R steps, prefill 15)
+- Pigeon stretch (W1, W4): `reps_only` with `split_reps` (L/R x 20)
+- New `renderRepsOnlySplitSets` renderer for L/R exercises without weight
+- Display names verified — all already correct (no changes needed)
+- Sled stopwatch: smaller font (0.85rem) + wider button (64px) when running for iPhone SE readability
+- Fixed CLAUDE.md: removed incorrect "iCloud/Google Drive sync" claim
+
+**QA verified (headless browse, 375x667 viewport):**
+- W3 lateral band walk: L/R steps with prefill 15, no weight field
+- W4 reverse nordics: reps-only (3x10, no kg), pigeon stretch: L/R reps (20/20, no kg)
+- W5 exercise order correct (RDL -> fence -> ATG lunge), calf stretch multi-timer shows 4 sequential positions
+- W6 band pull-apart: reps-only (3x12, no kg), display names correct
+
+**Decisions:**
+- Live Activities / Lock Screen timers not possible with static HTML + GitHub Pages — requires native iOS app with ActivityKit
+- Service worker for offline PWA moved to Now on roadmap (next session)
+
+**Next:**
+- Service worker for true offline PWA (separate session)
+
 ## 2026-04-11 (Session 8) — Symlink Setup + Routine Changes (Session 6 edits)
 
 **Built:**
