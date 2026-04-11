@@ -1,5 +1,23 @@
 # Session Log
 
+## 2026-04-11 (Session 11) — Timer Sounds
+
+**Built:**
+- Distinct start sound for all timers: ascending tone (440→880Hz, 0.2s) — audible "go!" cue
+- Distinct end sound for all timers: double beep (880Hz + 1100Hz, 0.4s) — clear "done!" signal
+- Applied to all 4 timer types: countdown, hold timer, stopwatch, multi-timer
+- Uses Web Audio API scheduling (audioCtx.currentTime) instead of setTimeout — more reliable timing
+
+**Decisions:**
+- Two distinct tones (ascending vs double-beep) so you can tell start from end without looking at the screen
+- Kept volume moderate (gain 0.25–0.3) to avoid being jarring in the gym
+- Used frequency ramps and scheduled oscillators instead of setTimeout — cleaner and more precise on mobile Safari
+
+**Next:**
+- Nothing queued — backlog items in Later/Ideas
+
+---
+
 ## 2026-04-11 (Session 10) — Service Worker + Polish
 
 **Built:**

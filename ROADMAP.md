@@ -22,6 +22,7 @@
 - [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
 
 ## Done
+- [x] Timer sounds: distinct start (ascending tone) and end (double beep) sounds for all timer types (countdown, hold, stopwatch, multi-timer)
 - [x] Service worker for true offline PWA: sw.js with stale-while-revalidate caching, cold-start without signal, auto-cache cleanup on version bump
 - [x] Session 6 spec amendments: W5 order fix (RDL→fence→ATG lunge), multi_timer calf stretch (4 positions), reps_only for reverse nordics/band pull-apart/lateral band walk/pigeon stretch, reps_only split_reps renderer
 - [x] Sled stopwatch readability fix: smaller font + wider button when running
