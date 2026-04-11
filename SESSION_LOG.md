@@ -1,5 +1,26 @@
 # Session Log
 
+## 2026-04-11 (Session 10) — Service Worker + Polish
+
+**Built:**
+- Service worker (`sw.js`) for true offline PWA — app loads from cold start without signal
+- Stale-while-revalidate cache strategy: instant load from cache, background network update
+- Version-check requests bypass SW cache (existing update banner still works)
+- Old caches auto-cleaned on version bump
+- NEXT badge color changed from blue to green (#16a34a)
+- APP_VERSION bumped to 1.3.0
+
+**Decisions:**
+- Stale-while-revalidate over network-first: gives both offline support AND faster loads
+- No web app manifest needed — existing apple-mobile-web-app-capable meta tags handle iOS PWA
+- Green for NEXT badge — visually distinct from blue accent, reads as "go/do this one"
+
+**Next:**
+- Test service worker on iPhone SE (load once with signal, then cold start in airplane mode)
+- Nothing queued in ROADMAP — backlog items in Later/Ideas
+
+---
+
 ## 2026-04-11 (Session 9) — Spec Amendments + QA
 
 **Built:**
