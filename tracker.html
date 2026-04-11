@@ -340,6 +340,34 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .peek-fence:last-child { border-bottom: none; }
 
 /* ===== COMPLETION TOGGLES ===== */
+/* ===== MULTI TIMER ===== */
+.multi-timer-block { display: flex; flex-direction: column; gap: 6px; }
+.multi-timer-step {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: 10px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  min-height: 52px;
+}
+.multi-timer-step.active { border-color: var(--accent); background: var(--ss-bg); }
+.multi-timer-step.done { border-color: var(--green); background: var(--green-bg); }
+.multi-timer-step-num { font-size: 0.75rem; font-weight: 700; color: var(--text3); min-width: 20px; text-align: center; }
+.multi-timer-step-info { flex: 1; min-width: 0; }
+.multi-timer-step-label { font-size: 0.85rem; font-weight: 600; }
+.multi-timer-step-time { font-size: 0.8rem; color: var(--text2); margin-top: 2px; }
+.multi-timer-display {
+  font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  min-width: 55px; text-align: center;
+}
+.multi-timer-btn {
+  padding: 8px 14px; border: none; border-radius: 8px;
+  font-size: 0.85rem; font-weight: 700; cursor: pointer; min-width: 70px;
+  min-height: 44px;
+}
+.multi-timer-btn-start { background: var(--accent); color: #fff; }
+.multi-timer-btn-pause { background: var(--amber); color: #fff; }
+.multi-timer-btn-done { background: var(--green); color: #fff; }
+.multi-timer-btn-waiting { background: var(--bg-input); color: var(--text3); }
+
 .completion-row {
   display: flex; align-items: center; gap: 16px; justify-content: center;
   padding: 16px; margin-bottom: 12px;
@@ -450,7 +478,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 // Do NOT add workout suffixes to IDs.
 //
 // NEW FIELDS (Amendment #1):
-//   trackingType: 'weight_reps'|'reps_only'|'duration'|'completion'|'sled'|'weight_distance'
+//   trackingType: 'weight_reps'|'reps_only'|'duration'|'completion'|'multi_timer'|'sled'|'weight_distance'
 //   unilateral: 'split_weight'|'split_reps'|false  (L/R tracking mode)
 //   prefillReps: number|null  (auto-populate reps input)
 //   variants: [{id,label,trackingType,isDefault}]|null
@@ -580,7 +608,7 @@ const PROGRAMME = [
       { id: 'couch-stretch', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 60, formCues: '', notes: '' },
       { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
       { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
+      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
       { id: 'pullover', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
       { id: 'trap-3-raise', name: 'Trap-3 raise', sets: 3, reps: '8', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', prefillReps: 8, formCues: '', notes: '' },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.' },
@@ -603,7 +631,14 @@ const PROGRAMME = [
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'patrick-step-up', name: 'Patrick step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
       { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'completion', timerSeconds: 45, formCues: '', notes: '' },
-      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 45, formCues: 'Both straight + bent knee.', notes: '' },
+      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45s×2/side', flow: 'SEQ', trackingType: 'multi_timer',
+        timerSequence: [
+          { label: 'Left — straight leg (gastroc)', seconds: 45 },
+          { label: 'Left — bent knee (soleus)', seconds: 45 },
+          { label: 'Right — straight leg (gastroc)', seconds: 45 },
+          { label: 'Right — bent knee (soleus)', seconds: 45 }
+        ],
+        formCues: 'Straight leg = gastroc. Bent knee = soleus. 45s each position, each side.', notes: '' },
       { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
       { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
@@ -624,7 +659,7 @@ const PROGRAMME = [
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'sl-calf-raise', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 12, formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
       { id: 'petersen-step-up', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 15, formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
-      { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15 steps', flow: 'SEQ', trackingType: 'completion', formCues: '', notes: '', isNew: true },
+      { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 15, repsLabel: 'steps', formCues: '', notes: '', isNew: true },
       { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 8, formCues: '', notes: '', isNew: true },
       { id: 'hack-squat', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Barbell Hackenschmidt. Can lift heels off ground. Don\'t need steep slant board.', notes: '' },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
@@ -645,10 +680,10 @@ const PROGRAMME = [
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent).', notes: '' },
-      { id: 'reverse-nordics', name: 'Reverse nordics', sets: 3, reps: '10', flow: 'SEQ', progressionType: 'atg', prefillReps: 10, formCues: 'Kneeling on mat. Tips of feet up. No equipment needed.', notes: '' },
+      { id: 'reverse-nordics', name: 'Reverse nordics', sets: 3, reps: '10', flow: 'SEQ', trackingType: 'reps_only', prefillReps: 10, formCues: 'Kneeling on mat. Tips of feet up. Bodyweight only — no loading.', notes: '' },
       { id: 'ham-curl-activation', name: 'Ham curl (activation)', sets: 1, reps: '12', flow: 'SEQ', prefillReps: 12, variants: VARIANTS.hamCurl, formCues: 'Quick activation before main work.', notes: '' },
       { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', formCues: '', notes: '' },
+      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: '' },
       { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
       { id: 'pullover', name: 'Pullover', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'ql-extension', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: '' },
       { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot fully settled. Torso drops below horizontal.', notes: '' },
@@ -670,12 +705,19 @@ const PROGRAMME = [
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'poliquin-step-up', name: 'Poliquin step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '3 plates height. Put leg further away. Go down with bum to feel it around knee.', notes: '' },
       { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'completion', timerSeconds: 45, formCues: '', notes: '' },
-      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45/45s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 45, formCues: 'Both straight + bent knee.', notes: '' },
+      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45s×2/side', flow: 'SEQ', trackingType: 'multi_timer',
+        timerSequence: [
+          { label: 'Left — straight leg (gastroc)', seconds: 45 },
+          { label: 'Left — bent knee (soleus)', seconds: 45 },
+          { label: 'Right — straight leg (gastroc)', seconds: 45 },
+          { label: 'Right — bent knee (soleus)', seconds: 45 }
+        ],
+        formCues: 'Straight leg = gastroc. Bent knee = soleus. 45s each position, each side.', notes: '' },
       { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
       { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6-8 steps/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', repsLabel: 'steps', formCues: 'Walking. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. All sets at 8/side → add weight.', notes: '' },
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6-8 steps/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', repsLabel: 'steps', formCues: 'Walking. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. All sets at 8/side → add weight.', notes: '' },
       { id: 'full-range-row', name: 'Full range row', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'incline-press', repRange: [8, 12], progressionType: 'isolation', formCues: 'Form is tricky — back curls up. May need different version. Brief prone — pause malto.', notes: '' },
       { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'full-range-row', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence.', notes: '' },
       { id: 'hammer-curls', name: 'Incline hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
@@ -696,7 +738,7 @@ const PROGRAMME = [
       { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
-      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', progressionType: 'atg', prefillReps: 12, formCues: '', notes: '' },
+      { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', trackingType: 'reps_only', prefillReps: 12, formCues: '', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'band-pull-apart', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
       { id: 'pullup-neutral', name: 'Weighted neutral pull-up', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Neutral/hammer grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
       { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-neutral', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
@@ -881,8 +923,15 @@ const State = (function() {
     if (!wip || !wip.exercises[exIndex]) return { status: 'none', filled: 0, total: expectedSets || 0 };
     const data = wip.exercises[exIndex];
 
+    // Multi-timer type
+    if (data.timerSteps !== undefined) {
+      const filled = data.timerSteps.filter(s => s.done).length;
+      const total = data.timerSteps.length || expectedSets || 4;
+      return { status: filled >= total ? 'complete' : filled > 0 ? 'partial' : 'none', filled, total };
+    }
+
     // Completion type (done/doneL/doneR)
-    if (data.done !== undefined && data.doneL === undefined) {
+    if (data.done !== undefined && data.doneL === undefined && data.timerSteps === undefined) {
       return { status: data.done ? 'complete' : 'none', filled: data.done ? 1 : 0, total: 1 };
     }
     if (data.doneL !== undefined) {
@@ -1141,6 +1190,20 @@ const Markdown = (function() {
       // Resolve variant overrides for repRange
       const activeVariant = data.variant && ex.variants ? ex.variants.find(v => v.id === data.variant) : null;
       const effectiveRepRange = activeVariant?.repRange || ex.repRange;
+
+      // Multi-timer exercises
+      if (data.timerSteps !== undefined) {
+        const doneCount = data.timerSteps.filter(s => s.done).length;
+        const totalCount = ex.timerSequence ? ex.timerSequence.length : data.timerSteps.length;
+        const stepDetails = data.timerSteps.map((s, i) => {
+          const label = ex.timerSequence?.[i]?.label || `Step ${i+1}`;
+          return s.done ? `${label}: ${s.time}s` : `${label}: —`;
+        }).join(', ');
+        md += `- **${displayName}** — ${doneCount}/${totalCount} positions (${stepDetails})\n`;
+        md += formatNotes(data.notes);
+        md += '\n';
+        continue;
+      }
 
       // Duration/completion exercises
       if (data.done !== undefined || data.doneL !== undefined) {
@@ -1921,7 +1984,7 @@ const Views = (function() {
     const trackingType = getEffectiveTrackingType(ex);
 
     let metaStr = '';
-    if (trackingType === 'duration' || trackingType === 'completion') {
+    if (trackingType === 'duration' || trackingType === 'completion' || trackingType === 'multi_timer') {
       metaStr = ex.reps;
     } else if (trackingType === 'sled') {
       metaStr = 'Sled';
@@ -2074,6 +2137,25 @@ const Views = (function() {
         <div class="set-row" style="grid-template-columns:50px 1fr;">
           <span class="set-label">Set ${s + 1}</span>
           <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${reps}" data-set="${s}">
+        </div>`;
+    }
+    return html;
+  }
+
+  function renderRepsOnlySplitSets(ex, existingData) {
+    const rLabel = ex.repsLabel || 'reps';
+    let html = `<div class="split-reps-header" style="grid-template-columns:50px 30px 1fr 30px 1fr;"><span></span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
+    for (let s = 0; s < ex.sets; s++) {
+      const existing = existingData?.sets?.[s];
+      const rL = existing?.repsL ?? (ex.prefillReps || '');
+      const rR = existing?.repsR ?? (ex.prefillReps || '');
+      html += `
+        <div class="split-reps-row" style="grid-template-columns:50px 30px 1fr 30px 1fr;">
+          <span class="set-label">Set ${s + 1}</span>
+          <span class="uni-side-label">L</span>
+          <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rL}" data-set="${s}">
+          <span class="uni-side-label">R</span>
+          <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rR}" data-set="${s}">
         </div>`;
     }
     return html;
@@ -2289,6 +2371,119 @@ const Views = (function() {
       ${timerHtml}`;
   }
 
+  function renderMultiTimerExercise(ex, existingData) {
+    const seq = ex.timerSequence || [];
+    const steps = existingData?.timerSteps || [];
+    const currentStep = steps.filter(s => s.done).length;
+    const allDone = currentStep >= seq.length;
+
+    let html = '<div class="multi-timer-block">';
+    for (let i = 0; i < seq.length; i++) {
+      const step = seq[i];
+      const stepData = steps[i] || {};
+      const isDone = !!stepData.done;
+      const isCurrent = i === currentStep && !allDone;
+      const timeVal = stepData.time || 0;
+      const cls = isDone ? 'done' : isCurrent ? 'active' : '';
+
+      let btnHtml = '';
+      if (isDone) {
+        btnHtml = `<span class="multi-timer-display">${Timer.formatTime(timeVal)}</span>
+          <button class="multi-timer-btn multi-timer-btn-done" disabled>✅</button>`;
+      } else if (isCurrent) {
+        btnHtml = `<span class="multi-timer-display" id="mt-display-${i}">0:00</span>
+          <button class="multi-timer-btn multi-timer-btn-start" id="mt-btn-${i}"
+            onclick="Views._multiTimerAction(${i}, ${step.seconds})">START</button>`;
+      } else {
+        btnHtml = `<span class="multi-timer-display" style="color:var(--text3);">0:00</span>
+          <button class="multi-timer-btn multi-timer-btn-waiting" disabled>—</button>`;
+      }
+
+      html += `
+        <div class="multi-timer-step ${cls}" id="mt-step-${i}">
+          <span class="multi-timer-step-num">${i + 1}</span>
+          <div class="multi-timer-step-info">
+            <div class="multi-timer-step-label">${step.label}</div>
+            <div class="multi-timer-step-time">${Timer.formatTime(step.seconds)}</div>
+          </div>
+          ${btnHtml}
+        </div>`;
+    }
+    // Hidden inputs to track state
+    html += `<input type="hidden" id="mt-steps-data" value='${JSON.stringify(steps)}'>`;
+    html += '</div>';
+    return html;
+  }
+
+  // Multi-timer action handler: start/pause/stop for current step
+  function _multiTimerAction(stepIndex, goalSeconds) {
+    const timerId = `mt-timer-${stepIndex}`;
+    const displayId = `mt-display-${stepIndex}`;
+    const btnId = `mt-btn-${stepIndex}`;
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    if (Timer.isHoldActive(timerId)) {
+      // Stop the timer
+      const elapsed = Timer.stopHoldTimer(timerId);
+      const display = document.getElementById(displayId);
+      if (display) display.textContent = Timer.formatTime(elapsed);
+      btn.textContent = '✅';
+      btn.className = 'multi-timer-btn multi-timer-btn-done';
+      btn.disabled = true;
+
+      // Mark step done in hidden data
+      const dataInput = document.getElementById('mt-steps-data');
+      let stepsData = [];
+      try { stepsData = JSON.parse(dataInput.value); } catch {}
+      while (stepsData.length <= stepIndex) stepsData.push({});
+      stepsData[stepIndex] = { done: true, time: elapsed };
+      dataInput.value = JSON.stringify(stepsData);
+
+      // Update step styling
+      const stepEl = document.getElementById(`mt-step-${stepIndex}`);
+      if (stepEl) { stepEl.classList.remove('active'); stepEl.classList.add('done'); }
+
+      _triggerAutoSave();
+
+      // Auto-advance: activate next step
+      const ex = PROGRAMME.find(w => w.id === _currentRenderCtx.workoutId)?.exercises[_currentRenderCtx.exIndex];
+      if (ex?.timerSequence && stepIndex + 1 < ex.timerSequence.length) {
+        const next = stepIndex + 1;
+        const nextStep = ex.timerSequence[next];
+        const nextStepEl = document.getElementById(`mt-step-${next}`);
+        if (nextStepEl) nextStepEl.classList.add('active');
+        // Replace waiting button with active start button
+        const nextDisplay = nextStepEl?.querySelector('.multi-timer-display');
+        if (nextDisplay) { nextDisplay.id = `mt-display-${next}`; nextDisplay.style.color = ''; }
+        const nextBtnSlot = nextStepEl?.querySelector('.multi-timer-btn');
+        if (nextBtnSlot) {
+          const newBtn = document.createElement('button');
+          newBtn.className = 'multi-timer-btn multi-timer-btn-start';
+          newBtn.id = `mt-btn-${next}`;
+          newBtn.textContent = 'START';
+          newBtn.onclick = () => Views._multiTimerAction(next, nextStep.seconds);
+          nextBtnSlot.replaceWith(newBtn);
+        }
+        // Auto-start next timer after brief delay
+        setTimeout(() => Views._multiTimerAction(next, nextStep.seconds), 400);
+      }
+    } else {
+      // Start the hold timer
+      Timer.startHoldTimer(timerId, goalSeconds);
+      btn.textContent = 'STOP';
+      btn.className = 'multi-timer-btn multi-timer-btn-pause';
+      // Update display from hold timer
+      const display = document.getElementById(displayId);
+      if (display) {
+        const updateInterval = setInterval(() => {
+          if (!Timer.isHoldActive(timerId)) { clearInterval(updateInterval); return; }
+          display.textContent = Timer.formatTime(Timer.getHoldElapsed(timerId));
+        }, 200);
+      }
+    }
+  }
+
   function renderSledSets(ex, existingData, lastEntry) {
     const sledLength = Data.getSledLength();
     let html = `
@@ -2380,7 +2575,7 @@ const Views = (function() {
       const effEx = getEffectiveExercise(ex);
       const tt = getEffectiveTrackingType(ex);
       let meta = '';
-      if (tt === 'duration' || tt === 'completion') meta = ex.reps;
+      if (tt === 'duration' || tt === 'completion' || tt === 'multi_timer') meta = ex.reps;
       else if (tt === 'sled') meta = 'Sled';
       else meta = `${effEx.sets}×${effEx.reps}`;
       const completion = State.getExerciseCompletionStatus(i, ex.sets);
@@ -2486,12 +2681,16 @@ const Views = (function() {
         inputsHtml = renderDurationExercise(effEx, existingData); break;
       case 'completion':
         inputsHtml = renderCompletionExercise(effEx, existingData); break;
+      case 'multi_timer':
+        inputsHtml = renderMultiTimerExercise(effEx, existingData); break;
       case 'sled':
         inputsHtml = renderSledSets(effEx, existingData, lastEntry); break;
       case 'weight_distance':
         inputsHtml = renderWeightDistanceSets(effEx, existingData, preFill); break;
       case 'reps_only':
-        inputsHtml = renderRepsOnlySets(effEx, existingData, preFill); break;
+        if (effEx.unilateral === 'split_reps') inputsHtml = renderRepsOnlySplitSets(effEx, existingData);
+        else inputsHtml = renderRepsOnlySets(effEx, existingData, preFill);
+        break;
       case 'weight_reps': default:
         if (effEx.unilateral === 'split_weight') inputsHtml = renderSplitWeightSets(effEx, existingData, preFill);
         else if (effEx.unilateral === 'split_reps') inputsHtml = renderSplitRepsSets(effEx, existingData, preFill);
@@ -2626,6 +2825,15 @@ const Views = (function() {
         }
         break;
       }
+      case 'multi_timer': {
+        const dataInput = document.getElementById('mt-steps-data');
+        let stepsData = [];
+        try { stepsData = JSON.parse(dataInput?.value || '[]'); } catch {}
+        data.timerSteps = stepsData;
+        const allDone = effEx.timerSequence && stepsData.filter(s => s.done).length >= effEx.timerSequence.length;
+        data.done = allDone;
+        break;
+      }
       case 'sled': {
         data.sets = [];
         for (let s = 0; s < (effEx.sets || 1); s++) {
@@ -2657,9 +2865,18 @@ const Views = (function() {
       }
       case 'reps_only': {
         data.sets = [];
-        for (let s = 0; s < effEx.sets; s++) {
-          const r = document.querySelector(`.reps-input[data-set="${s}"]`);
-          data.sets.push({ reps: r ? (r.value === '' ? '' : parseInt(r.value) || r.value) : '' });
+        if (effEx.unilateral === 'split_reps') {
+          for (let s = 0; s < effEx.sets; s++) {
+            data.sets.push({
+              repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
+              repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
+            });
+          }
+        } else {
+          for (let s = 0; s < effEx.sets; s++) {
+            const r = document.querySelector(`.reps-input[data-set="${s}"]`);
+            data.sets.push({ reps: r ? (r.value === '' ? '' : parseInt(r.value) || r.value) : '' });
+          }
         }
         break;
       }
@@ -3319,7 +3536,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, _triggerAutoSave, _updateSledDerived, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, _triggerAutoSave, _updateSledDerived, _multiTimerAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym };
 })();
 
 // =====================================================
