@@ -833,7 +833,6 @@ const State = (function() {
     wip = {
       workoutId,
       date: new Date().toISOString().slice(0, 10),
-      startedAt: new Date().toISOString(),
       exercises: {},
       overall: '',
       injuries: '',
@@ -841,6 +840,18 @@ const State = (function() {
     };
     Data.saveWIP(wip);
     return wip;
+  }
+
+  function startTimer() {
+    if (!wip || wip.startedAt) return;
+    wip.startedAt = new Date().toISOString();
+    Data.saveWIP(wip);
+  }
+
+  function endTimer() {
+    if (!wip || wip.completedAt) return;
+    wip.completedAt = new Date().toISOString();
+    Data.saveWIP(wip);
   }
 
   function getWIP() { return wip; }
@@ -900,7 +911,7 @@ const State = (function() {
 
   function finishSession() {
     if (!wip) return null;
-    wip.completedAt = new Date().toISOString();
+    if (!wip.completedAt) wip.completedAt = new Date().toISOString();
     Data.addSession(wip);
     const finished = { ...wip };
     wip = null;
@@ -963,7 +974,7 @@ const State = (function() {
     return results;
   }
 
-  return { init, startSession, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory };
 })();
 
 // =====================================================
@@ -1754,12 +1765,15 @@ const Views = (function() {
         <div class="workout-grid">
           ${PROGRAMME.map(w => {
             const isNext = !wip && w.id === nextId;
+            const allSessions = Data.getSessions();
+            const lastSession = allSessions.filter(s => s.workoutId === w.id).pop();
+            const lastDateStr = lastSession ? new Date(lastSession.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
             return `
             <button class="workout-btn${isNext ? ' workout-next' : ''}" onclick="Router.go('/w/${w.id}')">
               <span class="workout-id">W${w.id}</span>
               <div class="workout-info">
                 <span class="workout-name">${w.name}${isNext ? ' <span style="font-size:0.7rem;font-weight:700;color:var(--accent);vertical-align:middle;margin-left:4px;">NEXT</span>' : ''}</span>
-                <span class="workout-sub">${w.subtitle} · ${w.exercises.filter(e => !e.isFence).length} exercises</span>
+                <span class="workout-sub">${lastDateStr}</span>
               </div>
             </button>`;
           }).join('')}
@@ -1829,16 +1843,33 @@ const Views = (function() {
     const wipData = State.getWIP();
 
     const startedAt = wipData?.startedAt;
+    const completedAt = wipData?.completedAt;
     const startTimeStr = startedAt ? Timer.formatTimeOfDay(startedAt) : '';
+    const timerRunning = startedAt && !completedAt;
+
+    let clockHtml = '';
+    if (completedAt) {
+      const dur = Timer.formatDuration(new Date(completedAt) - new Date(startedAt));
+      clockHtml = `<div id="session-clock" style="font-size:0.8rem;color:var(--text2);margin-top:2px;">${startTimeStr} → ${Timer.formatTimeOfDay(completedAt)} (${dur}) ✓</div>`;
+    } else if (startedAt) {
+      clockHtml = `<div id="session-clock" style="font-size:0.8rem;color:var(--text2);margin-top:2px;">Started ${startTimeStr} · 0:00</div>`;
+    } else {
+      clockHtml = `<button class="btn btn-success" style="margin-top:6px;padding:10px 24px;font-size:1rem;" onclick="State.startTimer();Views.renderWorkout(${workoutId});">▶ Start Session</button>`;
+    }
+
+    const endSessionBtn = timerRunning
+      ? `<div style="margin:16px 0;"><button class="btn" style="width:100%;padding:14px;font-size:1rem;background:var(--red);color:#fff;border:none;border-radius:8px;" onclick="State.endTimer();Views.renderWorkout(${workoutId});">⏹ End Session</button></div>`
+      : '';
 
     app.innerHTML = `
       <div class="header">
         <button class="back-btn" onclick="Router.go('/')">← Home</button>
         <h1>W${workoutId} — ${workout.name}</h1>
-        ${startedAt ? `<div id="session-clock" style="font-size:0.8rem;color:var(--text2);margin-top:2px;">Started ${startTimeStr} · 0:00</div>` : ''}
+        ${clockHtml}
       </div>
       <div class="content">
         <div class="exercise-list">${rows}</div>
+        ${endSessionBtn}
         <div class="workout-notes">
           <label>How did it feel overall?</label>
           <textarea class="notes-field" id="overall-notes" placeholder="Speak or type..."
@@ -1862,8 +1893,8 @@ const Views = (function() {
         </div>
       </div>`;
 
-    // Start session clock
-    if (startedAt) {
+    // Start session clock (only tick if timer is still running)
+    if (timerRunning) {
       const startMs = new Date(startedAt).getTime();
       function updateClock() {
         const el = document.getElementById('session-clock');
@@ -2679,6 +2710,17 @@ const Views = (function() {
   function saveAndBack(workoutId, exIndex) {
     autoSaveExercise(workoutId, exIndex);
     Timer.cleanup();
+    // Check if this was the last real exercise
+    const workout = PROGRAMME.find(w => w.id === workoutId);
+    const wip = State.getWIP();
+    if (workout && wip && wip.startedAt && !wip.completedAt) {
+      const lastRealIndex = workout.exercises.reduce((last, ex, i) => ex.isFence ? last : i, -1);
+      if (exIndex === lastRealIndex) {
+        if (confirm('Last exercise done! End the session timer?')) {
+          State.endTimer();
+        }
+      }
+    }
     Router.go(`/w/${workoutId}`);
   }
 

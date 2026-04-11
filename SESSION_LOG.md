@@ -1,5 +1,23 @@
 # Session Log
 
+## 2026-04-11 (Session 7) — Session Timer Start/Stop + Home Page Cleanup
+
+**Built:**
+- Explicit **Start Session** button: timer no longer auto-starts when opening a workout — user presses "▶ Start Session" to begin timing
+- **End Session** button (red): appears after exercise list, before notes section — locks `completedAt` and freezes the clock
+- Frozen clock display: header shows "12:43 → 12:44 (1min) ✓" after ending session
+- Last-exercise prompt: clicking "Done ←" on the final exercise asks "Last exercise done! End the session timer?"
+- `finishSession()` preserves existing `completedAt` if timer was already ended manually
+- Home page: shows last session date per workout (e.g., "Tue 8 Apr"), removed "~115 min · 17 exercises" subtitle
+
+**Decisions:**
+- Separated timer lifecycle (Start/End) from session finalization (Finish & Copy) — user can end timer then fill notes at leisure
+- `State.startTimer()` and `State.endTimer()` are minimal functions that just set timestamps and save WIP
+- Used `--red` CSS var for End Session button (not `--danger` which doesn't exist)
+- Last exercise detection: finds highest non-fence index in workout exercises array
+
+**Next:** Nothing queued
+
 ## 2026-04-10 (Session 6) — Session Timing + Manual Timer Override
 
 **Built:**

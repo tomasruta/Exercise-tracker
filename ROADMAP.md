@@ -23,6 +23,8 @@
 - [ ] Add to Home Screen on iPhone SE (user will do manually during AppBlock window)
 
 ## Done
+- [x] Session timer start/stop: explicit Start Session button (no auto-start), End Session button locks timer, last-exercise prompt
+- [x] Home page: show last session date per workout, removed minutes/exercises subtitle
 - [x] Session timing: live clock on workout page, duration on summary, time of day in export
 - [x] Manual timer override: tap completed timer display to enter custom seconds
 - [x] Merged Dips + Weighted dips into single `weighted-dips` exercise (shared history across W2/W6)
