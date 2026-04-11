@@ -1582,17 +1582,49 @@ const Timer = (function() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
   }
 
-  function beep() {
+  // Start sound: short ascending tone — a "go!" cue
+  function beepStart() {
     try {
       ensureAudio();
+      const t = audioCtx.currentTime;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      osc.frequency.value = 880;
-      gain.gain.value = 0.3;
+      osc.frequency.setValueAtTime(440, t);
+      osc.frequency.linearRampToValueAtTime(880, t + 0.15);
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.2);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-      osc.start();
-      setTimeout(() => osc.stop(), 200);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    } catch (e) { /* audio not available */ }
+  }
+
+  // End sound: double beep — clear "done!" signal
+  function beepEnd() {
+    try {
+      ensureAudio();
+      const t = audioCtx.currentTime;
+      // First beep
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.frequency.value = 880;
+      gain1.gain.setValueAtTime(0.3, t);
+      gain1.gain.linearRampToValueAtTime(0, t + 0.15);
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.start(t);
+      osc1.stop(t + 0.15);
+      // Second beep (higher pitch, after short gap)
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.frequency.value = 1100;
+      gain2.gain.setValueAtTime(0.3, t + 0.2);
+      gain2.gain.linearRampToValueAtTime(0, t + 0.4);
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.start(t + 0.2);
+      osc2.stop(t + 0.4);
     } catch (e) { /* audio not available */ }
   }
 
@@ -1618,6 +1650,7 @@ const Timer = (function() {
     let remaining = totalSeconds;
     el.textContent = formatTime(remaining);
     if (btn) { btn.textContent = 'PAUSE'; btn.className = 'timer-btn timer-btn-pause'; }
+    beepStart();
 
     timers[id] = {
       remaining,
@@ -1631,7 +1664,7 @@ const Timer = (function() {
           delete timers[id];
           el.textContent = '0:00';
           if (btn) { btn.textContent = 'DONE'; btn.className = 'timer-btn timer-btn-done'; }
-          beep();
+          beepEnd();
           vibrate();
           if (onComplete) onComplete();
         }
@@ -1668,6 +1701,7 @@ const Timer = (function() {
       delete stopwatches[id];
       btn.textContent = '⏱️';
       btn.classList.remove('running');
+      beepEnd();
       // Fill the time input
       const timeInput = document.getElementById(timeInputId);
       if (timeInput) timeInput.value = formatTime(elapsed);
@@ -1675,6 +1709,7 @@ const Timer = (function() {
       timeInput?.dispatchEvent(new Event('input', { bubbles: true }));
     } else {
       // Start
+      beepStart();
       const start = Date.now();
       btn.textContent = 'STOP';
       btn.classList.add('running');
@@ -1705,6 +1740,7 @@ const Timer = (function() {
 
     el.textContent = '0:00';
     if (btn) { btn.textContent = 'STOP'; btn.className = 'timer-btn timer-btn-pause'; }
+    beepStart();
 
     holdTimers[id] = {
       start,
@@ -1718,7 +1754,7 @@ const Timer = (function() {
           el.classList.add('timer-past-goal');
           const row = el.closest('.timer-row');
           if (row) row.classList.add('timer-goal-flash');
-          beep();
+          beepEnd();
           vibrate();
         }
       }, 1000)
