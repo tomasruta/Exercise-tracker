@@ -34,3 +34,15 @@
 - Programme changes every ~2 months — regenerate the HTML but keep IDs stable.
 - `navigator.share()` only works on iOS/mobile. Desktop falls back to clipboard.
 - Safari localStorage persists across restarts but can be cleared by user or extreme storage pressure.
+
+## Symlinked Source Files
+
+`strength-routine-2026-04-05.md` is a symlink to `~/Documents/Health/Exercise/strength-routine-2026-04-05.md` (the canonical copy maintained in Claude chat Health project).
+
+**On session start:** Before making any tracker changes, read the routine file and check for updates that haven't been reflected in `tracker.html` yet. Look for:
+- New exercises or removed exercises
+- Changed exercise order
+- Changed sets/reps/tracking types
+- New notes or form cues
+
+Flag any discrepancies before proceeding with the user's request.

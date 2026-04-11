@@ -3,6 +3,11 @@
 ## Now
 (nothing active)
 
+## Recently Done (Session 8)
+- [x] Symlinked `strength-routine-2026-04-05.md` to `~/Documents/Health/Exercise/` (canonical copy)
+- [x] Updated CLAUDE.md with symlink section + on-session-start routine-check instructions
+- [x] Applied 6 routine changes: W2/W5 malto fence reorder (RDL pre-fence, split squat/lunge post-fence fuelled), calf stretch 2-position notation, reverse nordics BW-only, W6 Weighted dips, malto fence audit update
+
 
 ## Next
 - [ ] Consider service worker for true offline PWA

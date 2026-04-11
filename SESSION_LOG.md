@@ -1,5 +1,24 @@
 # Session Log
 
+## 2026-04-11 (Session 8) — Symlink Setup + Routine Changes (Session 6 edits)
+
+**Built:**
+- Symlinked `strength-routine-2026-04-05.md` → `~/Documents/Health/Exercise/` (canonical copy from Health project)
+- Added "Symlinked Source Files" section to CLAUDE.md with on-session-start routine-check instructions
+- Applied 6 routine changes from Chat Health project:
+  1. **W2 reorder:** RDL → #9 (pre-fence), ATG split squat → #10 (post-fence, fuelled)
+  2. **W5 reorder:** RDL → #9 (pre-fence), ATG lunge → #10 (post-fence, fuelled)
+  3. **Calf stretch** (W2 + W5): `45s×2/side` — gastroc (straight) + soleus (bent), 180s total
+  4. **Reverse nordics** (W4): bodyweight only, track reps only
+  5. **W6 Dips** → **Weighted dips** (canonical name)
+  6. **Malto fence audit:** added ATG split squat + ATG lunge as Post ✅
+
+**Decisions:**
+- Routine file lives in `~/Documents/Health/Exercise/` (maintained by Chat Health project); symlink in Exercise tracker project follows it
+- Future sessions will auto-diff routine file against tracker PROGRAMME before making changes
+
+**Next:** Sync these 6 routine changes into `tracker.html` PROGRAMME constant
+
 ## 2026-04-11 (Session 7) — Session Timer Start/Stop + Home Page Cleanup
 
 **Built:**
