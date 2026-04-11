@@ -3604,7 +3604,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 
 // =====================================================
 // APP INIT
@@ -3630,6 +3630,11 @@ const APP_VERSION = '1.2.0';
         })
         .catch(() => {}); // silently fail if offline
     }, 2000);
+  }
+
+  // Register service worker for offline support
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 })();
 </script>
