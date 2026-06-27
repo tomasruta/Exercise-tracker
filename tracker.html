@@ -57,9 +57,9 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 }
 .header h1 { font-size: 1.1rem; font-weight: 600; flex: 1; }
 .back-btn {
-  background: none; border: none; color: var(--accent);
-  font-size: 1rem; cursor: pointer; padding: 8px 4px;
-  min-width: 44px; min-height: 44px; display: flex; align-items: center;
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--accent);
+  font-size: 1rem; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 10px;
+  min-width: 44px; min-height: 44px; display: flex; align-items: center; gap: 4px;
 }
 .content { padding: 16px; }
 
@@ -200,7 +200,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   width: 100%; padding: 12px; margin-top: 12px;
   background: var(--bg-input); border: 2px solid var(--border);
   border-radius: 10px; font-size: 0.95rem; color: var(--text);
-  resize: vertical; min-height: 60px; line-height: 1.4;
+  resize: vertical; min-height: 60px; line-height: 1.4; overflow-y: hidden;
 }
 .notes-field:focus { border-color: var(--accent); outline: none; }
 .notes-field::placeholder { color: var(--text3); }
@@ -473,7 +473,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 //   variants: [{id,label,trackingType,isDefault}]|null
 //   timerSeconds: number|null  (countdown duration)
 //   repsLabel: 'reps'|'meters'|'steps'|'lengths'  (default: 'reps')
-//   weightLabel: 'kg'|'kg/hand'|null  (default: 'kg', null = no weight input)
+//   weightLabel: 'kg'|'kg/hand'  (default: 'kg'). To HIDE the weight input, set trackingType:'reps_only' — weightLabel:null is NOT honored by the renderers.
 // =====================================================
 
 // Variant definitions (shared across workouts)
@@ -721,7 +721,7 @@ const PROGRAMME = [
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'sl-calf-raise', name: 'SL calf raise (standing)', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 12, formCues: 'Gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
       { id: 'rhythm-squat', name: 'Rhythm squat', sets: 4, reps: '50', flow: 'SEQ', progressionType: 'atg', prefillReps: 50, formCues: '35kg sweet spot. 40kg = trouble getting bar up/down.', notes: '' },
-      { id: 'kot-sissy-squat', name: 'KOT/Sissy squat', sets: 3, reps: '10', flow: 'SEQ', progressionType: 'atg', prefillReps: 10, formCues: 'Watch form video first!', notes: '' },
+      { id: 'kot-sissy-squat', name: 'KOT/Sissy squat', sets: 3, reps: '10', flow: 'SEQ', trackingType: 'reps_only', progressionType: 'atg', prefillReps: 10, formCues: 'Watch form video first! Bodyweight — track depth (cm from ground) in notes.', notes: '' },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings.', notes: '' },
       { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
@@ -914,6 +914,12 @@ const State = (function() {
     if (!wip || !wip.exercises[exIndex]) return { status: 'none', filled: 0, total: expectedSets || 0 };
     const data = wip.exercises[exIndex];
 
+    // Explicit completion ("Completed exercise" tapped) wins over inferred status
+    if (data.completed) {
+      const t = expectedSets || (data.sets ? data.sets.length : 0) || 1;
+      return { status: 'complete', filled: t, total: t };
+    }
+
     // Multi-timer type
     if (data.timerSteps !== undefined) {
       const filled = data.timerSteps.filter(s => s.done).length;
@@ -941,7 +947,9 @@ const State = (function() {
       if (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) { filled++; continue; }
       if (s.repsL !== null && s.repsL !== undefined && s.repsL !== '') { filled++; continue; }
     }
-    const status = filled === 0 ? 'none' : filled >= total ? 'complete' : 'partial';
+    // Set-based 'complete' now requires an explicit "Completed exercise" tap (handled above),
+    // so pre-filled/auto-saved reps no longer ghost-complete an exercise you didn't do.
+    const status = filled === 0 ? 'none' : 'partial';
     return { status, filled, total };
   }
 
@@ -990,8 +998,9 @@ const State = (function() {
       if (!workout) continue;
       for (const [idx, data] of Object.entries(s.exercises)) {
         const ex = workout.exercises[parseInt(idx)];
-        if (!ex) continue;
-        const exResolved = resolveId(ex.id);
+        // Prefer the stored exercise ID; fall back to array index for legacy unstamped data
+        const exResolved = resolveId(data.exId || (ex && ex.id));
+        if (!exResolved) continue;
         if (exResolved === targetId && (
           (data.sets && data.sets.length > 0) ||
           data.done || data.doneL || data.doneR
@@ -1013,11 +1022,13 @@ const State = (function() {
       if (!workout) continue;
       for (const [idx, data] of Object.entries(s.exercises)) {
         const ex = workout.exercises[parseInt(idx)];
-        if (!ex) continue;
-        if (resolveId(ex.id) === targetId && (
+        const exResolved = resolveId(data.exId || (ex && ex.id));
+        if (!exResolved) continue;
+        if (exResolved === targetId && (
           (data.sets && data.sets.length > 0) || data.done || data.doneL || data.doneR
         )) {
-          results.push({ date: s.date, workoutId: s.workoutId, data, exercise: ex });
+          const exDef = workout.exercises.find(e => resolveId(e.id) === targetId) || ex;
+          results.push({ date: s.date, workoutId: s.workoutId, data, exercise: exDef });
         }
       }
     }
@@ -1193,7 +1204,7 @@ const Markdown = (function() {
     if (session.gym || session.startedAt || session.overall || session.injuries) md += '\n';
 
     for (const [idx, data] of Object.entries(session.exercises)) {
-      const ex = workout.exercises[parseInt(idx)];
+      const ex = (data.exId && workout.exercises.find(e => e.id === data.exId)) || workout.exercises[parseInt(idx)];
       if (!ex || ex.isFence) continue;
 
       const displayName = resolveDisplayName(ex, data);
@@ -1553,6 +1564,7 @@ const Markdown = (function() {
               // Variant from brackets OR from variant-label match
               if (variantId) parsed.variant = variantId;
               else if (matched_.variantId) parsed.variant = matched_.variantId;
+              parsed.exId = matched_.id;
               session.exercises[exIdx] = parsed;
               currentExNotes = exIdx;
               matched++;
@@ -2326,7 +2338,7 @@ const Views = (function() {
         <div class="timer-block">
           <div class="timer-row">
             <span class="timer-side">LEFT</span>
-            <span class="timer-display${timeL >= seconds ? ' timer-past-goal' : ''}" id="timer-l" ${doneL ? `onclick="Views.setTimeManual('timer-l')" style="cursor:pointer;"` : ''}>${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
+            <span class="timer-display${timeL >= seconds ? ' timer-past-goal' : ''}" id="timer-l" onclick="Views.setTimeManual('timer-l')" style="cursor:pointer;" title="Tap to enter time">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
             <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
               onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.getElementById('done-l').value='true';document.getElementById('time-adjust-l').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${seconds});}">
@@ -2335,7 +2347,7 @@ const Views = (function() {
           </div>
           <div class="timer-row">
             <span class="timer-side">RIGHT</span>
-            <span class="timer-display${timeR >= seconds ? ' timer-past-goal' : ''}" id="timer-r" ${doneR ? `onclick="Views.setTimeManual('timer-r')" style="cursor:pointer;"` : ''}>${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
+            <span class="timer-display${timeR >= seconds ? ' timer-past-goal' : ''}" id="timer-r" onclick="Views.setTimeManual('timer-r')" style="cursor:pointer;" title="Tap to enter time">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
             <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
               onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.getElementById('done-r').value='true';document.getElementById('time-adjust-r').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${seconds});}">
@@ -2365,7 +2377,7 @@ const Views = (function() {
     return `
       <div class="timer-block">
         <div class="timer-row">
-          <span class="timer-display${time >= seconds ? ' timer-past-goal' : ''}" id="timer-main" ${done ? `onclick="Views.setTimeManual('timer-main')" style="cursor:pointer;"` : ''}>${done && time ? Timer.formatTime(time) : '0:00'}</span>
+          <span class="timer-display${time >= seconds ? ' timer-past-goal' : ''}" id="timer-main" onclick="Views.setTimeManual('timer-main')" style="cursor:pointer;" title="Tap to enter time">${done && time ? Timer.formatTime(time) : '0:00'}</span>
           <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
           <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
             onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.getElementById('done-main').value='true';document.getElementById('time-adjust-main').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${seconds});}">
@@ -2396,14 +2408,14 @@ const Views = (function() {
           <div class="timer-block" style="margin-top:12px;">
             <div class="timer-row">
               <span class="timer-side">L</span>
-              <span class="timer-display${timeL >= s ? ' timer-past-goal' : ''}" id="timer-l" ${doneL ? `onclick="Views.setTimeManual('timer-l')" style="cursor:pointer;"` : ''}>${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
+              <span class="timer-display${timeL >= s ? ' timer-past-goal' : ''}" id="timer-l" onclick="Views.setTimeManual('timer-l')" style="cursor:pointer;" title="Tap to enter time">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
               <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
               <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
                 onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.querySelector('.completion-toggle[data-side=L]').classList.add('done');document.querySelector('.completion-toggle[data-side=L] .check-box').textContent='✅';document.getElementById('done-l').value='true';document.getElementById('time-adjust-l').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${s});}">${doneL ? 'DONE' : 'START'}</button>
             </div>
             <div class="timer-row">
               <span class="timer-side">R</span>
-              <span class="timer-display${timeR >= s ? ' timer-past-goal' : ''}" id="timer-r" ${doneR ? `onclick="Views.setTimeManual('timer-r')" style="cursor:pointer;"` : ''}>${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
+              <span class="timer-display${timeR >= s ? ' timer-past-goal' : ''}" id="timer-r" onclick="Views.setTimeManual('timer-r')" style="cursor:pointer;" title="Tap to enter time">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
               <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
               <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
                 onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.querySelector('.completion-toggle[data-side=R]').classList.add('done');document.querySelector('.completion-toggle[data-side=R] .check-box').textContent='✅';document.getElementById('done-r').value='true';document.getElementById('time-adjust-r').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${s});}">${doneR ? 'DONE' : 'START'}</button>
@@ -2446,7 +2458,7 @@ const Views = (function() {
       timerHtml = `
         <div class="timer-block" style="margin-top:12px;">
           <div class="timer-row">
-            <span class="timer-display${time >= ex.timerSeconds ? ' timer-past-goal' : ''}" id="timer-main" ${done ? `onclick="Views.setTimeManual('timer-main')" style="cursor:pointer;"` : ''}>${done && time ? Timer.formatTime(time) : '0:00'}</span>
+            <span class="timer-display${time >= ex.timerSeconds ? ' timer-past-goal' : ''}" id="timer-main" onclick="Views.setTimeManual('timer-main')" style="cursor:pointer;" title="Tap to enter time">${done && time ? Timer.formatTime(time) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(ex.timerSeconds)}</span>
             <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
               onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.querySelector('.completion-toggle').classList.add('done');document.querySelector('.completion-toggle .check-box').textContent='✅';document.getElementById('done-main').value='true';document.getElementById('time-adjust-main').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${ex.timerSeconds});}">${done ? 'DONE' : 'START'}</button>
@@ -2516,7 +2528,7 @@ const Views = (function() {
 
   // Multi-timer action handler: start/pause/stop for current step
   function _multiTimerAction(stepIndex, goalSeconds) {
-    const timerId = `mt-timer-${stepIndex}`;
+    const timerId = `mt-display-${stepIndex}`;
     const displayId = `mt-display-${stepIndex}`;
     const btnId = `mt-btn-${stepIndex}`;
     const btn = document.getElementById(btnId);
@@ -2815,12 +2827,13 @@ const Views = (function() {
         ${inputsHtml}
         <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
           oninput="Views._triggerAutoSave()">${existingNotes}</textarea>
+        <input type="hidden" id="ex-completed" value="${existingData?.completed ? 'true' : ''}">
         <div id="progression-banner"></div>
         ${renderPeekView(workout, exIndex)}
       </div>
       <div class="save-bar">
         <span class="auto-saved" id="auto-save-status">Auto-saved</span>
-        <button class="done-btn" onclick="Views.saveAndBack(${workoutId}, ${exIndex})">Done ←</button>
+        <button class="done-btn" onclick="document.getElementById('ex-completed').value='true';Views.saveAndBack(${workoutId}, ${exIndex})">Completed exercise ✓</button>
       </div>`;
 
     // Add listeners for all inputs
@@ -2832,6 +2845,10 @@ const Views = (function() {
       // Select all on focus so tapping a pre-filled "0" lets you type immediately
       input.addEventListener('focus', () => input.select());
     });
+
+    // Grow pre-filled note textareas to fit content on open — defer a frame so layout has settled,
+    // and skip empties so a blank notes box keeps its compact CSS min-height.
+    requestAnimationFrame(() => document.querySelectorAll('.notes-field').forEach(t => { if (t.value) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; } }));
 
     if (existingData) Views.updateBanner(ex);
   }
@@ -2852,13 +2869,25 @@ const Views = (function() {
     const timeInput = document.getElementById(timerId.replace('timer-', 'time-'));
     if (!timeInput) return;
     const current = parseInt(timeInput.value) || 0;
-    const input = prompt('Enter time in seconds:', current);
+    const input = prompt('Enter time (m:ss or seconds):', current ? Timer.formatTime(current) : '');
     if (input === null) return;
-    const val = parseInt(input);
+    const str = String(input).trim();
+    const val = str.includes(':')
+      ? (parseInt(str.split(':')[0]) || 0) * 60 + (parseInt(str.split(':')[1]) || 0)
+      : parseInt(str);
     if (isNaN(val) || val < 0) return;
     timeInput.value = val;
     const display = document.getElementById(timerId);
     if (display) display.textContent = Timer.formatTime(val);
+    // A manually-entered time also marks the exercise done (works even if the timer was never started)
+    const side = timerId.replace('timer-', '');
+    const doneInput = document.getElementById('done-' + side);
+    if (doneInput) doneInput.value = 'true';
+    const toggle = document.querySelector(`.completion-toggle[data-side="${side.toUpperCase()}"]`)
+      || (side === 'main' ? document.querySelector('.completion-toggle') : null);
+    if (toggle) { toggle.classList.add('done'); const cb = toggle.querySelector('.check-box'); if (cb) cb.textContent = '✅'; }
+    const adj = document.getElementById('time-adjust-' + side);
+    if (adj) adj.style.display = 'flex';
     _triggerAutoSave();
   }
 
@@ -2890,8 +2919,9 @@ const Views = (function() {
     const trackingType = getEffectiveTrackingType(ex);
     const notes = document.getElementById('ex-notes')?.value || '';
     const variant = getActiveVariant(ex);
-    const data = { notes };
+    const data = { notes, exId: ex.id };
     if (variant) data.variant = variant.id;
+    if (document.getElementById('ex-completed')?.value === 'true') data.completed = true;
 
     switch (trackingType) {
       case 'duration': {
@@ -3018,14 +3048,14 @@ const Views = (function() {
   }
 
   function saveExercise(workoutId, exIndex) {
+    Timer.cleanup();           // stop + capture any running timer into the DOM inputs first
     autoSaveExercise(workoutId, exIndex);
-    Timer.cleanup();
     Router.go(`/w/${workoutId}`);
   }
 
   function saveAndBack(workoutId, exIndex) {
+    Timer.cleanup();           // stop + capture any running timer into the DOM inputs first
     autoSaveExercise(workoutId, exIndex);
-    Timer.cleanup();
     // Check if this was the last real exercise
     const workout = PROGRAMME.find(w => w.id === workoutId);
     const wip = State.getWIP();
@@ -3526,7 +3556,7 @@ const Views = (function() {
 
     let rows = '';
     for (const [idx, data] of Object.entries(session.exercises)) {
-      const ex = workout.exercises[parseInt(idx)];
+      const ex = (data.exId && workout.exercises.find(e => e.id === data.exId)) || workout.exercises[parseInt(idx)];
       if (!ex || ex.isFence) continue;
       const displayName = Markdown.resolveDisplayName(ex, data);
       const setsHtml = formatSetsReadable(data, ex);
@@ -3726,12 +3756,52 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 
 // =====================================================
 // APP INIT
 // =====================================================
 (function() {
+  // One-time data repair: stamp exercise IDs onto history saved before the stable-ID fix.
+  // History was keyed by array index; the W2/W4/W5 reorders mis-mapped pre-existing sessions.
+  function migrateExIds() {
+    try {
+      if (parseInt(localStorage.getItem('gym-schema-version') || '0') >= 1) return;
+      const raw = localStorage.getItem('gym-sessions');
+      if (raw == null) { localStorage.setItem('gym-schema-version', '1'); return; }
+      // Back up the untouched blob once before mutating; if backup fails we abort (mutation never runs).
+      if (!localStorage.getItem('gym-sessions-backup-preMigration')) {
+        localStorage.setItem('gym-sessions-backup-preMigration', raw);
+      }
+      const OLD_W2 = ['backward-treadmill','sled','tibialis-raise','patrick-step-up','big-toe-stretch','calf-stretch','jefferson-curl','cable-pancake','atg-split-squat','rdl','malto-fence','pullup-overhand','weighted-dips','scott-curl'];
+      const OLD_W4 = ['backward-treadmill','sled','tibialis-raise','seated-calf-raise','reverse-nordics','ham-curl-activation','internal-hip-db-lift','pigeon-stretch','loaded-butterfly','pullover','ql-extension','malto-fence','front-squat','ham-curl','chinup-underhand','incline-press','hammer-curls'];
+      const OLD_W5 = ['backward-treadmill','sled','tibialis-raise','poliquin-step-up','big-toe-stretch','calf-stretch','jefferson-curl','cable-pancake','atg-lunge','rdl','malto-fence','full-range-row','incline-press','hammer-curls'];
+      const sessions = JSON.parse(raw);
+      for (const s of sessions) {
+        if (!s || !s.exercises) continue;
+        let table = null;
+        if (s.workoutId === 4 && (s.date < '2026-04-19' || s.exercises['16'])) table = OLD_W4;
+        else if (s.workoutId === 5 && s.date < '2026-04-11') table = OLD_W5;
+        else if (s.workoutId === 2) {
+          // W2 reordered same-day as the only W2 session — disambiguate by data shape:
+          // OLD W2 had the split_reps ATG split squat at index 8 (it carries repsL).
+          const d8 = s.exercises['8'];
+          if (d8 && Array.isArray(d8.sets) && d8.sets[0] && d8.sets[0].repsL !== undefined) table = OLD_W2;
+        }
+        const cur = PROGRAMME.find(w => w.id === s.workoutId);
+        for (const [idx, data] of Object.entries(s.exercises)) {
+          if (!data || data.exId) continue;
+          const i = parseInt(idx);
+          const id = table ? table[i] : (cur && cur.exercises[i] ? cur.exercises[i].id : undefined);
+          if (id) data.exId = id;
+        }
+      }
+      localStorage.setItem('gym-sessions', JSON.stringify(sessions));
+      localStorage.setItem('gym-schema-version', '1');
+    } catch (e) { /* never block boot; backup (if written) preserves the original data */ }
+  }
+  migrateExIds();
+
   State.init();
   Router.init();
 
@@ -3750,6 +3820,15 @@ const APP_VERSION = '1.4.1';
   });
   window.addEventListener('pagehide', flushWIP);
   window.addEventListener('blur', flushWIP);
+
+  // Auto-grow note textareas as you type (covers every .notes-field across all views)
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t && t.classList && t.classList.contains('notes-field')) {
+      t.style.height = 'auto';
+      t.style.height = t.scrollHeight + 'px';
+    }
+  });
 
   // Check for updates on load — fetch self with cache-bust, compare version
   if (location.protocol === 'https:') {
