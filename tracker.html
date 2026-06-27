@@ -594,7 +594,7 @@ const PROGRAMME = [
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent). Fixed: W1+W4 seated, W3+W6 SL standing (gastrocnemius).', notes: 'Mar 25: standing on squat machine didn\'t work well, couldn\'t get right impulse. Only 25kg. Go harder.' },
-      { id: 'couch-stretch', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', trackingType: 'completion', unilateral: 'split_weight', timerSeconds: 60, formCues: '', notes: '' },
+      { id: 'couch-stretch', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', trackingType: 'duration', unilateral: 'split_weight', timerSeconds: 60, formCues: 'Start the L then R timer — beeps at 60s.', notes: '' },
       { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
       { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
       { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
@@ -619,7 +619,7 @@ const PROGRAMME = [
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'patrick-step-up', name: 'Patrick step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'completion', timerSeconds: 45, formCues: '', notes: '' },
+      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'duration', timerSeconds: 45, formCues: 'Start the timer — beeps at 45s.', notes: '' },
       { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45s×2/side', flow: 'SEQ', trackingType: 'multi_timer',
         timerSequence: [
           { label: 'Left — straight leg (gastroc)', seconds: 45 },
@@ -692,7 +692,7 @@ const PROGRAMME = [
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'poliquin-step-up', name: 'Poliquin step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '3 plates height. Put leg further away. Go down with bum to feel it around knee.', notes: '' },
-      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'completion', timerSeconds: 45, formCues: '', notes: '' },
+      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'duration', timerSeconds: 45, formCues: 'Start the timer — beeps at 45s.', notes: '' },
       { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45s×2/side', flow: 'SEQ', trackingType: 'multi_timer',
         timerSequence: [
           { label: 'Left — straight leg (gastroc)', seconds: 45 },
@@ -3787,7 +3787,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.5.2';
+const APP_VERSION = '1.5.3';
 
 // =====================================================
 // APP INIT
