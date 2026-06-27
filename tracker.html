@@ -1822,8 +1822,9 @@ const Timer = (function() {
         if (elapsed >= goalSeconds && !holdTimers[id].beeped) {
           holdTimers[id].beeped = true;
           el.classList.add('timer-past-goal');
-          const row = el.closest('.timer-row');
-          if (row) row.classList.add('timer-goal-flash');
+          // Visual goal cue — works for duration/completion timers AND multi-timer steps (silent-safe backup)
+          const flashEl = el.closest('.timer-row') || el.closest('.multi-timer-step');
+          if (flashEl) flashEl.classList.add('timer-goal-flash');
           alarm();
         }
       }, 1000)
@@ -1885,7 +1886,7 @@ const Timer = (function() {
     return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, ensureAudio };
+  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, ensureAudio, alarm };
 })();
 
 // =====================================================
@@ -1902,6 +1903,7 @@ const Views = (function() {
   }
 
   function renderHome() {
+    _peekReturnTo = null;
     const wip = State.getWIP();
     let wipBanner = '';
     if (wip) {
@@ -1959,6 +1961,7 @@ const Views = (function() {
   }
 
   function renderWorkout(workoutId) {
+    _peekReturnTo = null;
     const workout = PROGRAMME.find(w => w.id === workoutId);
     if (!workout) { renderHome(); return; }
 
@@ -2043,6 +2046,7 @@ const Views = (function() {
       </div>
       <div class="content">
         <div class="exercise-list">${rows}</div>
+        <div style="text-align:center;margin:4px 0 8px;"><button style="padding:8px 16px;font-size:0.85rem;background:var(--bg-input);color:var(--text2);border:1px solid var(--border);border-radius:8px;cursor:pointer;min-height:40px;" onclick="Views.testSound()">🔊 Test sound</button></div>
         ${endSessionBtn}
         <div class="workout-notes">
           <label>How did it feel overall?</label>
@@ -2656,6 +2660,7 @@ const Views = (function() {
 
   // Store current render context for re-rendering on variant switch
   let _currentRenderCtx = null;
+  let _peekReturnTo = null;  // when you tap into an "Up next" exercise, remember where to return
 
   function switchVariant(exerciseId, variantId) {
     Data.setVariant(exerciseId, variantId);
@@ -2696,7 +2701,7 @@ const Views = (function() {
     if (remaining.length === 0) return '';
     const rows = remaining.map(r => {
       if (r.isFence) return `<div class="peek-fence">🥤 ${r.note}</div>`;
-      return `<div class="peek-row" onclick="Views.saveAndBack(${workout.id}, ${currentExIndex});setTimeout(()=>Router.go('/w/${workout.id}/e/${r.index}'),50)">
+      return `<div class="peek-row" onclick="Views.peekTo(${workout.id}, ${currentExIndex}, ${r.index})">
         <span class="peek-num">${r.num}</span>
         <span class="peek-name">${r.name}${r.done}</span>
         <span class="peek-meta">${r.meta}${r.flow === 'SS' ? ' <span class="badge badge-ss" style="font-size:0.6rem;">SS</span>' : ''}</span>
@@ -3067,8 +3072,25 @@ const Views = (function() {
         }
       }
     }
-    Router.go(`/w/${workoutId}`);
+    const ret = _peekReturnTo;
+    _peekReturnTo = null;
+    if (ret && ret.workoutId === workoutId && ret.exIndex !== exIndex) {
+      Router.go(`/w/${workoutId}/e/${ret.exIndex}`);   // came here via "Up next" → go back to where you were
+    } else {
+      Router.go(`/w/${workoutId}`);
+    }
   }
+
+  // Jump into an "Up next" exercise mid-flow, remembering to return here on Back/Completed
+  function peekTo(workoutId, fromIndex, toIndex) {
+    Timer.cleanup();
+    autoSaveExercise(workoutId, fromIndex);
+    _peekReturnTo = { workoutId, exIndex: fromIndex };
+    Router.go(`/w/${workoutId}/e/${toIndex}`);
+  }
+
+  // Play the goal alarm on demand so you can confirm your phone isn't on silent
+  function testSound() { try { Timer.alarm(); } catch (e) {} }
 
   function updateBanner(exercise) {
     const bannerEl = document.getElementById('progression-banner');
@@ -3692,7 +3714,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, _triggerAutoSave, _updateSledDerived, _multiTimerAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, _triggerAutoSave, _updateSledDerived, _multiTimerAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
 })();
 
 // =====================================================
@@ -3756,7 +3778,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 
 // =====================================================
 // APP INIT
@@ -3841,7 +3863,17 @@ const APP_VERSION = '1.5.0';
             const banner = document.createElement('div');
             banner.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px 16px;background:#2563eb;color:white;font-size:0.85rem;text-align:center;z-index:9999;cursor:pointer;';
             banner.textContent = 'Update available — tap to reload';
-            banner.onclick = () => location.reload(true);
+            // Unregister the service worker first so the reload fetches the new file from the
+            // network instead of the SW serving the stale cached copy (one-reload-behind bug).
+            banner.onclick = async () => {
+              try {
+                if (navigator.serviceWorker) {
+                  const regs = await navigator.serviceWorker.getRegistrations();
+                  await Promise.all(regs.map(r => r.unregister()));
+                }
+              } catch (e) { /* fall through to a plain reload */ }
+              location.reload();
+            };
             document.body.appendChild(banner);
           }
         })
