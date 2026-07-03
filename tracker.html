@@ -1959,14 +1959,24 @@ const Timer = (function() {
         const t = holdTimers[id];
         if (!t || t.paused) return;
         const elapsed = Math.round(holdElapsedMs(t) / 1000);
-        el.textContent = formatTime(elapsed);
+        // Re-query the node every tick instead of reusing the one captured at start: after you
+        // navigate away and back, the original node is detached — re-querying repaints the live
+        // (namespaced) node, or harmlessly no-ops while this exercise is off-screen.
+        const el = document.getElementById(id);
+        const btn = document.getElementById(id + '-btn');
+        if (el) {
+          el.textContent = formatTime(elapsed);
+          if (elapsed >= goalSeconds) el.classList.add('timer-past-goal');   // idempotent: repaints red on return
+        }
+        if (btn && btn.textContent !== 'STOP') { btn.textContent = 'STOP'; btn.className = 'timer-btn timer-btn-pause'; }
         if (elapsed >= goalSeconds && !t.beeped) {
           t.beeped = true;
-          el.classList.add('timer-past-goal');
-          // Visual goal cue — works for duration/completion timers AND multi-timer steps (silent-safe backup)
-          const flashEl = el.closest('.timer-row') || el.closest('.multi-timer-step');
-          if (flashEl) flashEl.classList.add('timer-goal-flash');
-          alarm();
+          if (el) {
+            // Visual goal cue — works for duration/completion timers AND multi-timer steps (silent-safe backup)
+            const flashEl = el.closest('.timer-row') || el.closest('.multi-timer-step');
+            if (flashEl) flashEl.classList.add('timer-goal-flash');
+          }
+          alarm();   // audio isn't DOM-gated — beeps even while you're viewing another exercise
         }
       }, 1000)
     };
@@ -2008,26 +2018,92 @@ const Timer = (function() {
 
   function isHoldActive(id) { return !!holdTimers[id]; }
 
+  // A hold-timer's DOM id is namespaced `w{workoutId}e{exIndex}-timer-{side}` so two exercises can't
+  // collide, but its hidden inputs (time-/done-/time-adjust-) are NOT namespaced — only one exercise
+  // is ever in the DOM at a time. `_side` recovers the side ('l'|'r'|'main') from the namespaced id.
+  function _side(id) { const p = id.split('-timer-'); return p.length > 1 ? p[1] : null; }
+
+  // Capture a just-stopped hold timer's elapsed into the on-screen hidden inputs + mark it done.
+  function _captureHold(id, elapsed) {
+    const side = _side(id);
+    if (!side || !(elapsed > 0)) return;   // multi-timer (mt-disp-*) has no side/inputs — skip
+    const timeInput = document.getElementById('time-' + side);
+    if (timeInput) timeInput.value = elapsed;
+    const doneInput = document.getElementById('done-' + side);
+    if (doneInput) doneInput.value = 'true';
+    const toggle = document.querySelector(`.completion-toggle[data-side="${side.toUpperCase()}"]`) || document.querySelector('.completion-toggle');
+    if (toggle) { toggle.classList.add('done'); const cb = toggle.querySelector('.check-box'); if (cb) cb.textContent = '✅'; }
+    const adj = document.getElementById('time-adjust-' + side);
+    if (adj) adj.style.display = 'flex';
+  }
+
+  // Finalize ONLY the given exercise's hold timers (prefix = `w{id}e{idx}-`): stop each + capture its
+  // elapsed. Used when you truly leave an exercise (Back / Completed / Save). A timer from a
+  // different exercise (e.g. one you peeked away from) is left running. Countdowns + sled stopwatches
+  // never survive nav, so clear those wholesale as before.
+  function finalize(prefix) {
+    Object.values(timers).forEach(t => clearInterval(t.interval));
+    Object.values(stopwatches).forEach(s => clearInterval(s.interval));
+    Object.keys(timers).forEach(k => delete timers[k]);
+    Object.keys(stopwatches).forEach(k => delete stopwatches[k]);
+    Object.keys(holdTimers).forEach(id => {
+      if (!id.startsWith(prefix)) return;
+      const elapsed = stopHoldTimer(id);
+      _captureHold(id, elapsed);
+    });
+    if (!hasActiveTimer()) releaseWakeLock();
+  }
+
+  // Called on entry to every exercise render. Clears the (unused) countdowns + sled stopwatches as
+  // before, but LEAVES all hold timers running so they survive navigation and keep beeping — even
+  // one that already rang. A survived hold timer is only cleared when you truly leave its exercise
+  // (finalize) or end the session (cleanup); off-screen its interval harmlessly no-ops on a missing
+  // node, so a couple of abandoned ones cost nothing.
+  function detachOnNav() {
+    Object.values(timers).forEach(t => clearInterval(t.interval));
+    Object.values(stopwatches).forEach(s => clearInterval(s.interval));
+    Object.keys(timers).forEach(k => delete timers[k]);
+    Object.keys(stopwatches).forEach(k => delete stopwatches[k]);
+    if (!hasActiveTimer()) releaseWakeLock();
+  }
+
+  // Snapshot a still-running exercise's elapsed into its hidden inputs WITHOUT stopping it — called
+  // before peeking away so a timer you leave running is captured even if it's later reaped.
+  function snapshotLiveTimers(prefix) {
+    Object.keys(holdTimers).forEach(id => {
+      if (!id.startsWith(prefix)) return;
+      const side = _side(id);
+      if (!side) return;   // mt-disp-* persists via mt-steps-data, not here
+      const elapsed = Math.round(holdElapsedMs(holdTimers[id]) / 1000);
+      if (elapsed > 0) { const t = document.getElementById('time-' + side); if (t) t.value = elapsed; }
+    });
+  }
+
+  // Repaint THIS exercise's survived timers onto the freshly-rendered nodes (no 1s blank on return).
+  // Drops a timer whose display no longer exists — e.g. a variant flip changed the tracking shape.
+  function reattach(prefix) {
+    Object.keys(holdTimers).forEach(id => {
+      if (!id.startsWith(prefix)) return;
+      const el = document.getElementById(id);
+      if (!el) { clearInterval(holdTimers[id].interval); delete holdTimers[id]; return; }
+      const t = holdTimers[id];
+      const elapsed = Math.round(holdElapsedMs(t) / 1000);
+      el.textContent = formatTime(elapsed);
+      if (elapsed >= t.goalSeconds) el.classList.add('timer-past-goal');
+      const btn = document.getElementById(id + '-btn');
+      if (btn && !t.paused) { btn.textContent = 'STOP'; btn.className = 'timer-btn timer-btn-pause'; }
+    });
+    if (!hasActiveTimer()) releaseWakeLock();
+  }
+
+  // Stop EVERYTHING (no DOM writes) — for ending the session, when no exercise is on screen.
   function cleanup() {
     Object.values(timers).forEach(t => clearInterval(t.interval));
     Object.values(stopwatches).forEach(s => clearInterval(s.interval));
-    // Auto-stop hold timers and save elapsed time before clearing
-    Object.keys(holdTimers).forEach(id => {
-      const elapsed = stopHoldTimer(id);
-      // Write elapsed to hidden input if it exists
-      const timeInput = document.getElementById(id.replace('timer-', 'time-'));
-      if (timeInput && elapsed > 0) {
-        timeInput.value = elapsed;
-        // Also mark as done
-        const side = id.replace('timer-', '');
-        const doneInput = document.getElementById('done-' + side);
-        if (doneInput) doneInput.value = 'true';
-        const toggle = document.querySelector(`.completion-toggle[data-side="${side.toUpperCase()}"]`) || document.querySelector('.completion-toggle');
-        if (toggle) { toggle.classList.add('done'); const cb = toggle.querySelector('.check-box'); if (cb) cb.textContent = '✅'; }
-      }
-    });
+    Object.values(holdTimers).forEach(t => clearInterval(t.interval));
     Object.keys(timers).forEach(k => delete timers[k]);
     Object.keys(stopwatches).forEach(k => delete stopwatches[k]);
+    Object.keys(holdTimers).forEach(k => delete holdTimers[k]);
     releaseWakeLock();
   }
 
@@ -2042,7 +2118,7 @@ const Timer = (function() {
     return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, pauseHoldTimer, resumeHoldTimer, isHoldPaused, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, ensureAudio, alarm, audioState };
+  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, pauseHoldTimer, resumeHoldTimer, isHoldPaused, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, finalize, detachOnNav, snapshotLiveTimers, reattach, ensureAudio, alarm, audioState };
 })();
 
 // =====================================================
@@ -2206,7 +2282,7 @@ const Views = (function() {
     }
 
     const endSessionBtn = timerRunning
-      ? `<div style="margin:16px 0;"><button class="btn" style="width:100%;padding:14px;font-size:1rem;background:var(--red);color:#fff;border:none;border-radius:8px;" onclick="State.endTimer();Views.renderWorkout(${workoutId});">⏹ End Session</button></div>`
+      ? `<div style="margin:16px 0;"><button class="btn" style="width:100%;padding:14px;font-size:1rem;background:var(--red);color:#fff;border:none;border-radius:8px;" onclick="Timer.cleanup();State.endTimer();Views.renderWorkout(${workoutId});">⏹ End Session</button></div>`
       : '';
 
     app.innerHTML = `
@@ -2504,7 +2580,7 @@ const Views = (function() {
     return html;
   }
 
-  function renderDurationExercise(ex, existingData) {
+  function renderDurationExercise(ex, existingData, ns) {
     const seconds = ex.timerSeconds || 60;
     if (ex.unilateral) {
       const doneL = existingData?.doneL || false;
@@ -2515,19 +2591,19 @@ const Views = (function() {
         <div class="timer-block">
           <div class="timer-row">
             <span class="timer-side">LEFT</span>
-            <span class="timer-display${timeL >= seconds ? ' timer-past-goal' : ''}" id="timer-l" onclick="Views.setTimeManual('timer-l')" style="cursor:pointer;" title="Tap to enter time">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
+            <span class="timer-display${timeL >= seconds ? ' timer-past-goal' : ''}" id="${ns}timer-l" onclick="Views.setTimeManual('${ns}timer-l')" style="cursor:pointer;" title="Tap to enter time">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
-            <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
-              onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.getElementById('done-l').value='true';document.getElementById('time-adjust-l').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${seconds});}">
+            <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="${ns}timer-l-btn"
+              onclick="Views.handleTimerTap('${ns}timer-l', ${seconds}, false)">
               ${doneL ? 'DONE' : 'START'}
             </button>
           </div>
           <div class="timer-row">
             <span class="timer-side">RIGHT</span>
-            <span class="timer-display${timeR >= seconds ? ' timer-past-goal' : ''}" id="timer-r" onclick="Views.setTimeManual('timer-r')" style="cursor:pointer;" title="Tap to enter time">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
+            <span class="timer-display${timeR >= seconds ? ' timer-past-goal' : ''}" id="${ns}timer-r" onclick="Views.setTimeManual('${ns}timer-r')" style="cursor:pointer;" title="Tap to enter time">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
-            <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
-              onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.getElementById('done-r').value='true';document.getElementById('time-adjust-r').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${seconds});}">
+            <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="${ns}timer-r-btn"
+              onclick="Views.handleTimerTap('${ns}timer-r', ${seconds}, false)">
               ${doneR ? 'DONE' : 'START'}
             </button>
           </div>
@@ -2537,15 +2613,15 @@ const Views = (function() {
           <input type="hidden" id="time-r" value="${timeR}">
           <div class="time-adjust" id="time-adjust-l" style="${doneL ? '' : 'display:none'}">
             <span style="font-size:0.75rem;color:var(--text3);font-weight:600;">L</span>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',-30)">−30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',30)">+30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',60)">+1min</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-l',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-l',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-l',60)">+1min</button>
           </div>
           <div class="time-adjust" id="time-adjust-r" style="${doneR ? '' : 'display:none'}">
             <span style="font-size:0.75rem;color:var(--text3);font-weight:600;">R</span>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',-30)">−30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',30)">+30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',60)">+1min</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-r',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-r',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-r',60)">+1min</button>
           </div>
         </div>`;
     }
@@ -2554,24 +2630,24 @@ const Views = (function() {
     return `
       <div class="timer-block">
         <div class="timer-row">
-          <span class="timer-display${time >= seconds ? ' timer-past-goal' : ''}" id="timer-main" onclick="Views.setTimeManual('timer-main')" style="cursor:pointer;" title="Tap to enter time">${done && time ? Timer.formatTime(time) : '0:00'}</span>
+          <span class="timer-display${time >= seconds ? ' timer-past-goal' : ''}" id="${ns}timer-main" onclick="Views.setTimeManual('${ns}timer-main')" style="cursor:pointer;" title="Tap to enter time">${done && time ? Timer.formatTime(time) : '0:00'}</span>
           <span class="timer-goal">/ ${Timer.formatTime(seconds)}</span>
-          <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
-            onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.getElementById('done-main').value='true';document.getElementById('time-adjust-main').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${seconds});}">
+          <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="${ns}timer-main-btn"
+            onclick="Views.handleTimerTap('${ns}timer-main', ${seconds}, false)">
             ${done ? 'DONE' : 'START'}
           </button>
         </div>
         <div class="time-adjust" id="time-adjust-main" style="${done ? '' : 'display:none'}">
-          <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',-30)">−30s</button>
-          <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',30)">+30s</button>
-          <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',60)">+1min</button>
+          <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-main',-30)">−30s</button>
+          <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-main',30)">+30s</button>
+          <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-main',60)">+1min</button>
         </div>
         <input type="hidden" id="done-main" value="${done}">
         <input type="hidden" id="time-main" value="${time}">
       </div>`;
   }
 
-  function renderCompletionExercise(ex, existingData) {
+  function renderCompletionExercise(ex, existingData, ns) {
     const hasTimer = ex.timerSeconds > 0;
     if (ex.unilateral) {
       const doneL = existingData?.doneL || false;
@@ -2585,32 +2661,32 @@ const Views = (function() {
           <div class="timer-block" style="margin-top:12px;">
             <div class="timer-row">
               <span class="timer-side">L</span>
-              <span class="timer-display${timeL >= s ? ' timer-past-goal' : ''}" id="timer-l" onclick="Views.setTimeManual('timer-l')" style="cursor:pointer;" title="Tap to enter time">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
+              <span class="timer-display${timeL >= s ? ' timer-past-goal' : ''}" id="${ns}timer-l" onclick="Views.setTimeManual('${ns}timer-l')" style="cursor:pointer;" title="Tap to enter time">${doneL && timeL ? Timer.formatTime(timeL) : '0:00'}</span>
               <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
-              <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-l-btn"
-                onclick="if(Timer.isHoldActive('timer-l')){const t=Timer.stopHoldTimer('timer-l');document.getElementById('time-l').value=t;document.querySelector('.completion-toggle[data-side=L]').classList.add('done');document.querySelector('.completion-toggle[data-side=L] .check-box').textContent='✅';document.getElementById('done-l').value='true';document.getElementById('time-adjust-l').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-l').value!=='true'){Timer.startHoldTimer('timer-l',${s});}">${doneL ? 'DONE' : 'START'}</button>
+              <button class="timer-btn ${doneL ? 'timer-btn-done' : 'timer-btn-start'}" id="${ns}timer-l-btn"
+                onclick="Views.handleTimerTap('${ns}timer-l', ${s}, true)">${doneL ? 'DONE' : 'START'}</button>
             </div>
             <div class="timer-row">
               <span class="timer-side">R</span>
-              <span class="timer-display${timeR >= s ? ' timer-past-goal' : ''}" id="timer-r" onclick="Views.setTimeManual('timer-r')" style="cursor:pointer;" title="Tap to enter time">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
+              <span class="timer-display${timeR >= s ? ' timer-past-goal' : ''}" id="${ns}timer-r" onclick="Views.setTimeManual('${ns}timer-r')" style="cursor:pointer;" title="Tap to enter time">${doneR && timeR ? Timer.formatTime(timeR) : '0:00'}</span>
               <span class="timer-goal">/ ${Timer.formatTime(s)}</span>
-              <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-r-btn"
-                onclick="if(Timer.isHoldActive('timer-r')){const t=Timer.stopHoldTimer('timer-r');document.getElementById('time-r').value=t;document.querySelector('.completion-toggle[data-side=R]').classList.add('done');document.querySelector('.completion-toggle[data-side=R] .check-box').textContent='✅';document.getElementById('done-r').value='true';document.getElementById('time-adjust-r').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-r').value!=='true'){Timer.startHoldTimer('timer-r',${s});}">${doneR ? 'DONE' : 'START'}</button>
+              <button class="timer-btn ${doneR ? 'timer-btn-done' : 'timer-btn-start'}" id="${ns}timer-r-btn"
+                onclick="Views.handleTimerTap('${ns}timer-r', ${s}, true)">${doneR ? 'DONE' : 'START'}</button>
             </div>
           </div>
           <input type="hidden" id="time-l" value="${timeL}">
           <input type="hidden" id="time-r" value="${timeR}">
           <div class="time-adjust" id="time-adjust-l" style="${doneL ? '' : 'display:none'}">
             <span style="font-size:0.75rem;color:var(--text3);font-weight:600;">L</span>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',-30)">−30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',30)">+30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-l',60)">+1min</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-l',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-l',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-l',60)">+1min</button>
           </div>
           <div class="time-adjust" id="time-adjust-r" style="${doneR ? '' : 'display:none'}">
             <span style="font-size:0.75rem;color:var(--text3);font-weight:600;">R</span>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',-30)">−30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',30)">+30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-r',60)">+1min</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-r',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-r',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-r',60)">+1min</button>
           </div>`;
       }
       return `
@@ -2635,15 +2711,15 @@ const Views = (function() {
       timerHtml = `
         <div class="timer-block" style="margin-top:12px;">
           <div class="timer-row">
-            <span class="timer-display${time >= ex.timerSeconds ? ' timer-past-goal' : ''}" id="timer-main" onclick="Views.setTimeManual('timer-main')" style="cursor:pointer;" title="Tap to enter time">${done && time ? Timer.formatTime(time) : '0:00'}</span>
+            <span class="timer-display${time >= ex.timerSeconds ? ' timer-past-goal' : ''}" id="${ns}timer-main" onclick="Views.setTimeManual('${ns}timer-main')" style="cursor:pointer;" title="Tap to enter time">${done && time ? Timer.formatTime(time) : '0:00'}</span>
             <span class="timer-goal">/ ${Timer.formatTime(ex.timerSeconds)}</span>
-            <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="timer-main-btn"
-              onclick="if(Timer.isHoldActive('timer-main')){const t=Timer.stopHoldTimer('timer-main');document.getElementById('time-main').value=t;document.querySelector('.completion-toggle').classList.add('done');document.querySelector('.completion-toggle .check-box').textContent='✅';document.getElementById('done-main').value='true';document.getElementById('time-adjust-main').style.display='flex';Views._triggerAutoSave();}else if(document.getElementById('done-main').value!=='true'){Timer.startHoldTimer('timer-main',${ex.timerSeconds});}">${done ? 'DONE' : 'START'}</button>
+            <button class="timer-btn ${done ? 'timer-btn-done' : 'timer-btn-start'}" id="${ns}timer-main-btn"
+              onclick="Views.handleTimerTap('${ns}timer-main', ${ex.timerSeconds}, true)">${done ? 'DONE' : 'START'}</button>
           </div>
           <div class="time-adjust" id="time-adjust-main" style="${done ? '' : 'display:none'}">
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',-30)">−30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',30)">+30s</button>
-            <button class="time-adjust-btn" onclick="Views.adjustTime('timer-main',60)">+1min</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-main',-30)">−30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-main',30)">+30s</button>
+            <button class="time-adjust-btn" onclick="Views.adjustTime('${ns}timer-main',60)">+1min</button>
           </div>
         </div>
         <input type="hidden" id="time-main" value="${time}">`;
@@ -2677,7 +2753,7 @@ const Views = (function() {
     return `<button class="multi-timer-btn multi-timer-btn-start" onclick="Views._mtAction(${i},'start')">Start</button>`;
   }
 
-  function renderMultiTimerExercise(ex, existingData) {
+  function renderMultiTimerExercise(ex, existingData, ns) {
     const seq = ex.timerSequence || [];
     // Pad to one slot per position so the steps array length always equals the position count —
     // otherwise out-of-order completion makes the total wrong (e.g. "2/3" instead of "2/4").
@@ -2692,16 +2768,16 @@ const Views = (function() {
       const done = !!stepData.done;
       const timeVal = stepData.time || 0;
       html += `
-        <div class="multi-timer-step${done ? ' done' : ''}" id="mt-step-${i}">
+        <div class="multi-timer-step${done ? ' done' : ''}" id="${ns}mt-step-${i}">
           <div class="mt-head">
             <span class="multi-timer-step-num">${i + 1}</span>
             <span class="multi-timer-step-label">${step.label}</span>
           </div>
           <div class="mt-timeline">
-            <span class="multi-timer-display" id="mt-disp-${i}">${done ? Timer.formatTime(timeVal) : '0:00'}</span>
+            <span class="multi-timer-display" id="${ns}mt-disp-${i}">${done ? Timer.formatTime(timeVal) : '0:00'}</span>
             <span class="mt-goal-label">/ ${Timer.formatTime(step.seconds)}</span>
           </div>
-          <div class="mt-controls" id="mt-ctrl-${i}">${_mtControls(i, done ? 'done' : 'idle', timeVal)}</div>
+          <div class="mt-controls" id="${ns}mt-ctrl-${i}">${_mtControls(i, done ? 'done' : 'idle', timeVal)}</div>
         </div>`;
     }
     html += `<input type="hidden" id="mt-steps-data" value='${JSON.stringify(steps)}'>`;
@@ -2726,19 +2802,19 @@ const Views = (function() {
   function _mtStatus(i) {
     const steps = _mtSteps();
     if (steps[i] && steps[i].done) return 'done';
-    const id = 'mt-disp-' + i;
+    const id = _ns() + 'mt-disp-' + i;
     if (Timer.isHoldActive(id)) return Timer.isHoldPaused(id) ? 'paused' : 'running';
     return 'idle';
   }
   function _mtRefresh(i) {
-    const c = document.getElementById('mt-ctrl-' + i);
+    const c = document.getElementById(_ns() + 'mt-ctrl-' + i);
     if (!c) return;
     const steps = _mtSteps();
     c.innerHTML = _mtControls(i, _mtStatus(i), (steps[i] && steps[i].time) || 0);
   }
   function _mtAction(i, action) {
-    const id = 'mt-disp-' + i;
-    const stepEl = document.getElementById('mt-step-' + i);
+    const id = _ns() + 'mt-disp-' + i;
+    const stepEl = document.getElementById(_ns() + 'mt-step-' + i);
     if (action === 'start') {
       Timer.startHoldTimer(id, _mtGoal(i));
     } else if (action === 'resume') {
@@ -2832,6 +2908,10 @@ const Views = (function() {
   let _currentRenderCtx = null;
   let _peekReturnTo = null;  // when you tap into an "Up next" exercise, remember where to return
 
+  // Namespace prefix for the current exercise's timer element ids: `w{workoutId}e{exIndex}-`.
+  // Timer ids are namespaced so two exercises can't collide over the same `timer-main`/`mt-disp-0`.
+  function _ns() { const c = _currentRenderCtx; return c ? ('w' + c.workoutId + 'e' + c.exIndex + '-') : ''; }
+
   function switchVariant(exerciseId, variantId) {
     Data.setVariant(exerciseId, variantId);
     if (_currentRenderCtx) {
@@ -2891,8 +2971,11 @@ const Views = (function() {
     const ex = workout.exercises[exIndex];
     if (!ex || ex.isFence) { renderWorkout(workoutId); return; }
 
-    Timer.cleanup();
+    const ns = 'w' + workoutId + 'e' + exIndex + '-';   // namespace for this exercise's timer ids
     _currentRenderCtx = { workoutId, exIndex };
+    // Keep hold timers running across navigation (so they survive a peek and keep beeping); only
+    // clear the unused countdowns + sled stopwatches.
+    Timer.detachOnNav();
 
     const totalEx = workout.exercises.filter(e => !e.isFence).length;
     const exNum = workout.exercises.slice(0, exIndex + 1).filter(e => !e.isFence).length;
@@ -2971,11 +3054,11 @@ const Views = (function() {
     let inputsHtml = '';
     switch (trackingType) {
       case 'duration':
-        inputsHtml = renderDurationExercise(effEx, existingData); break;
+        inputsHtml = renderDurationExercise(effEx, existingData, ns); break;
       case 'completion':
-        inputsHtml = renderCompletionExercise(effEx, existingData); break;
+        inputsHtml = renderCompletionExercise(effEx, existingData, ns); break;
       case 'multi_timer':
-        inputsHtml = renderMultiTimerExercise(effEx, existingData); break;
+        inputsHtml = renderMultiTimerExercise(effEx, existingData, ns); break;
       case 'sled':
         inputsHtml = renderSledSets(effEx, existingData, lastEntry); break;
       case 'weight_distance':
@@ -3033,12 +3116,46 @@ const Views = (function() {
     // and skip empties so a blank notes box keeps its compact CSS min-height.
     requestAnimationFrame(() => document.querySelectorAll('.notes-field').forEach(t => { if (t.value) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; } }));
 
+    // Repaint any timer that survived navigation onto the fresh nodes (no 1s blank on return), and
+    // sync multi-timer controls with their live running state (a running step would else read idle).
+    Timer.reattach(ns);
+    if (trackingType === 'multi_timer' && effEx.timerSequence) {
+      for (let i = 0; i < effEx.timerSequence.length; i++) _mtRefresh(i);
+    }
+
     if (existingData) Views.updateBanner(ex);
+  }
+
+  // Start or stop the hold timer for one side (main/l/r) of a duration/completion exercise. Folds the
+  // six formerly-duplicated inline onclick handlers into one. `dispId` is the namespaced display id;
+  // the hidden inputs (time-/done-/time-adjust-) stay unnamespaced. When `isCompletion`, stopping the
+  // timer also ticks the matching completion checkbox.
+  function handleTimerTap(dispId, goalSeconds, isCompletion) {
+    const side = dispId.split('-timer-')[1];   // 'l' | 'r' | 'main'
+    if (Timer.isHoldActive(dispId)) {
+      const t = Timer.stopHoldTimer(dispId);
+      const timeInput = document.getElementById('time-' + side);
+      if (timeInput) timeInput.value = t;
+      const doneInput = document.getElementById('done-' + side);
+      if (doneInput) doneInput.value = 'true';
+      if (isCompletion) {
+        const sel = side === 'main' ? '.completion-toggle' : `.completion-toggle[data-side="${side.toUpperCase()}"]`;
+        const toggle = document.querySelector(sel);
+        if (toggle) { toggle.classList.add('done'); const cb = toggle.querySelector('.check-box'); if (cb) cb.textContent = '✅'; }
+      }
+      const adj = document.getElementById('time-adjust-' + side);
+      if (adj) adj.style.display = 'flex';
+      _triggerAutoSave();
+    } else {
+      const doneInput = document.getElementById('done-' + side);
+      if (!doneInput || doneInput.value !== 'true') Timer.startHoldTimer(dispId, goalSeconds);
+    }
   }
 
   // Adjust recorded time for a completed hold timer
   function adjustTime(timerId, delta) {
-    const timeInput = document.getElementById(timerId.replace('timer-', 'time-'));
+    const side = timerId.split('-timer-')[1];   // namespaced id → 'l' | 'r' | 'main'; inputs stay unnamespaced
+    const timeInput = document.getElementById('time-' + side);
     if (!timeInput) return;
     const current = parseInt(timeInput.value) || 0;
     const newTime = Math.max(0, current + delta);
@@ -3049,7 +3166,8 @@ const Views = (function() {
   }
 
   function setTimeManual(timerId) {
-    const timeInput = document.getElementById(timerId.replace('timer-', 'time-'));
+    const side = timerId.split('-timer-')[1];   // namespaced id → 'l' | 'r' | 'main'; inputs stay unnamespaced
+    const timeInput = document.getElementById('time-' + side);
     if (!timeInput) return;
     const current = parseInt(timeInput.value) || 0;
     const input = prompt('Enter time (m:ss or seconds):', current ? Timer.formatTime(current) : '');
@@ -3063,7 +3181,6 @@ const Views = (function() {
     const display = document.getElementById(timerId);
     if (display) display.textContent = Timer.formatTime(val);
     // A manually-entered time also marks the exercise done (works even if the timer was never started)
-    const side = timerId.replace('timer-', '');
     const doneInput = document.getElementById('done-' + side);
     if (doneInput) doneInput.value = 'true';
     const toggle = document.querySelector(`.completion-toggle[data-side="${side.toUpperCase()}"]`)
@@ -3243,13 +3360,13 @@ const Views = (function() {
   }
 
   function saveExercise(workoutId, exIndex) {
-    Timer.cleanup();           // stop + capture any running timer into the DOM inputs first
+    Timer.finalize('w' + workoutId + 'e' + exIndex + '-');   // stop + capture THIS exercise's timers only
     autoSaveExercise(workoutId, exIndex);
     Router.go(`/w/${workoutId}`);
   }
 
   function saveAndBack(workoutId, exIndex) {
-    Timer.cleanup();           // stop + capture any running timer into the DOM inputs first
+    Timer.finalize('w' + workoutId + 'e' + exIndex + '-');   // stop + capture THIS exercise's timers (a peeked-away one keeps running)
     autoSaveExercise(workoutId, exIndex);
     // Check if this was the last real exercise
     const workout = PROGRAMME.find(w => w.id === workoutId);
@@ -3273,7 +3390,7 @@ const Views = (function() {
 
   // Jump into an "Up next" exercise mid-flow, remembering to return here on Back/Completed
   function peekTo(workoutId, fromIndex, toIndex) {
-    Timer.cleanup();
+    Timer.snapshotLiveTimers('w' + workoutId + 'e' + fromIndex + '-');   // keep the timer running; just snapshot its elapsed
     autoSaveExercise(workoutId, fromIndex);
     _peekReturnTo = { workoutId, exIndex: fromIndex };
     Router.go(`/w/${workoutId}/e/${toIndex}`);
@@ -3943,7 +4060,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
 })();
 
 // =====================================================
@@ -4007,7 +4124,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 
 // =====================================================
 // APP INIT
