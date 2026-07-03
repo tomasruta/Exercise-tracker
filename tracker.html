@@ -326,32 +326,37 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 
 /* ===== COMPLETION TOGGLES ===== */
 /* ===== MULTI TIMER ===== */
-.multi-timer-block { display: flex; flex-direction: column; gap: 6px; }
+.multi-timer-block { display: flex; flex-direction: column; gap: 8px; }
+.mt-hint { font-size: 0.8rem; color: var(--text3); margin-bottom: 2px; }
 .multi-timer-step {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  padding: 12px; border-radius: 10px;
   background: var(--bg-card); border: 1px solid var(--border);
-  min-height: 52px;
 }
 .multi-timer-step.active { border-color: var(--accent); background: var(--ss-bg); }
 .multi-timer-step.done { border-color: var(--green); background: var(--green-bg); }
-.multi-timer-step-num { font-size: 0.75rem; font-weight: 700; color: var(--text3); min-width: 20px; text-align: center; }
-.multi-timer-step-info { flex: 1; min-width: 0; }
-.multi-timer-step-label { font-size: 0.85rem; font-weight: 600; }
-.multi-timer-step-time { font-size: 0.8rem; color: var(--text2); margin-top: 2px; }
+.mt-head { display: flex; align-items: center; gap: 8px; }
+.multi-timer-step-num { font-size: 0.8rem; font-weight: 700; color: var(--text3); min-width: 20px; text-align: center; }
+.multi-timer-step-label { font-size: 0.9rem; font-weight: 600; }
+.mt-timeline { display: flex; align-items: baseline; gap: 8px; }
+.mt-goal-label { font-size: 0.9rem; color: var(--text3); }
 .multi-timer-display {
-  font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums;
-  min-width: 55px; text-align: center;
+  font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  min-width: 55px; text-align: left;
 }
+.mt-controls { display: flex; gap: 8px; }
+.mt-controls .multi-timer-btn { flex: 1; min-width: 0; }
+.mt-controls .mt-icon { flex: 0 0 48px; min-width: 48px; padding: 8px 0; }
+.mt-held { flex: 1; display: flex; align-items: center; font-size: 0.9rem; font-weight: 700; color: var(--green); }
 .multi-timer-btn {
   padding: 8px 14px; border: none; border-radius: 8px;
-  font-size: 0.85rem; font-weight: 700; cursor: pointer; min-width: 70px;
+  font-size: 0.85rem; font-weight: 700; cursor: pointer;
   min-height: 44px;
 }
 .multi-timer-btn-start { background: var(--accent); color: #fff; }
 .multi-timer-btn-pause { background: var(--amber); color: #fff; }
 .multi-timer-btn-done { background: var(--green); color: #fff; }
-.multi-timer-btn-waiting { background: var(--bg-input); color: var(--text3); }
+.multi-timer-btn-waiting { background: var(--bg-input); color: var(--text2); }
 
 .completion-row {
   display: flex; align-items: center; gap: 16px; justify-content: center;
@@ -1639,11 +1644,44 @@ const Timer = (function() {
   // Test-sound button so the phone can report why it's silent when we can't reproduce it on desktop.
   function audioState() { return audioCtx ? audioCtx.state : 'none'; }
 
-  // iOS only unlocks Web-Audio inside a user gesture. Prime the context on the very first tap
-  // anywhere so later timer alarms and the 🔊 Test-sound button can actually make noise.
-  // (Note: this cannot override the hardware ring/silent switch — that's a native-only capability.)
+  // ---- HTMLAudio fallback ----
+  // Web-Audio was confirmed inaudible on the real iPhone even with the ringer on (3 Jul). An
+  // <audio> element playing a real WAV routes through a different iOS path and can sound where
+  // Web-Audio doesn't. We synthesize a ~1s alternating-tone WAV at load (no giant base64 literal).
+  let beepAudio = null;
+  function _beepWavUri() {
+    const sr = 8000, secs = 1.1, n = Math.floor(sr * secs);
+    const buf = new ArrayBuffer(44 + n * 2), view = new DataView(buf);
+    const ws = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, sr, true); view.setUint32(28, sr * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    ws(36, 'data'); view.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      const freq = (Math.floor(t * 5) % 2 === 0) ? 1000 : 1500;   // alternate ~5x/sec
+      const v = Math.sign(Math.sin(2 * Math.PI * freq * t)) * 0.6 * 32767;   // loud square wave
+      view.setInt16(44 + i * 2, v, true);
+    }
+    let bin = ''; const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return 'data:audio/wav;base64,' + btoa(bin);
+  }
+  function ensureBeepAudio() {
+    if (beepAudio) return beepAudio;
+    try { beepAudio = new Audio(_beepWavUri()); beepAudio.preload = 'auto'; } catch (e) {}
+    return beepAudio;
+  }
+  function playBeepFallback() {
+    try { const a = ensureBeepAudio(); if (a) { a.currentTime = 0; a.play().catch(() => {}); } } catch (e) {}
+  }
+
+  // iOS only unlocks audio inside a user gesture. Prime BOTH the Web-Audio context and the <audio>
+  // element on the very first tap anywhere, so later timer alarms / Test-sound can actually make noise.
+  // (Note: neither can override the hardware ring/silent switch — that's a native-only capability.)
   function _primeAudioOnce() {
     ensureAudio();
+    try { const a = ensureBeepAudio(); if (a) { a.muted = true; a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; }); } } catch (e) {}
     document.removeEventListener('touchend', _primeAudioOnce);
     document.removeEventListener('click', _primeAudioOnce);
   }
@@ -1671,6 +1709,8 @@ const Timer = (function() {
   // Loud repeating alarm for "time is up" / "goal reached" events.
   // 10 alternating tones (~2s) — designed to be audible over gym background noise.
   function alarm() {
+    // Fallback FIRST — the <audio> path is the one that works on the real iPhone; Web-Audio is a bonus.
+    playBeepFallback();
     try {
       ensureAudio();
       const gainVal = 0.7;
@@ -1839,6 +1879,12 @@ const Timer = (function() {
   // Hold timer for stretches — counts UP, beeps at goal, user stops manually
   const holdTimers = {};
 
+  // Elapsed seconds for a count-up hold timer, accounting for any paused stretches.
+  function holdElapsedMs(t) {
+    const end = (t.paused && t.pausedAt) ? t.pausedAt : Date.now();
+    return end - t.start - t.pausedOffset;
+  }
+
   function startHoldTimer(id, goalSeconds) {
     ensureAudio();
     requestWakeLock();
@@ -1846,25 +1892,26 @@ const Timer = (function() {
     if (holdTimers[id]) return; // already running
 
     const el = document.getElementById(id);
-    const goalEl = document.getElementById(id + '-goal');
     const btn = document.getElementById(id + '-btn');
     if (!el) return;
-
-    const start = Date.now();
-    let beeped = false;
 
     el.textContent = '0:00';
     if (btn) { btn.textContent = 'STOP'; btn.className = 'timer-btn timer-btn-pause'; }
 
     holdTimers[id] = {
-      start,
+      start: Date.now(),
       goalSeconds,
-      beeped,
+      beeped: false,
+      paused: false,
+      pausedAt: null,
+      pausedOffset: 0,
       interval: setInterval(() => {
-        const elapsed = Math.round((Date.now() - holdTimers[id].start) / 1000);
+        const t = holdTimers[id];
+        if (!t || t.paused) return;
+        const elapsed = Math.round(holdElapsedMs(t) / 1000);
         el.textContent = formatTime(elapsed);
-        if (elapsed >= goalSeconds && !holdTimers[id].beeped) {
-          holdTimers[id].beeped = true;
+        if (elapsed >= goalSeconds && !t.beeped) {
+          t.beeped = true;
           el.classList.add('timer-past-goal');
           // Visual goal cue — works for duration/completion timers AND multi-timer steps (silent-safe backup)
           const flashEl = el.closest('.timer-row') || el.closest('.multi-timer-step');
@@ -1875,9 +1922,24 @@ const Timer = (function() {
     };
   }
 
+  function pauseHoldTimer(id) {
+    const t = holdTimers[id];
+    if (!t || t.paused) return;
+    t.paused = true; t.pausedAt = Date.now();
+  }
+
+  function resumeHoldTimer(id) {
+    const t = holdTimers[id];
+    if (!t || !t.paused) return;
+    t.pausedOffset += Date.now() - t.pausedAt;
+    t.paused = false; t.pausedAt = null;
+  }
+
+  function isHoldPaused(id) { return !!(holdTimers[id] && holdTimers[id].paused); }
+
   function stopHoldTimer(id) {
     if (!holdTimers[id]) return 0;
-    const elapsed = Math.round((Date.now() - holdTimers[id].start) / 1000);
+    const elapsed = Math.round(holdElapsedMs(holdTimers[id]) / 1000);
     clearInterval(holdTimers[id].interval);
     delete holdTimers[id];
 
@@ -1891,7 +1953,7 @@ const Timer = (function() {
 
   function getHoldElapsed(id) {
     if (!holdTimers[id]) return 0;
-    return Math.round((Date.now() - holdTimers[id].start) / 1000);
+    return Math.round(holdElapsedMs(holdTimers[id]) / 1000);
   }
 
   function isHoldActive(id) { return !!holdTimers[id]; }
@@ -1930,7 +1992,7 @@ const Timer = (function() {
     return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, ensureAudio, alarm, audioState };
+  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, pauseHoldTimer, resumeHoldTimer, isHoldPaused, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, ensureAudio, alarm, audioState };
 })();
 
 // =====================================================
@@ -2534,117 +2596,114 @@ const Views = (function() {
       ${timerHtml}`;
   }
 
+  // Controls for one multi-timer position, by status: 'idle' | 'running' | 'paused' | 'done'.
+  function _mtControls(i, status, timeVal) {
+    const restartIcon = `<button class="multi-timer-btn mt-icon multi-timer-btn-waiting" aria-label="Restart" onclick="Views._mtAction(${i},'restart')">↻</button>`;
+    if (status === 'running') {
+      return `<button class="multi-timer-btn multi-timer-btn-pause" onclick="Views._mtAction(${i},'pause')">Pause</button>`
+        + `<button class="multi-timer-btn multi-timer-btn-done" onclick="Views._mtAction(${i},'done')">Done</button>` + restartIcon;
+    }
+    if (status === 'paused') {
+      return `<button class="multi-timer-btn multi-timer-btn-start" onclick="Views._mtAction(${i},'resume')">Resume</button>`
+        + `<button class="multi-timer-btn multi-timer-btn-done" onclick="Views._mtAction(${i},'done')">Done</button>` + restartIcon;
+    }
+    if (status === 'done') {
+      return `<span class="mt-held">✅ Held ${Timer.formatTime(timeVal || 0)}</span>`
+        + `<button class="multi-timer-btn multi-timer-btn-waiting" onclick="Views._mtAction(${i},'restart')">↻ Restart</button>`;
+    }
+    return `<button class="multi-timer-btn multi-timer-btn-start" onclick="Views._mtAction(${i},'start')">Start</button>`;
+  }
+
   function renderMultiTimerExercise(ex, existingData) {
     const seq = ex.timerSequence || [];
-    const steps = existingData?.timerSteps || [];
-    const currentStep = steps.filter(s => s.done).length;
-    const allDone = currentStep >= seq.length;
+    // Pad to one slot per position so the steps array length always equals the position count —
+    // otherwise out-of-order completion makes the total wrong (e.g. "2/3" instead of "2/4").
+    const steps = existingData?.timerSteps ? existingData.timerSteps.slice() : [];
+    while (steps.length < seq.length) steps.push({});
 
     let html = '<div class="multi-timer-block">';
+    html += `<div class="mt-hint">Do them in any order — nothing auto-starts.</div>`;
     for (let i = 0; i < seq.length; i++) {
       const step = seq[i];
       const stepData = steps[i] || {};
-      const isDone = !!stepData.done;
-      const isCurrent = i === currentStep && !allDone;
+      const done = !!stepData.done;
       const timeVal = stepData.time || 0;
-      const cls = isDone ? 'done' : isCurrent ? 'active' : '';
-
-      let btnHtml = '';
-      if (isDone) {
-        btnHtml = `<span class="multi-timer-display">${Timer.formatTime(timeVal)}</span>
-          <button class="multi-timer-btn multi-timer-btn-done" disabled>✅</button>`;
-      } else if (isCurrent) {
-        btnHtml = `<span class="multi-timer-display" id="mt-display-${i}">0:00</span>
-          <button class="multi-timer-btn multi-timer-btn-start" id="mt-btn-${i}"
-            onclick="Views._multiTimerAction(${i}, ${step.seconds})">START</button>`;
-      } else {
-        btnHtml = `<span class="multi-timer-display" style="color:var(--text3);">0:00</span>
-          <button class="multi-timer-btn multi-timer-btn-waiting" disabled>—</button>`;
-      }
-
       html += `
-        <div class="multi-timer-step ${cls}" id="mt-step-${i}">
-          <span class="multi-timer-step-num">${i + 1}</span>
-          <div class="multi-timer-step-info">
-            <div class="multi-timer-step-label">${step.label}</div>
-            <div class="multi-timer-step-time">${Timer.formatTime(step.seconds)}</div>
+        <div class="multi-timer-step${done ? ' done' : ''}" id="mt-step-${i}">
+          <div class="mt-head">
+            <span class="multi-timer-step-num">${i + 1}</span>
+            <span class="multi-timer-step-label">${step.label}</span>
           </div>
-          ${btnHtml}
+          <div class="mt-timeline">
+            <span class="multi-timer-display" id="mt-disp-${i}">${done ? Timer.formatTime(timeVal) : '0:00'}</span>
+            <span class="mt-goal-label">/ ${Timer.formatTime(step.seconds)}</span>
+          </div>
+          <div class="mt-controls" id="mt-ctrl-${i}">${_mtControls(i, done ? 'done' : 'idle', timeVal)}</div>
         </div>`;
     }
-    // Hidden inputs to track state
     html += `<input type="hidden" id="mt-steps-data" value='${JSON.stringify(steps)}'>`;
     html += '</div>';
     return html;
   }
 
-  // Multi-timer action handler: start/pause/stop for current step
-  function _multiTimerAction(stepIndex, goalSeconds) {
-    const timerId = `mt-display-${stepIndex}`;
-    const displayId = `mt-display-${stepIndex}`;
-    const btnId = `mt-btn-${stepIndex}`;
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-
-    if (Timer.isHoldActive(timerId)) {
-      // Stop the timer
-      const elapsed = Timer.stopHoldTimer(timerId);
-      const display = document.getElementById(displayId);
-      if (display) display.textContent = Timer.formatTime(elapsed);
-      btn.textContent = '✅';
-      btn.className = 'multi-timer-btn multi-timer-btn-done';
-      btn.disabled = true;
-
-      // Mark step done in hidden data
-      const dataInput = document.getElementById('mt-steps-data');
-      let stepsData = [];
-      try { stepsData = JSON.parse(dataInput.value); } catch {}
-      while (stepsData.length <= stepIndex) stepsData.push({});
-      stepsData[stepIndex] = { done: true, time: elapsed };
-      dataInput.value = JSON.stringify(stepsData);
-
-      // Update step styling
-      const stepEl = document.getElementById(`mt-step-${stepIndex}`);
-      if (stepEl) { stepEl.classList.remove('active'); stepEl.classList.add('done'); }
-
-      _triggerAutoSave();
-
-      // Auto-advance: activate next step
-      const ex = PROGRAMME.find(w => w.id === _currentRenderCtx.workoutId)?.exercises[_currentRenderCtx.exIndex];
-      if (ex?.timerSequence && stepIndex + 1 < ex.timerSequence.length) {
-        const next = stepIndex + 1;
-        const nextStep = ex.timerSequence[next];
-        const nextStepEl = document.getElementById(`mt-step-${next}`);
-        if (nextStepEl) nextStepEl.classList.add('active');
-        // Replace waiting button with active start button
-        const nextDisplay = nextStepEl?.querySelector('.multi-timer-display');
-        if (nextDisplay) { nextDisplay.id = `mt-display-${next}`; nextDisplay.style.color = ''; }
-        const nextBtnSlot = nextStepEl?.querySelector('.multi-timer-btn');
-        if (nextBtnSlot) {
-          const newBtn = document.createElement('button');
-          newBtn.className = 'multi-timer-btn multi-timer-btn-start';
-          newBtn.id = `mt-btn-${next}`;
-          newBtn.textContent = 'START';
-          newBtn.onclick = () => Views._multiTimerAction(next, nextStep.seconds);
-          nextBtnSlot.replaceWith(newBtn);
-        }
-        // Auto-start next timer after brief delay
-        setTimeout(() => Views._multiTimerAction(next, nextStep.seconds), 400);
-      }
-    } else {
-      // Start the hold timer
-      Timer.startHoldTimer(timerId, goalSeconds);
-      btn.textContent = 'STOP';
-      btn.className = 'multi-timer-btn multi-timer-btn-pause';
-      // Update display from hold timer
-      const display = document.getElementById(displayId);
-      if (display) {
-        const updateInterval = setInterval(() => {
-          if (!Timer.isHoldActive(timerId)) { clearInterval(updateInterval); return; }
-          display.textContent = Timer.formatTime(Timer.getHoldElapsed(timerId));
-        }, 200);
-      }
+  // ---- Multi-timer (calf stretch): each position independent, any order, no auto-start ----
+  function _mtSteps() {
+    const el = document.getElementById('mt-steps-data');
+    try { return JSON.parse(el.value || '[]'); } catch { return []; }
+  }
+  function _mtSaveSteps(steps) {
+    const el = document.getElementById('mt-steps-data');
+    if (el) el.value = JSON.stringify(steps);
+  }
+  function _mtGoal(i) {
+    const ctx = _currentRenderCtx; if (!ctx) return 45;
+    const ex = PROGRAMME.find(w => w.id === ctx.workoutId)?.exercises[ctx.exIndex];
+    return (ex && ex.timerSequence && ex.timerSequence[i] && ex.timerSequence[i].seconds) || 45;
+  }
+  function _mtStatus(i) {
+    const steps = _mtSteps();
+    if (steps[i] && steps[i].done) return 'done';
+    const id = 'mt-disp-' + i;
+    if (Timer.isHoldActive(id)) return Timer.isHoldPaused(id) ? 'paused' : 'running';
+    return 'idle';
+  }
+  function _mtRefresh(i) {
+    const c = document.getElementById('mt-ctrl-' + i);
+    if (!c) return;
+    const steps = _mtSteps();
+    c.innerHTML = _mtControls(i, _mtStatus(i), (steps[i] && steps[i].time) || 0);
+  }
+  function _mtAction(i, action) {
+    const id = 'mt-disp-' + i;
+    const stepEl = document.getElementById('mt-step-' + i);
+    if (action === 'start') {
+      Timer.startHoldTimer(id, _mtGoal(i));
+    } else if (action === 'resume') {
+      if (Timer.isHoldActive(id)) Timer.resumeHoldTimer(id); else Timer.startHoldTimer(id, _mtGoal(i));
+    } else if (action === 'pause') {
+      Timer.pauseHoldTimer(id);
+    } else if (action === 'done') {
+      const elapsed = Timer.isHoldActive(id) ? Timer.stopHoldTimer(id) : 0;
+      const steps = _mtSteps();
+      while (steps.length <= i) steps.push({});
+      steps[i] = { done: true, time: elapsed || (steps[i] && steps[i].time) || 0 };
+      _mtSaveSteps(steps);
+      const disp = document.getElementById(id);
+      if (disp) disp.textContent = Timer.formatTime(steps[i].time);
+      if (stepEl) { stepEl.classList.add('done'); stepEl.classList.remove('timer-goal-flash'); }
+    } else if (action === 'restart') {
+      if (Timer.isHoldActive(id)) Timer.stopHoldTimer(id);
+      const steps = _mtSteps();
+      while (steps.length <= i) steps.push({});
+      steps[i] = {};
+      _mtSaveSteps(steps);
+      if (stepEl) stepEl.classList.remove('done', 'timer-goal-flash');
+      const disp = document.getElementById(id);
+      if (disp) disp.classList.remove('timer-past-goal');
+      Timer.startHoldTimer(id, _mtGoal(i));   // restart = reset to 0 and run again
     }
+    _mtRefresh(i);
+    _triggerAutoSave();
   }
 
   function renderSledSets(ex, existingData, lastEntry) {
@@ -3797,7 +3856,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, _triggerAutoSave, _updateSledDerived, _multiTimerAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
 })();
 
 // =====================================================
@@ -3861,7 +3920,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.5.5';
+const APP_VERSION = '1.5.6';
 
 // =====================================================
 // APP INIT

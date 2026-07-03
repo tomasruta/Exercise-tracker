@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gym-tracker-v1.5.5';
+const CACHE_NAME = 'gym-tracker-v1.5.6';
 const ASSETS = ['tracker.html'];
 
 // Install: pre-cache tracker.html
