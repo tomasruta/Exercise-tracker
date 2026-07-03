@@ -942,13 +942,18 @@ const State = (function() {
     const total = expectedSets || data.sets.length;
     let filled = 0;
     for (const s of data.sets) {
+      // A set only counts once the user actually edited one of its inputs (s.touched).
+      // Legacy sets saved before the touched flag existed have s.touched === undefined —
+      // trust their values as before so an in-progress session across an update isn't wiped.
+      const genuine = (s.touched === undefined) ? true : s.touched;
+      if (!genuine) continue;
       if (s.lengths) { filled++; continue; }
       if (s.distance) { filled++; continue; }
       if (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) { filled++; continue; }
       if (s.repsL !== null && s.repsL !== undefined && s.repsL !== '') { filled++; continue; }
     }
-    // Set-based 'complete' now requires an explicit "Completed exercise" tap (handled above),
-    // so pre-filled/auto-saved reps no longer ghost-complete an exercise you didn't do.
+    // Set-based 'complete' requires an explicit "Completed exercise" tap (handled above),
+    // and prefilled-but-untouched sets no longer ghost as "1/1" just because you opened the exercise.
     const status = filled === 0 ? 'none' : 'partial';
     return { status, filled, total };
   }
@@ -1080,15 +1085,19 @@ const Progression = (function() {
     const result = { weight: '', weightL: '', weightR: '', bumped: false, from: null };
     if (!last || !last.sets || last.sets.length === 0) return result;
 
+    // Prefill from the LAST set of the previous session (your top/working set on a ramp),
+    // not the first — e.g. a cable squat you build up to. Straight-sets are unaffected.
+    const lastSet = last.sets[last.sets.length - 1];
+
     if (exercise.unilateral === 'split_weight') {
-      result.weightL = last.sets[0].weightL || '';
-      result.weightR = last.sets[0].weightR || '';
+      result.weightL = lastSet.weightL || '';
+      result.weightR = lastSet.weightR || '';
       return result;
     }
 
     if (exercise.unilateral === 'split_reps') {
       // New format: per-set weight; old format: shared last.weight
-      const lastWeight = last.sets[0]?.weight ?? last.weight ?? 0;
+      const lastWeight = lastSet?.weight ?? last.weight ?? 0;
       if (exercise.repRange && shouldAutoBump(last.sets, exercise.repRange, 'split_reps')) {
         const step = getWeightStep(exercise.progressionType);
         if (step > 0) {
@@ -1098,7 +1107,7 @@ const Progression = (function() {
       return { ...result, weight: lastWeight || '' };
     }
 
-    const lastWeight = last.sets[0].weight || 0;
+    const lastWeight = lastSet.weight || 0;
     if (exercise.repRange && shouldAutoBump(last.sets, exercise.repRange)) {
       const step = getWeightStep(exercise.progressionType);
       if (step > 0) {
@@ -1616,6 +1625,17 @@ const Timer = (function() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
   }
 
+  // iOS only unlocks Web-Audio inside a user gesture. Prime the context on the very first tap
+  // anywhere so later timer alarms and the 🔊 Test-sound button can actually make noise.
+  // (Note: this cannot override the hardware ring/silent switch — that's a native-only capability.)
+  function _primeAudioOnce() {
+    ensureAudio();
+    document.removeEventListener('touchend', _primeAudioOnce);
+    document.removeEventListener('click', _primeAudioOnce);
+  }
+  document.addEventListener('touchend', _primeAudioOnce, { passive: true });
+  document.addEventListener('click', _primeAudioOnce, { passive: true });
+
   // Play one tone with short attack/release to avoid clicks
   function playTone(freq, gainVal, durationMs, startOffsetMs = 0) {
     const osc = audioCtx.createOscillator();
@@ -2040,7 +2060,7 @@ const Views = (function() {
     } else if (startedAt) {
       clockHtml = `<div id="session-clock" style="font-size:0.8rem;color:var(--text2);margin-top:2px;">Started ${startTimeStr} · 0:00</div>`;
     } else {
-      clockHtml = `<button class="btn btn-success" style="margin-top:6px;padding:10px 24px;font-size:1rem;" onclick="State.startTimer();Views.renderWorkout(${workoutId});">▶ Start Session</button>`;
+      clockHtml = `<button class="btn btn-success" style="margin-top:6px;padding:10px 24px;font-size:1rem;" onclick="Timer.ensureAudio();State.startTimer();Views.renderWorkout(${workoutId});">▶ Start Session</button>`;
     }
 
     const endSessionBtn = timerRunning
@@ -2120,8 +2140,10 @@ const Views = (function() {
 
     let lastStr = '';
     if (lastEntry) {
-      if (lastEntry.sets?.[0]?.weight) lastStr = `Last: ${lastEntry.sets[0].weight}kg`;
-      else if (lastEntry.sets?.[0]?.weightL) lastStr = `Last: L${lastEntry.sets[0].weightL}/R${lastEntry.sets[0].weightR}kg`;
+      // Show the LAST set (your top/working weight on a ramp), consistent with the prefill.
+      const ls = lastEntry.sets?.[lastEntry.sets.length - 1];
+      if (ls?.weight) lastStr = `Last: ${ls.weight}kg`;
+      else if (ls?.weightL) lastStr = `Last: L${ls.weightL}/R${ls.weightR}kg`;
       else if (lastEntry.weight) lastStr = `Last: ${lastEntry.weight}kg`;
     }
 
@@ -2853,6 +2875,7 @@ const Views = (function() {
     // Add listeners for all inputs
     document.querySelectorAll('.weight-input, .reps-input, .wl-input, .wr-input, .rl-input, .rr-input, .sr-weight-input, .sled-weight, .sled-lengths, .sled-time, .wd-weight, .wd-distance').forEach(input => {
       input.addEventListener('input', () => {
+        input.dataset.touched = '1';   // distinguishes a set you actually entered from prefilled defaults
         Views._triggerAutoSave();
         Views.updateBanner(ex);
       });
@@ -2908,6 +2931,9 @@ const Views = (function() {
   // Trigger auto-save using stored context
   function _triggerAutoSave() {
     if (_currentRenderCtx) autoSaveExercise(_currentRenderCtx.workoutId, _currentRenderCtx.exIndex);
+    // Starting to log the first exercise auto-starts the session clock if you forgot the Start button.
+    const wip = State.getWIP();
+    if (wip && !wip.startedAt) State.startTimer();
     const el = document.getElementById('auto-save-status');
     if (el) { el.textContent = 'Saved ✓'; clearTimeout(el._t); el._t = setTimeout(() => el.textContent = 'Auto-saved', 1500); }
   }
@@ -2936,6 +2962,12 @@ const Views = (function() {
     const data = { notes, exId: ex.id };
     if (variant) data.variant = variant.id;
     if (document.getElementById('ex-completed')?.value === 'true') data.completed = true;
+
+    // A set counts toward progress only if the user edited one of its inputs — now (data-touched
+    // set by the input listener) or in a prior save (prevSets). Kills the prefilled "1/1" ghost.
+    const prevSets = State.getExerciseData(exIndex)?.sets;
+    const setTouched = (s) => !!document.querySelector(`[data-set="${s}"][data-touched="1"]`)
+      || !!(prevSets && prevSets[s] && prevSets[s].touched);
 
     switch (trackingType) {
       case 'duration': {
@@ -3057,6 +3089,9 @@ const Views = (function() {
         break;
       }
     }
+
+    // Stamp per-set touched (true/false) so getExerciseCompletionStatus counts only genuine sets.
+    if (Array.isArray(data.sets)) data.sets.forEach((st, s) => { st.touched = setTouched(s); });
 
     State.logExercise(exIndex, data);
   }
@@ -3616,6 +3651,15 @@ const Views = (function() {
   }
 
   // ---- Exercise History Page ----
+  // Narrow an exercise's history to the currently-selected variant, so e.g. the seated ham-curl
+  // variant of nordic-curl shows only seated-ham-curl sessions. Untagged legacy entries are shown
+  // only under the default variant. Returns all entries when the exercise has no variants.
+  function filterHistoryByVariant(all, exDef, activeVar) {
+    if (!exDef || !exDef.variants || !activeVar) return all;
+    const defId = (exDef.variants.find(v => v.isDefault) || exDef.variants[0]).id;
+    return all.filter(h => h.data.variant === activeVar.id || (activeVar.id === defId && !h.data.variant));
+  }
+
   function renderExerciseHistory(exerciseId) {
     // Find exercise definition across all workouts
     let exDef = null;
@@ -3625,7 +3669,8 @@ const Views = (function() {
     }
     if (!exDef) { Router.go('/'); return; }
 
-    const history = State.getExerciseHistory(exerciseId);
+    const activeVar = exDef.variants ? getActiveVariant(exDef) : null;
+    const history = filterHistoryByVariant(State.getExerciseHistory(exerciseId), exDef, activeVar);
     const userCues = Data.getUserCues(exerciseId);
     const structuredCues = getStructuredCues(exDef);
     const defaultCuesText = structuredCues
@@ -3670,7 +3715,7 @@ const Views = (function() {
         </div>` : ''}
 
         <div class="summary-section">
-          <h3>Recent Sessions (${history.length})</h3>
+          <h3>Recent Sessions (${history.length})${activeVar ? ` · ${activeVar.label}` : ''}</h3>
           ${entriesHtml}
         </div>
 
@@ -3683,12 +3728,14 @@ const Views = (function() {
 
 
   function copyNotesHistory(exerciseId) {
-    const history = State.getExerciseHistory(exerciseId);
-    let exName = exerciseId;
+    let exDef = null;
     for (const w of PROGRAMME) {
       const found = w.exercises.find(e => e.id === exerciseId);
-      if (found) { exName = found.name; break; }
+      if (found) { exDef = found; break; }
     }
+    const exName = exDef ? exDef.name : exerciseId;
+    const activeVar = exDef && exDef.variants ? getActiveVariant(exDef) : null;
+    const history = filterHistoryByVariant(State.getExerciseHistory(exerciseId), exDef, activeVar);
     const text = `# ${exName} — Notes History\n\n` +
       history.filter(h => h.data.notes).map(h => `**${Markdown.formatDate(h.date)}** (W${h.workoutId}):\n${h.data.notes}`).join('\n\n');
 
@@ -3787,7 +3834,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.5.3';
+const APP_VERSION = '1.5.4';
 
 // =====================================================
 // APP INIT
