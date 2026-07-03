@@ -999,7 +999,15 @@ const State = (function() {
 
   // Find last entry for a given exercise ID across all sessions
   // Checks both current ID and any aliases (for backward compat with old sled IDs etc.)
-  function getLastEntry(exerciseId) {
+  // Variant-aware match: with a filter, an entry counts only if it's the same variant — or a
+  // legacy untagged entry viewed under the exercise's default variant. Mirrors Views.filterHistoryByVariant
+  // so the "Last session" line, prefill, and full-history page all agree. No filter → always matches.
+  function matchesVariantFilter(data, vf) {
+    if (!vf) return true;
+    return data.variant === vf.variantId || (vf.variantId === vf.defaultVariantId && !data.variant);
+  }
+
+  function getLastEntry(exerciseId, variantFilter) {
     const targetId = resolveId(exerciseId);
     const sessions = Data.getSessions();
     for (let i = sessions.length - 1; i >= 0; i--) {
@@ -1011,7 +1019,7 @@ const State = (function() {
         // Prefer the stored exercise ID; fall back to array index for legacy unstamped data
         const exResolved = resolveId(data.exId || (ex && ex.id));
         if (!exResolved) continue;
-        if (exResolved === targetId && (
+        if (exResolved === targetId && matchesVariantFilter(data, variantFilter) && (
           (data.sets && data.sets.length > 0) ||
           data.done || data.doneL || data.doneR
         )) {
@@ -1085,8 +1093,8 @@ const Progression = (function() {
     });
   }
 
-  function getPreFill(exerciseId, exercise) {
-    const last = State.getLastEntry(exerciseId);
+  function getPreFill(exerciseId, exercise, variantFilter) {
+    const last = State.getLastEntry(exerciseId, variantFilter);
     const result = { weight: '', weightL: '', weightR: '', bumped: false, from: null };
     if (!last || !last.sets || last.sets.length === 0) return result;
 
@@ -2346,7 +2354,7 @@ const Views = (function() {
       <div class="last-session">
         <div class="last-session-title">Last session (${Markdown.formatDate(lastEntry.date)}, W${lastEntry.workoutId})</div>
         <div>${detail}</div>
-        ${lastEntry.notes ? `<div style="margin-top:4px;font-style:italic;color:var(--text3);">${lastEntry.notes}</div>` : ''}
+        ${lastEntry.notes ? `<div style="margin-top:4px;font-style:italic;color:var(--text3);white-space:pre-wrap;">${lastEntry.notes}</div>` : ''}
       </div>`;
   }
 
@@ -2855,9 +2863,16 @@ const Views = (function() {
     const exNum = workout.exercises.slice(0, exIndex + 1).filter(e => !e.isFence).length;
     const effEx = getEffectiveExercise(ex);
     const trackingType = getEffectiveTrackingType(ex);
-    const lastEntry = State.getLastEntry(ex.id);
+    // Variant-aware history: the "Last session" line, the prefill, and the last-session notes must
+    // all reflect the CURRENTLY-selected variant (e.g. Preacher bench vs Spider curl), not a blend
+    // across variants. Legacy untagged entries fall under the default variant.
+    const activeVar = ex.variants ? getActiveVariant(ex) : null;
+    const variantFilter = (activeVar && ex.variants)
+      ? { variantId: activeVar.id, defaultVariantId: (ex.variants.find(v => v.isDefault) || ex.variants[0]).id }
+      : null;
+    const lastEntry = State.getLastEntry(ex.id, variantFilter);
     const existingData = State.getExerciseData(exIndex);
-    const preFill = Progression.getPreFill(ex.id, effEx);
+    const preFill = Progression.getPreFill(ex.id, effEx, variantFilter);
 
     // Form cues — user-edited (localStorage) > structured (FORM_CUES) > plain text fallback
     let cuesHtml = '';
@@ -2865,8 +2880,8 @@ const Views = (function() {
     const structuredCues = getStructuredCues(ex);
     const hasAnyCues = userCues || structuredCues || ex.formCues || ex.notes;
 
-    // Last session notes from history (not from current session)
-    const historyForNotes = State.getExerciseHistory(ex.id);
+    // Last session notes from history (not from current session) — variant-filtered to match.
+    const historyForNotes = filterHistoryByVariant(State.getExerciseHistory(ex.id), ex, activeVar);
     const lastHistoryNotes = historyForNotes.length > 0 && historyForNotes[0].data.notes ? historyForNotes[0] : null;
 
     if (hasAnyCues || lastHistoryNotes) {
@@ -3235,8 +3250,12 @@ const Views = (function() {
     try {
       Timer.ensureAudio();
       Timer.alarm();
-      // Report the audio state so we can diagnose device silence we can't reproduce on desktop.
-      if (status) status.textContent = `▶ played · audio: ${Timer.audioState()}`;
+      // Plain-language result; keep the raw audio state only as tiny debug text so we can still
+      // diagnose device silence we can't reproduce on desktop.
+      if (status) status.innerHTML =
+        `<div style="color:#16a34a;font-weight:600;font-size:0.85rem;">✓ Sound works!</div>`
+        + `<div style="color:var(--text3);font-size:0.72rem;line-height:1.3;">Didn't hear it? Flip the ringer switch on the side of your phone.</div>`
+        + `<div style="color:var(--text3);opacity:0.55;font-size:0.62rem;margin-top:1px;">audio: ${Timer.audioState()}</div>`;
     } catch (e) {
       if (status) status.textContent = '⚠ ' + (e && e.message ? e.message : e);
     }
@@ -3940,7 +3959,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.5.7';
+const APP_VERSION = '1.5.8';
 
 // =====================================================
 // APP INIT
@@ -3988,6 +4007,28 @@ const APP_VERSION = '1.5.7';
 
   State.init();
   Router.init();
+
+  // One-time "you just updated" confirmation. If the running build differs from the version we
+  // last recorded, this load landed a new build — confirm it visibly so a successful update is
+  // unmistakable (pairs with the "Update available" banner). Shows once per version.
+  function showUpdatedToast(v) {
+    const toast = document.createElement('div');
+    toast.textContent = '✓ Updated to v' + v;
+    toast.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);max-width:90%;padding:11px 20px;background:#16a34a;color:#fff;font-size:0.9rem;font-weight:600;border-radius:22px;z-index:10000;box-shadow:0 3px 12px rgba(0,0,0,0.25);transition:opacity .4s;';
+    toast.onclick = () => toast.remove();
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; }, 3600);
+    setTimeout(() => { toast.remove(); }, 4100);
+  }
+  try {
+    const prevVersion = localStorage.getItem('gym-last-version');
+    // First rollout of this feature: the prior build never wrote the key, so treat an existing
+    // user (has data) with no recorded version as a just-happened update too. A brand-new install
+    // (no data, no version) gets nothing.
+    const hasHistory = localStorage.getItem('gym-sessions') || localStorage.getItem('gym-session-wip');
+    if (prevVersion !== APP_VERSION && (prevVersion || hasHistory)) showUpdatedToast(APP_VERSION);
+    localStorage.setItem('gym-last-version', APP_VERSION);
+  } catch (e) { /* non-critical */ }
 
   // Last-gasp WIP save: flush in-memory session to localStorage before the tab dies.
   // Autosave already writes on every input, so this is insurance against the edge case where
