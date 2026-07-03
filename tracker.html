@@ -1620,10 +1620,24 @@ const Timer = (function() {
   const timers = {}; // keyed by element ID
   let wakeLock = null;
 
+  let _audioUnlocked = false;
   function ensureAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
+    // iOS Safari: resume() alone often isn't enough — actually starting a 1-sample silent buffer
+    // during the user gesture is what unlocks audible output. Do it once, after the context exists.
+    if (!_audioUnlocked && audioCtx) {
+      try {
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf; src.connect(audioCtx.destination); src.start(0);
+        _audioUnlocked = true;
+      } catch (e) { /* retry on next gesture */ }
+    }
   }
+  // Current audio-context state ('running' / 'suspended' / 'interrupted' / 'none') — surfaced on the
+  // Test-sound button so the phone can report why it's silent when we can't reproduce it on desktop.
+  function audioState() { return audioCtx ? audioCtx.state : 'none'; }
 
   // iOS only unlocks Web-Audio inside a user gesture. Prime the context on the very first tap
   // anywhere so later timer alarms and the 🔊 Test-sound button can actually make noise.
@@ -1725,6 +1739,7 @@ const Timer = (function() {
   function startCountdown(id, totalSeconds, onComplete) {
     ensureAudio();
     requestWakeLock();
+    State.startTimer();   // starting a countdown also starts the session clock
     if (timers[id]) clearInterval(timers[id].interval);
 
     const el = document.getElementById(id);
@@ -1807,6 +1822,7 @@ const Timer = (function() {
     } else {
       // Start
       requestWakeLock();
+      State.startTimer();   // starting the sled stopwatch also starts the session clock
       const start = Date.now();
       btn.textContent = 'STOP';
       btn.classList.add('running');
@@ -1826,6 +1842,7 @@ const Timer = (function() {
   function startHoldTimer(id, goalSeconds) {
     ensureAudio();
     requestWakeLock();
+    State.startTimer();   // starting a timed exercise (e.g. backward treadmill) also starts the session clock
     if (holdTimers[id]) return; // already running
 
     const el = document.getElementById(id);
@@ -1913,7 +1930,7 @@ const Timer = (function() {
     return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, ensureAudio, alarm };
+  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, ensureAudio, alarm, audioState };
 })();
 
 // =====================================================
@@ -2075,7 +2092,7 @@ const Views = (function() {
       </div>
       <div class="content">
         <div class="exercise-list">${rows}</div>
-        <div style="text-align:center;margin:4px 0 8px;"><button style="padding:8px 16px;font-size:0.85rem;background:var(--bg-input);color:var(--text2);border:1px solid var(--border);border-radius:8px;cursor:pointer;min-height:40px;" onclick="Views.testSound()">🔊 Test sound</button></div>
+        <div style="text-align:center;margin:4px 0 8px;"><button style="padding:8px 16px;font-size:0.85rem;background:var(--bg-input);color:var(--text2);border:1px solid var(--border);border-radius:8px;cursor:pointer;min-height:40px;" onclick="Views.testSound()">🔊 Test sound</button><div id="test-sound-status" style="font-size:0.7rem;color:var(--text3);margin-top:3px;min-height:1em;"></div></div>
         ${endSessionBtn}
         <div class="workout-notes">
           <label>How did it feel overall?</label>
@@ -3134,7 +3151,17 @@ const Views = (function() {
   }
 
   // Play the goal alarm on demand so you can confirm your phone isn't on silent
-  function testSound() { try { Timer.alarm(); } catch (e) {} }
+  function testSound() {
+    const status = document.getElementById('test-sound-status');
+    try {
+      Timer.ensureAudio();
+      Timer.alarm();
+      // Report the audio state so we can diagnose device silence we can't reproduce on desktop.
+      if (status) status.textContent = `▶ played · audio: ${Timer.audioState()}`;
+    } catch (e) {
+      if (status) status.textContent = '⚠ ' + (e && e.message ? e.message : e);
+    }
+  }
 
   function updateBanner(exercise) {
     const bannerEl = document.getElementById('progression-banner');
@@ -3834,7 +3861,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.5.4';
+const APP_VERSION = '1.5.5';
 
 // =====================================================
 // APP INIT
