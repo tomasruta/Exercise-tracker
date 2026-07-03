@@ -752,7 +752,8 @@ const Data = (function() {
 
   function getSessions() {
     try {
-      return JSON.parse(localStorage.getItem(SESSIONS_KEY)) || [];
+      const parsed = JSON.parse(localStorage.getItem(SESSIONS_KEY));
+      return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
   }
 
@@ -795,7 +796,15 @@ const Data = (function() {
     const sessions = getSessions();
     if (sessions[sessionIndex]) {
       sessions[sessionIndex].exported = true;
-      saveSessions(sessions);
+      try {
+        saveSessions(sessions);
+      } catch (e) {
+        // Export to clipboard/share already succeeded; only the "exported" flag
+        // failed to persist (storage full). saveSessions() has already shown the
+        // storage-full prompt. Swallow so the caller doesn't fall to an error path —
+        // the unexported banner simply stays, which is the safe/conservative outcome.
+        console.error('Failed to persist exported flag:', e);
+      }
     }
   }
 
@@ -1492,6 +1501,19 @@ const Markdown = (function() {
           variantId = nameMatch[2] || null;
           const rest = nameMatch[3].trim();
 
+          // 0. Multi-timer: 3/4 positions (Left — straight leg (gastroc): 30s, ... : —)
+          const mtMatch = rest.match(/^\d+\/\d+\s+positions?\s*\((.*)\)\s*$/);
+          if (mtMatch) {
+            const steps = mtMatch[1].split(', ').map(part => {
+              const ci = part.lastIndexOf(': ');
+              const val = ci >= 0 ? part.slice(ci + 2).trim() : '';
+              if (val === '' || val === '—') return { done: false };
+              const t = parseInt(val);
+              return { done: true, time: isNaN(t) ? 0 : t };
+            });
+            parsed = { timerSteps: steps };
+          }
+
           // 1. Completion unilateral: L✅(52s) R—(0s) or L✅ R✅
           const compUni = rest.match(/^L([✅—])(?:\((\d+)s\))?\s*R([✅—])(?:\((\d+)s\))?$/);
           if (compUni) {
@@ -2029,6 +2051,19 @@ const Timer = (function() {
 const Views = (function() {
   const app = document.getElementById('app');
 
+  // HTML-escape user free-text (notes, gym names, injuries, imported strings) before it
+  // goes into innerHTML. Prevents markup in a note from executing or breaking the layout.
+  // No-op for normal text/numbers. Added per robustness audit 2026-07-03. Do NOT use on
+  // the markdown export/clipboard paths — those are plain text, not HTML.
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function getNextWorkoutId() {
     const sessions = Data.getSessions();
     if (sessions.length === 0) return 1;
@@ -2197,7 +2232,7 @@ const Views = (function() {
           <div style="display:flex;gap:8px;">
             <select class="notes-field" id="gym-select" style="min-height:48px;padding:10px;flex:1;"
               onchange="if(this.value==='__add_new__'){Views._addNewGym();}else{Views._syncSessionNotes();}">
-              ${Data.getGymList().map(g => `<option value="${g}" ${g === (wipData?.gym || Data.getLastGym()) ? 'selected' : ''}>${g}</option>`).join('')}
+              ${Data.getGymList().map(g => `<option value="${esc(g)}" ${g === (wipData?.gym || Data.getLastGym()) ? 'selected' : ''}>${esc(g)}</option>`).join('')}
               <option value="__add_new__">+ Add new gym…</option>
             </select>
           </div>
@@ -2347,7 +2382,7 @@ const Views = (function() {
       } else if (s0.distance !== undefined) {
         detail = lastEntry.sets.map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(', ');
       } else {
-        detail = lastEntry.sets.map(s => { const w = parseFloat(s.weight) || 0; return w ? `${w}kg × ${s.reps}` : `BW × ${s.reps}`; }).join(', ');
+        detail = lastEntry.sets.map(s => { const w = parseFloat(s.weight) || 0; return w ? `${w}kg × ${esc(s.reps)}` : `BW × ${esc(s.reps)}`; }).join(', ');
       }
     }
     return `
@@ -2897,7 +2932,7 @@ const Views = (function() {
       const lastNotesHtml = lastHistoryNotes
         ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
             <div style="font-size:0.75rem;font-weight:600;color:var(--text3);margin-bottom:4px;">Last session notes (${Markdown.formatDate(lastHistoryNotes.date)})</div>
-            <div style="font-size:0.8rem;color:var(--text3);font-style:italic;white-space:pre-wrap;">${lastHistoryNotes.data.notes}</div>
+            <div style="font-size:0.8rem;color:var(--text3);font-style:italic;white-space:pre-wrap;">${esc(lastHistoryNotes.data.notes)}</div>
           </div>`
         : '';
 
@@ -2973,7 +3008,7 @@ const Views = (function() {
         ${formatLastEntry(lastEntry, ex)}
         ${inputsHtml}
         <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
-          oninput="Views._triggerAutoSave()">${existingNotes}</textarea>
+          oninput="Views._triggerAutoSave()">${esc(existingNotes)}</textarea>
         <input type="hidden" id="ex-completed" value="${existingData?.completed ? 'true' : ''}">
         <div id="progression-banner"></div>
         ${renderPeekView(workout, exIndex)}
@@ -3390,7 +3425,7 @@ const Views = (function() {
         } else if (s0.distance !== undefined) {
           setsStr = data.sets.filter(s => s.distance).map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(' | ');
         } else {
-          setsStr = data.sets.filter(s => s.reps !== '' && s.reps !== undefined).map(s => `${s.weight || 'BW'}kg × ${s.reps}`).join(' | ');
+          setsStr = data.sets.filter(s => s.reps !== '' && s.reps !== undefined).map(s => `${s.weight || 'BW'}kg × ${esc(s.reps)}`).join(' | ');
         }
       }
 
@@ -3400,7 +3435,7 @@ const Views = (function() {
         <div class="summary-item">
           <div class="summary-name">${ex.name}${variantLabel}</div>
           <div class="summary-sets">${setsStr}</div>
-          ${data.notes ? `<div class="summary-notes">${data.notes}</div>` : ''}
+          ${data.notes ? `<div class="summary-notes">${esc(data.notes)}</div>` : ''}
         </div>`;
     }
 
@@ -3416,9 +3451,9 @@ const Views = (function() {
           ${session.startedAt && session.completedAt ? `<div style="color:var(--text2);margin-top:4px;font-size:0.85rem;">${Timer.formatTimeOfDay(session.startedAt)} → ${Timer.formatTimeOfDay(session.completedAt)} (${Timer.formatDuration(new Date(session.completedAt) - new Date(session.startedAt))})</div>` : ''}
         </div>
 
-        ${session.gym ? `<div style="text-align:center;font-size:0.85rem;color:var(--text2);margin-bottom:12px;">📍 ${session.gym}</div>` : ''}
-        ${session.overall ? `<div class="summary-section"><h3>Overall</h3><div class="summary-item">${session.overall}</div></div>` : ''}
-        ${session.injuries ? `<div class="summary-section"><h3>Injuries / Concerns</h3><div class="summary-item" style="color:var(--amber);">${session.injuries}</div></div>` : ''}
+        ${session.gym ? `<div style="text-align:center;font-size:0.85rem;color:var(--text2);margin-bottom:12px;">📍 ${esc(session.gym)}</div>` : ''}
+        ${session.overall ? `<div class="summary-section"><h3>Overall</h3><div class="summary-item">${esc(session.overall)}</div></div>` : ''}
+        ${session.injuries ? `<div class="summary-section"><h3>Injuries / Concerns</h3><div class="summary-item" style="color:var(--amber);">${esc(session.injuries)}</div></div>` : ''}
 
         <div class="summary-section">
           <h3>Exercises</h3>
@@ -3514,7 +3549,14 @@ const Views = (function() {
     const dupes = result.sessions.length - newSessions.length;
 
     const combined = [...existing, ...newSessions];
-    Data.saveSessions(combined);
+    try {
+      Data.saveSessions(combined);
+    } catch (e) {
+      // Storage full — data was NOT saved. saveSessions() already showed the
+      // storage-full prompt. Surface the failure instead of a false success.
+      resultEl.innerHTML = `<div class="import-result" style="background:var(--red-bg);color:var(--red);">Import failed — storage may be full. Nothing was saved. Export and clear old sessions, then try again.</div>`;
+      return;
+    }
 
     let msg = `Imported ${newSessions.length} session(s), ${result.matched} exercise(s) matched.`;
     if (dupes > 0) msg += ` ${dupes} duplicate(s) skipped.`;
@@ -3635,7 +3677,13 @@ const Views = (function() {
     const exportWarning = session && !session.exported ? '\n\nThis session has NOT been exported yet!' : '';
     if (!confirm(`Delete this session? This cannot be undone.${exportWarning}`)) return;
     sessions.splice(sessionIndex, 1);
-    Data.saveSessions(sessions);
+    try {
+      Data.saveSessions(sessions);
+    } catch (e) {
+      // Storage full — the delete didn't persist. saveSessions() already showed the
+      // storage-full prompt. Alert and re-render so the screen never looks frozen.
+      alert('Could not save the change — storage may be full. Export and clear old sessions.');
+    }
     renderSettings();
   }
 
@@ -3680,9 +3728,9 @@ const Views = (function() {
     const weights = validSets.map(s => parseFloat(s.weight) || 0);
     const allSame = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
     if (allSame) {
-      return `${validSets.length}×[${validSets.map(s => s.reps).join(', ')}] @ ${weights[0] ? weights[0] + wLabel : 'BW'}`;
+      return `${validSets.length}×[${validSets.map(s => esc(s.reps)).join(', ')}] @ ${weights[0] ? weights[0] + wLabel : 'BW'}`;
     }
-    return `${validSets.length}×[${validSets.map(s => `${s.reps}@${parseFloat(s.weight)||0}`).join(', ')}] ${wLabel}`;
+    return `${validSets.length}×[${validSets.map(s => `${esc(s.reps)}@${parseFloat(s.weight)||0}`).join(', ')}] ${wLabel}`;
   }
 
   // ---- Format sets as readable HTML rows (not export format) ----
@@ -3733,7 +3781,7 @@ const Views = (function() {
     const validSets = data.sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0);
     if (validSets.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
     return `<div class="sd-sets">${validSets.map((s, i) =>
-      `<div class="sd-set"><span class="sd-num">${i+1}</span> ${parseFloat(s.weight)||0}${wLabel} × ${s.reps}</div>`
+      `<div class="sd-set"><span class="sd-num">${i+1}</span> ${parseFloat(s.weight)||0}${wLabel} × ${esc(s.reps)}</div>`
     ).join('')}</div>`;
   }
 
@@ -3755,7 +3803,7 @@ const Views = (function() {
         <div class="session-detail-item">
           <div class="session-detail-name">${displayName}</div>
           ${setsHtml}
-          ${data.notes ? `<div class="session-detail-notes">${data.notes}</div>` : ''}
+          ${data.notes ? `<div class="session-detail-notes">${esc(data.notes)}</div>` : ''}
         </div>`;
     }
 
@@ -3767,9 +3815,9 @@ const Views = (function() {
       <div class="content">
         <div class="summary-section">
           <h3>W${session.workoutId} — ${Markdown.formatDate(session.date)}</h3>
-          <div style="font-size:0.8rem;color:var(--text3);margin-bottom:12px;">${workout.name} · ${Object.keys(session.exercises).length} exercises${session.gym ? ` · ${session.gym}` : ''}</div>
-          ${session.overall ? `<div style="margin-bottom:8px;"><strong>Overall:</strong> ${session.overall}</div>` : ''}
-          ${session.injuries ? `<div style="margin-bottom:8px;"><strong>Injuries:</strong> ${session.injuries}</div>` : ''}
+          <div style="font-size:0.8rem;color:var(--text3);margin-bottom:12px;">${workout.name} · ${Object.keys(session.exercises).length} exercises${session.gym ? ` · ${esc(session.gym)}` : ''}</div>
+          ${session.overall ? `<div style="margin-bottom:8px;"><strong>Overall:</strong> ${esc(session.overall)}</div>` : ''}
+          ${session.injuries ? `<div style="margin-bottom:8px;"><strong>Injuries:</strong> ${esc(session.injuries)}</div>` : ''}
           ${rows}
         </div>
       </div>`;
@@ -3820,7 +3868,7 @@ const Views = (function() {
           <div class="history-entry">
             <div class="history-entry-date">W${h.workoutId} — ${Markdown.formatDate(h.date)}</div>
             <div class="history-entry-data">${dataStr}</div>
-            ${h.data.notes ? `<div class="history-entry-notes">${h.data.notes}</div>` : ''}
+            ${h.data.notes ? `<div class="history-entry-notes">${esc(h.data.notes)}</div>` : ''}
           </div>`;
       }
     }
@@ -3959,7 +4007,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.5.8';
+const APP_VERSION = '1.6.0';
 
 // =====================================================
 // APP INIT
