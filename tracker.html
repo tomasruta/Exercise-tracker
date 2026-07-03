@@ -1649,8 +1649,11 @@ const Timer = (function() {
   // <audio> element playing a real WAV routes through a different iOS path and can sound where
   // Web-Audio doesn't. We synthesize a ~1s alternating-tone WAV at load (no giant base64 literal).
   let beepAudio = null;
+  // "Bright bell" alarm — three glockenspiel dings (E6 fundamental + octave harmonic, exp decay).
+  // Pleasant but high-end enough to cut through gym noise. Synthesized to PCM at load.
+  const BELL_DINGS = [0, 0.42, 0.84], BELL_F0 = 1318.5, BELL_F1 = 2637;
   function _beepWavUri() {
-    const sr = 8000, secs = 1.1, n = Math.floor(sr * secs);
+    const sr = 16000, secs = 2.0, n = Math.floor(sr * secs);
     const buf = new ArrayBuffer(44 + n * 2), view = new DataView(buf);
     const ws = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
     ws(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
@@ -1659,9 +1662,16 @@ const Timer = (function() {
     ws(36, 'data'); view.setUint32(40, n * 2, true);
     for (let i = 0; i < n; i++) {
       const t = i / sr;
-      const freq = (Math.floor(t * 5) % 2 === 0) ? 1000 : 1500;   // alternate ~5x/sec
-      const v = Math.sign(Math.sin(2 * Math.PI * freq * t)) * 0.6 * 32767;   // loud square wave
-      view.setInt16(44 + i * 2, v, true);
+      let s = 0;
+      for (const d of BELL_DINGS) {
+        const dt = t - d;
+        if (dt >= 0) {
+          const env = Math.exp(-dt * 4.5);   // ~0.7s decay per ding
+          s += env * (Math.sin(2 * Math.PI * BELL_F0 * dt) * 0.8 + Math.sin(2 * Math.PI * BELL_F1 * dt) * 0.25);
+        }
+      }
+      s = Math.max(-1, Math.min(1, s));
+      view.setInt16(44 + i * 2, s * 0.7 * 32767, true);
     }
     let bin = ''; const bytes = new Uint8Array(buf);
     for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
@@ -1708,19 +1718,29 @@ const Timer = (function() {
 
   // Loud repeating alarm for "time is up" / "goal reached" events.
   // 10 alternating tones (~2s) — designed to be audible over gym background noise.
+  // One bell voice: a sine tone with an exponential decay (glockenspiel-like).
+  function bellTone(freq, peak, durSec, startOffsetMs) {
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    const start = audioCtx.currentTime + startOffsetMs / 1000;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(peak, start + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + durSec);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(start); osc.stop(start + durSec + 0.02);
+  }
+
   function alarm() {
     // Fallback FIRST — the <audio> path is the one that works on the real iPhone; Web-Audio is a bonus.
     playBeepFallback();
     try {
       ensureAudio();
-      const gainVal = 0.7;
-      const dur = 160;
-      const gap = 40;
-      for (let i = 0; i < 10; i++) {
-        const freq = (i % 2 === 0) ? 1000 : 1500;
-        playTone(freq, gainVal, dur, i * (dur + gap));
-      }
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200, 100, 200, 100, 200]);
+      // Match the WAV: "Bright bell" — three dings (E6 fundamental + octave harmonic), exp decay.
+      BELL_DINGS.forEach(off => {
+        bellTone(BELL_F0, 0.6, 0.9, off * 1000);
+        bellTone(BELL_F1, 0.18, 0.7, off * 1000);
+      });
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
     } catch (e) { /* audio not available */ }
   }
 
@@ -3920,7 +3940,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.5.6';
+const APP_VERSION = '1.5.7';
 
 // =====================================================
 // APP INIT
