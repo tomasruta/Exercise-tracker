@@ -43,6 +43,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   --fence-color: #f59e0b;
   --fence-bg: #fffbeb;
   --new-badge: #8b5cf6;
+  --equip-badge: #b45309;
   color-scheme: light; /* always light — never follow system dark mode */
 }
 
@@ -125,6 +126,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 }
 .badge-new { background: var(--new-badge); color: #fff; }
 .badge-ss { background: var(--ss-color); color: #fff; }
+.badge-equip { background: var(--equip-badge); color: #fff; }
 
 /* ===== MALTO FENCE ===== */
 .malto-fence {
@@ -191,6 +193,12 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 }
 .set-input:focus { border-color: var(--accent); outline: none; }
 .set-x { text-align: center; color: var(--text3); font-weight: 600; }
+.add-set-btn {
+  width: 100%; margin-top: 4px; padding: 12px; min-height: 44px;
+  background: transparent; border: 1.5px dashed var(--border);
+  border-radius: 8px; color: var(--text2); font-size: 0.9rem; font-weight: 600; cursor: pointer;
+}
+.add-set-btn:active { opacity: 0.6; }
 .bump-note {
   font-size: 0.8rem; color: var(--green); margin-top: -4px; margin-bottom: 8px;
   padding-left: 54px;
@@ -508,6 +516,18 @@ const VARIANTS = {
     { id: 'ham-curl-seated', label: 'Ham curl (seated)', trackingType: 'weight_reps', isDefault: false, sets: 3, reps: '10-12', repRange: [10, 12], progressionType: 'compound' },
     { id: 'ham-curl-prone', label: 'Ham curl (prone)', trackingType: 'weight_reps', isDefault: false, sets: 3, reps: '10-12', repRange: [10, 12], progressionType: 'compound' }
   ]
+};
+
+// Equipment tags — what to BRING for each exercise, keyed by exercise ID.
+// Shared across workouts: an ID that appears in W1+W3+W6 gets the same gear.
+// Rendered as amber badges on the workout list. One flat category: "equipment".
+// Human-readable mirror + how-to-extend → docs/exercise-equipment.md
+const EQUIPMENT = {
+  'jefferson-curl':  ['Slant'],
+  'back-squat':      ['Slant', 'Foam pad'],
+  'reverse-squat':   ['Mat'],
+  'band-pull-apart': ['Band'],
+  'kot-sissy-squat': ['Zinenka']
 };
 
 // Structured form cues for the 10 new exercises (Session 5)
@@ -953,7 +973,7 @@ const State = (function() {
     // Set-based types
     if (!data.sets || data.sets.length === 0) return { status: 'none', filled: 0, total: expectedSets || 0 };
 
-    const total = expectedSets || data.sets.length;
+    const total = Math.max(expectedSets || 0, data.sets.length);   // grows when the user added sets
     let filled = 0;
     for (const s of data.sets) {
       // A set only counts once the user actually edited one of its inputs (s.touched).
@@ -2369,7 +2389,7 @@ const Views = (function() {
       <div class="ex-row" onclick="Router.go('/w/${workoutId}/e/${index}')">
         <span class="ex-num">${num}</span>
         <div class="ex-info">
-          <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
+          <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
           <span class="ex-meta">${metaStr}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${lastStr ? ' · ' + lastStr : ''}</span>
         </div>
         <span class="ex-status">${statusIcon}</span>
@@ -2471,11 +2491,15 @@ const Views = (function() {
 
   // ---- Type-specific renderers ----
 
+  // How many set rows to render/collect for a set-based exercise: the programme count, or more if
+  // the user tapped "+ Add set" (which appends to the saved sets array, so it persists across nav).
+  function _numSets(effEx, existingData) { return Math.max(effEx.sets || 1, existingData?.sets?.length || 0); }
+
   function renderWeightRepsSets(ex, existingData, preFill) {
     const wLabel = ex.weightLabel || 'kg';
     const rLabel = ex.repsLabel || 'reps';
     let html = `<div class="sets-header"><span></span><span>${wLabel}</span><span></span><span>${rLabel}</span></div>`;
-    for (let s = 0; s < ex.sets; s++) {
+    for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const weight = existing?.weight ?? (preFill.weight || 0);
       const reps = existing?.reps ?? (ex.prefillReps || '');
@@ -2494,7 +2518,7 @@ const Views = (function() {
   function renderRepsOnlySets(ex, existingData, preFill) {
     const rLabel = ex.repsLabel || 'reps';
     let html = `<div class="sets-header" style="grid-template-columns:50px 1fr;"><span></span><span>${rLabel}</span></div>`;
-    for (let s = 0; s < ex.sets; s++) {
+    for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const reps = existing?.reps ?? (ex.prefillReps || '');
       html += `
@@ -2509,7 +2533,7 @@ const Views = (function() {
   function renderRepsOnlySplitSets(ex, existingData) {
     const rLabel = ex.repsLabel || 'reps';
     let html = `<div class="split-reps-header" style="grid-template-columns:50px 30px 1fr 30px 1fr;"><span></span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
-    for (let s = 0; s < ex.sets; s++) {
+    for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const rL = existing?.repsL ?? (ex.prefillReps || '');
       const rR = existing?.repsR ?? (ex.prefillReps || '');
@@ -2529,7 +2553,7 @@ const Views = (function() {
     const wLabel = ex.weightLabel || 'kg';
     const rLabel = ex.repsLabel || 'reps';
     let html = '';
-    for (let s = 0; s < ex.sets; s++) {
+    for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const wL = existing?.weightL ?? (preFill.weightL || 0);
       const rL = existing?.repsL ?? (ex.prefillReps || '');
@@ -2561,7 +2585,7 @@ const Views = (function() {
     // Backward compat: old data has existingData.weight as shared value
     const fallbackWeight = existingData?.weight ?? (preFill.weight || 0);
     let html = `<div class="split-reps-header"><span></span><span>${wLabel}</span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
-    for (let s = 0; s < ex.sets; s++) {
+    for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const weight = existing?.weight ?? fallbackWeight;
       const rL = existing?.repsL ?? (ex.prefillReps || '');
@@ -2881,7 +2905,7 @@ const Views = (function() {
     const wLabel = ex.weightLabel || 'kg';
     const rLabel = ex.repsLabel || 'meters';
     let html = `<div class="sets-header" style="grid-template-columns:50px 1fr 30px 1fr;"><span></span><span>${wLabel}</span><span></span><span>${rLabel}</span></div>`;
-    for (let s = 0; s < ex.sets; s++) {
+    for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const weight = existing?.weight ?? (preFill.weight || '');
       const distance = existing?.distance ?? '';
@@ -3090,6 +3114,7 @@ const Views = (function() {
         ${cuesHtml}
         ${formatLastEntry(lastEntry, ex)}
         ${inputsHtml}
+        ${['weight_reps','reps_only','weight_distance'].includes(trackingType) ? `<button class="add-set-btn" onclick="Views.addSet(${exIndex})">+ Add set</button>` : ''}
         <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
           oninput="Views._triggerAutoSave()">${esc(existingNotes)}</textarea>
         <input type="hidden" id="ex-completed" value="${existingData?.completed ? 'true' : ''}">
@@ -3191,6 +3216,19 @@ const Views = (function() {
     _triggerAutoSave();
   }
 
+  // "+ Add set" — capture what's entered, append one empty set, and re-render. The extra set lives in
+  // the WIP sets array so it survives navigation and flows through autosave + completion counting.
+  function addSet(exIndex) {
+    const ctx = _currentRenderCtx;
+    if (!ctx) return;
+    autoSaveExercise(ctx.workoutId, exIndex);          // capture current inputs first
+    const data = State.getExerciseData(exIndex) || {};
+    data.sets = Array.isArray(data.sets) ? data.sets : [];
+    data.sets.push({ touched: false });                 // one more empty set (won't count until edited)
+    State.logExercise(exIndex, data);
+    renderExercise(ctx.workoutId, exIndex);             // re-render with the new row
+  }
+
   // Trigger auto-save using stored context
   function _triggerAutoSave() {
     if (_currentRenderCtx) autoSaveExercise(_currentRenderCtx.workoutId, _currentRenderCtx.exIndex);
@@ -3231,6 +3269,8 @@ const Views = (function() {
     const prevSets = State.getExerciseData(exIndex)?.sets;
     const setTouched = (s) => !!document.querySelector(`[data-set="${s}"][data-touched="1"]`)
       || !!(prevSets && prevSets[s] && prevSets[s].touched);
+    // Collect as many set rows as are on screen — grows when the user tapped "+ Add set".
+    const numSetsSave = _numSets(effEx, { sets: prevSets });
 
     switch (trackingType) {
       case 'duration': {
@@ -3291,7 +3331,7 @@ const Views = (function() {
       }
       case 'weight_distance': {
         data.sets = [];
-        for (let s = 0; s < effEx.sets; s++) {
+        for (let s = 0; s < numSetsSave; s++) {
           const w = document.querySelector(`.wd-weight[data-set="${s}"]`);
           const d = document.querySelector(`.wd-distance[data-set="${s}"]`);
           data.sets.push({
@@ -3304,14 +3344,14 @@ const Views = (function() {
       case 'reps_only': {
         data.sets = [];
         if (effEx.unilateral === 'split_reps') {
-          for (let s = 0; s < effEx.sets; s++) {
+          for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
               repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
               repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
             });
           }
         } else {
-          for (let s = 0; s < effEx.sets; s++) {
+          for (let s = 0; s < numSetsSave; s++) {
             const r = document.querySelector(`.reps-input[data-set="${s}"]`);
             data.sets.push({ reps: r ? (r.value === '' ? '' : parseInt(r.value) || r.value) : '' });
           }
@@ -3321,7 +3361,7 @@ const Views = (function() {
       case 'weight_reps': default: {
         if (effEx.unilateral === 'split_weight') {
           data.sets = [];
-          for (let s = 0; s < effEx.sets; s++) {
+          for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
               weightL: parseFloat(document.querySelector(`.wl-input[data-set="${s}"]`)?.value) || 0,
               repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
@@ -3331,7 +3371,7 @@ const Views = (function() {
           }
         } else if (effEx.unilateral === 'split_reps') {
           data.sets = [];
-          for (let s = 0; s < effEx.sets; s++) {
+          for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
               weight: parseFloat(document.querySelector(`.sr-weight-input[data-set="${s}"]`)?.value) || 0,
               repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
@@ -3340,7 +3380,7 @@ const Views = (function() {
           }
         } else {
           data.sets = [];
-          for (let s = 0; s < effEx.sets; s++) {
+          for (let s = 0; s < numSetsSave; s++) {
             const wInput = document.querySelector(`.weight-input[data-set="${s}"]`);
             const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
             data.sets.push({
@@ -4060,7 +4100,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
 })();
 
 // =====================================================
@@ -4124,7 +4164,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 
 // =====================================================
 // APP INIT
