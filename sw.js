@@ -1,5 +1,5 @@
-const CACHE_NAME = 'gym-tracker-v1.9.0';
-const ASSETS = ['tracker.html'];
+const CACHE_NAME = 'gym-tracker-v1.9.1';
+const ASSETS = ['tracker.html', 'apple-touch-icon.png'];
 
 // Install: pre-cache tracker.html
 self.addEventListener('install', e => {
