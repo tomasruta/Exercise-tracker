@@ -44,6 +44,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   --fence-bg: #fffbeb;
   --new-badge: #8b5cf6;
   --equip-badge: #b45309;
+  --workouts-badge: #64748b; /* slate — "also in these workouts" pills, distinct from equip/SS/new */
   color-scheme: light; /* always light — never follow system dark mode */
 }
 
@@ -127,6 +128,8 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .badge-new { background: var(--new-badge); color: #fff; }
 .badge-ss { background: var(--ss-color); color: #fff; }
 .badge-equip { background: var(--equip-badge); color: #fff; }
+.badge-workouts { background: var(--workouts-badge); color: #fff; font-size: 0.6rem; padding: 1px 4px; letter-spacing: 0.02em; }
+.badge-workouts-current { opacity: 0.4; }
 
 /* ===== MALTO FENCE ===== */
 .malto-fence {
@@ -408,20 +411,21 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .sled-persistent label { font-size: 0.85rem; font-weight: 600; color: var(--text2); }
 .sled-persistent input { width: 80px; margin: 0 8px; }
 .sled-set-row {
-  display: grid; grid-template-columns: 50px 1fr 1fr 1fr auto; gap: 6px;
-  align-items: center; margin-bottom: 8px;
+  display: grid; grid-template-columns: 50px 1fr 1fr 1fr; gap: 6px;
+  align-items: center; margin-bottom: 6px;
 }
-.sled-derived { font-size: 0.8rem; color: var(--text3); padding-left: 54px; margin-top: -4px; margin-bottom: 8px; }
+.sled-derived { font-size: 0.8rem; color: var(--text3); padding-left: 54px; margin-top: -2px; margin-bottom: 10px; }
+/* Prominent, full-width sled stopwatch — the one thing you're staring at while pushing the sled. */
 .stopwatch-btn {
-  padding: 0; border-radius: 8px; font-size: 1.5rem; font-weight: 700;
-  border: 1px solid var(--border); background: var(--bg-card); cursor: pointer;
-  height: 44px; width: 48px;
-  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; margin: 2px 0 4px; padding: 12px; border-radius: 10px;
+  font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  border: 2px solid var(--accent); background: var(--bg-card); color: var(--accent);
+  cursor: pointer; min-height: 56px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
 }
 .stopwatch-btn.running {
   background: var(--red); color: #fff; border-color: var(--red);
-  font-size: 0.85rem; font-variant-numeric: tabular-nums;
-  width: 64px;
+  font-size: 2.1rem; min-height: 68px;
 }
 
 /* ===== WEIGHT/DISTANCE ===== */
@@ -523,11 +527,14 @@ const VARIANTS = {
 // Rendered as amber badges on the workout list. One flat category: "equipment".
 // Human-readable mirror + how-to-extend → docs/exercise-equipment.md
 const EQUIPMENT = {
-  'jefferson-curl':  ['Slant'],
-  'back-squat':      ['Slant', 'Foam pad'],
-  'reverse-squat':   ['Mat'],
-  'band-pull-apart': ['Band'],
-  'kot-sissy-squat': ['Zinenka']
+  'jefferson-curl':   ['Slant'],
+  'back-squat':       ['Slant', 'Foam pad'],
+  'reverse-squat':    ['Mat'],
+  'band-pull-apart':  ['Band'],
+  'kot-sissy-squat':  ['Zinenka'],
+  'lateral-band-walk':['Band'],
+  'rhythm-squat':     ['Slant'],
+  'hack-squat':       ['High slant']
 };
 
 // Structured form cues for the 10 new exercises (Session 5)
@@ -675,7 +682,7 @@ const PROGRAMME = [
       { id: 'petersen-step-up', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 15, formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
       { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 15, repsLabel: 'steps', formCues: '', notes: '', isNew: true },
       { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 8, formCues: '', notes: '', isNew: true },
-      { id: 'hack-squat', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Barbell Hackenschmidt. Can lift heels off ground. Don\'t need steep slant board.', notes: '' },
+      { id: 'hack-squat', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Barbell Hackenschmidt. Heels high on two thick plates / high slant — gets knees + glutes more.', notes: '' },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
       { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
@@ -897,9 +904,14 @@ const State = (function() {
   }
 
   function startSession(workoutId) {
+    // LOCAL calendar date, not UTC. toISOString() is UTC, so a session started before ~01:00 local
+    // (Prague = UTC+1/+2) would have been stamped the PREVIOUS day. Same local-date formatting the
+    // markdown importer already uses.
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     wip = {
       workoutId,
-      date: new Date().toISOString().slice(0, 10),
+      date: localDate,
       exercises: {},
       overall: '',
       injuries: '',
@@ -996,9 +1008,39 @@ const State = (function() {
     return getExerciseCompletionStatus(exIndex).status !== 'none';
   }
 
+  // Does a saved exercise entry represent something the user ACTUALLY did? Single source of truth
+  // for "was this performed", mirroring getExerciseCompletionStatus's counting. The history lookups,
+  // the finish-time prune, and the scrub migration all use this so completion-status, history,
+  // last-entry and export can never disagree again (the bug: history counted prefilled-but-untouched
+  // "ghost" sets that a mere exercise-screen visit auto-saved). Legacy sets (touched === undefined)
+  // are trusted as genuine so pre-touched history is never wiped.
+  function setHasRealValue(s) {
+    if (s.lengths) return true;
+    if (s.distance) return true;
+    if (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) return true;
+    if (s.repsL !== null && s.repsL !== undefined && s.repsL !== '') return true;
+    if (s.repsR !== null && s.repsR !== undefined && s.repsR !== '') return true;
+    return false;
+  }
+  function entryHasGenuineData(data) {
+    if (!data) return false;
+    if (data.completed) return true;                                   // explicit "Completed exercise" tap
+    if (data.timerSteps !== undefined) return data.timerSteps.some(s => s.done);
+    if (data.done || data.doneL || data.doneR) return true;
+    if (Array.isArray(data.sets) && data.sets.length > 0) {
+      return data.sets.some(s => ((s.touched === undefined) ? true : s.touched) && setHasRealValue(s));
+    }
+    return false;
+  }
+
   function finishSession() {
     if (!wip) return null;
     if (!wip.completedAt) wip.completedAt = new Date().toISOString();
+    // Drop ghost entries — exercise screens opened but never actually logged — so the saved session
+    // matches exactly what history shows and what export writes. Uses the same genuine-data test.
+    for (const idx of Object.keys(wip.exercises)) {
+      if (!entryHasGenuineData(wip.exercises[idx])) delete wip.exercises[idx];
+    }
     // CRITICAL: save session BEFORE clearing WIP.
     // If saveSessions throws (quota exceeded), WIP survives for retry.
     const sessions = Data.getSessions();
@@ -1048,10 +1090,7 @@ const State = (function() {
         // Prefer the stored exercise ID; fall back to array index for legacy unstamped data
         const exResolved = resolveId(data.exId || (ex && ex.id));
         if (!exResolved) continue;
-        if (exResolved === targetId && matchesVariantFilter(data, variantFilter) && (
-          (data.sets && data.sets.length > 0) ||
-          data.done || data.doneL || data.doneR
-        )) {
+        if (exResolved === targetId && matchesVariantFilter(data, variantFilter) && entryHasGenuineData(data)) {
           return { date: s.date, workoutId: s.workoutId, ...data };
         }
       }
@@ -1071,9 +1110,7 @@ const State = (function() {
         const ex = workout.exercises[parseInt(idx)];
         const exResolved = resolveId(data.exId || (ex && ex.id));
         if (!exResolved) continue;
-        if (exResolved === targetId && (
-          (data.sets && data.sets.length > 0) || data.done || data.doneL || data.doneR
-        )) {
+        if (exResolved === targetId && entryHasGenuineData(data)) {
           const exDef = workout.exercises.find(e => resolveId(e.id) === targetId) || ex;
           results.push({ date: s.date, workoutId: s.workoutId, data, exercise: exDef });
         }
@@ -1082,7 +1119,7 @@ const State = (function() {
     return results;
   }
 
-  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData };
 })();
 
 // =====================================================
@@ -1921,7 +1958,7 @@ const Timer = (function() {
       const elapsed = Math.round((Date.now() - stopwatches[id].start) / 1000);
       clearInterval(stopwatches[id].interval);
       delete stopwatches[id];
-      btn.textContent = '⏱️';
+      btn.textContent = '⏱️ Start timer';
       btn.classList.remove('running');
       // Fill the time input
       const timeInput = document.getElementById(timeInputId);
@@ -1934,7 +1971,7 @@ const Timer = (function() {
       requestWakeLock();
       State.startTimer();   // starting the sled stopwatch also starts the session clock
       const start = Date.now();
-      btn.textContent = 'STOP';
+      btn.textContent = formatTime(0);
       btn.classList.add('running');
       stopwatches[id] = {
         start,
@@ -2390,10 +2427,23 @@ const Views = (function() {
         <span class="ex-num">${num}</span>
         <div class="ex-info">
           <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
-          <span class="ex-meta">${metaStr}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${lastStr ? ' · ' + lastStr : ''}</span>
+          <span class="ex-meta">${metaStr}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${workoutMembershipBadges(ex.id, workoutId)}${lastStr ? ' · ' + lastStr : ''}</span>
         </div>
         <span class="ex-status">${statusIcon}</span>
       </div>`;
+  }
+
+  // Every workout ID this exercise appears in (shared IDs are the cross-workout history contract).
+  // Used to show "also in W1 W6" pills so a shared exercise's merged history is self-explanatory.
+  function workoutsForExercise(exId) {
+    return PROGRAMME.filter(w => w.exercises.some(e => e.id === exId)).map(w => w.id);
+  }
+  // Small slate pills listing every workout this exercise is in (only when shared across >1), with
+  // the one you're currently in dimmed so "also lives in W1 & W6" reads at a glance.
+  function workoutMembershipBadges(exId, currentWorkoutId) {
+    const ids = workoutsForExercise(exId);
+    if (ids.length < 2) return '';
+    return ids.map(id => ` <span class="badge badge-workouts${id === currentWorkoutId ? ' badge-workouts-current' : ''}">W${id}</span>`).join('');
   }
 
   // ---- Variant helpers ----
@@ -2482,8 +2532,8 @@ const Views = (function() {
       }
     }
     return `
-      <div class="last-session">
-        <div class="last-session-title">Last session (${Markdown.formatDate(lastEntry.date)}, W${lastEntry.workoutId})</div>
+      <div class="last-session" style="cursor:pointer;" onclick="Router.go('/exercise/${ex.id}')">
+        <div class="last-session-title">Last session (${Markdown.formatDate(lastEntry.date)}, W${lastEntry.workoutId}) <span style="color:var(--accent);font-weight:600;float:right;">History →</span></div>
         <div>${detail}</div>
         ${lastEntry.notes ? `<div style="margin-top:4px;font-style:italic;color:var(--text3);white-space:pre-wrap;">${lastEntry.notes}</div>` : ''}
       </div>`;
@@ -2880,7 +2930,7 @@ const Views = (function() {
       </div>`;
     // Sled typically has 1 set but support multiple
     const numSets = ex.sets || 1;
-    html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr 48px;"><span></span><span>kg</span><span>lengths</span><span>time</span><span></span></div>`;
+    html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr;"><span></span><span>kg</span><span>lengths</span><span>time</span></div>`;
     for (let s = 0; s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const lastSet = lastEntry?.sets?.[s];
@@ -2894,8 +2944,8 @@ const Views = (function() {
           <input type="number" class="set-input sled-lengths" inputmode="numeric" step="1" placeholder="len" value="${lengths}" data-set="${s}"
             oninput="Views._updateSledDerived();">
           <input type="text" class="set-input sled-time" inputmode="text" placeholder="m:ss" value="${timeStr}" data-set="${s}" id="sled-time-${s}">
-          <button class="stopwatch-btn" id="sw-${s}" onclick="Timer.toggleStopwatch('sw-${s}', 'sled-time-${s}')">⏱️</button>
         </div>
+        <button class="stopwatch-btn" id="sw-${s}" onclick="Timer.toggleStopwatch('sw-${s}', 'sled-time-${s}')">⏱️ Start timer</button>
         <div class="sled-derived" id="sled-derived-${s}">${lengths && sledLength ? `= ${Math.round(lengths * sledLength)}m` : ''}</div>`;
     }
     return html;
@@ -3106,7 +3156,7 @@ const Views = (function() {
         <h1>W${workoutId} — ${exNum} out of ${totalEx}</h1>
       </div>
       <div class="content ex-detail">
-        <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}</div>
+        <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${workoutMembershipBadges(ex.id, workoutId)}</div>
         <div class="ex-target">${effEx.sets} × ${effEx.reps}${effEx.repRange ? ` (range: ${effEx.repRange[0]}-${effEx.repRange[1]})` : ''}</div>
         ${ssInfo}
         ${variantHtml}
@@ -3732,6 +3782,26 @@ const Views = (function() {
     }, 2000);
   }
 
+  // Compact "working loads" line for the Session History list — top-set kg of each genuinely-logged
+  // weight-bearing exercise, so loads are visible without opening the session.
+  function sessionKgSummary(s, workout) {
+    if (!workout || !s.exercises) return '';
+    const parts = [];
+    for (const [idx, data] of Object.entries(s.exercises)) {
+      if (!State.entryHasGenuineData(data) || !Array.isArray(data.sets) || data.sets.length === 0) continue;
+      const ex = (data.exId && workout.exercises.find(e => e.id === data.exId)) || workout.exercises[parseInt(idx)];
+      if (!ex) continue;
+      const top = data.sets[data.sets.length - 1];
+      const w = (top.weight != null && top.weight !== '') ? parseFloat(top.weight)
+              : (top.weightL != null ? parseFloat(top.weightL) : NaN);
+      if (!w || isNaN(w)) continue;
+      parts.push(`${esc(ex.name)} ${w}kg`);
+    }
+    if (parts.length === 0) return '';
+    const MAX = 4;
+    return parts.slice(0, MAX).join(' · ') + (parts.length > MAX ? ` +${parts.length - MAX}` : '');
+  }
+
   function renderSettings() {
     const sessions = Data.getSessions();
 
@@ -3746,12 +3816,14 @@ const Views = (function() {
         const wName = workout ? workout.name : `Workout ${s.workoutId}`;
         const exCount = Object.keys(s.exercises).length;
         const exported = s.exported ? '✅' : '⚠️';
+        const kgLine = sessionKgSummary(s, workout);
 
         sessionRows += `
           <div class="summary-item" style="display:flex;align-items:center;gap:8px;">
             <div style="flex:1;cursor:pointer;" onclick="Router.go('/session/${i}')">
               <div class="summary-name">${exported} W${s.workoutId} — ${Markdown.formatDate(s.date)}</div>
               <div class="summary-sets">${wName} · ${exCount} exercises${s.exported ? ' · Exported' : ' · Not exported'}</div>
+              ${kgLine ? `<div class="summary-sets" style="color:var(--text3);margin-top:2px;">${kgLine}</div>` : ''}
             </div>
             <button class="btn btn-secondary" style="flex:none;padding:8px 12px;font-size:0.8rem;width:auto;" onclick="Views.exportSingleSession(${i})">Export</button>
             <button class="btn btn-secondary" style="flex:none;padding:8px 10px;font-size:0.8rem;width:auto;color:var(--red);border-color:var(--red);" onclick="Views.deleteSession(${i})">✕</button>
@@ -4164,7 +4236,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 
 // =====================================================
 // APP INIT
@@ -4209,6 +4281,34 @@ const APP_VERSION = '1.8.0';
     } catch (e) { /* never block boot; backup (if written) preserves the original data */ }
   }
   migrateExIds();
+
+  // One-time scrub of "ghost" entries: exercise screens that were opened (auto-saving a prefilled
+  // sets array) but never actually logged. History used to count these, surfacing phantom sessions
+  // (e.g. a 24-June Incline DB press that echoed the last real session). Export always filtered them,
+  // so they only ever lived in localStorage — this removes them there too, with a backup first.
+  function scrubGhostEntries() {
+    try {
+      if (parseInt(localStorage.getItem('gym-schema-version') || '0') >= 2) return;
+      const raw = localStorage.getItem('gym-sessions');
+      if (raw == null) { localStorage.setItem('gym-schema-version', '2'); return; }
+      // Back up the pre-scrub blob once before mutating; if backup fails, abort (mutation never runs).
+      if (!localStorage.getItem('gym-sessions-backup-preScrub')) {
+        localStorage.setItem('gym-sessions-backup-preScrub', raw);
+      }
+      const sessions = JSON.parse(raw);
+      if (Array.isArray(sessions)) {
+        for (const s of sessions) {
+          if (!s || !s.exercises) continue;
+          for (const idx of Object.keys(s.exercises)) {
+            if (!State.entryHasGenuineData(s.exercises[idx])) delete s.exercises[idx];
+          }
+        }
+        localStorage.setItem('gym-sessions', JSON.stringify(sessions));
+      }
+      localStorage.setItem('gym-schema-version', '2');
+    } catch (e) { /* never block boot; backup (if written) preserves the original data */ }
+  }
+  scrubGhostEntries();
 
   State.init();
   Router.init();
