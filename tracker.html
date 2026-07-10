@@ -958,6 +958,14 @@ const State = (function() {
     Data.saveWIP(wip);
   }
 
+  // Sound-check gate: remember on the WIP that the user has verified their alarm is audible
+  // this session, so we prod for it exactly once before they start training.
+  function setSoundChecked(val) {
+    if (!wip) return;
+    wip.soundChecked = !!val;
+    Data.saveWIP(wip);
+  }
+
   function getExerciseData(exIndex) {
     if (!wip || !wip.exercises[exIndex]) return null;
     return wip.exercises[exIndex];
@@ -1126,7 +1134,7 @@ const State = (function() {
     return results;
   }
 
-  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setSoundChecked };
 })();
 
 // =====================================================
@@ -2451,7 +2459,7 @@ const Views = (function() {
     } else if (startedAt) {
       clockHtml = `<div id="session-clock" style="font-size:0.8rem;color:var(--text2);margin-top:2px;">Started ${startTimeStr} · 0:00</div>`;
     } else {
-      clockHtml = `<button class="btn btn-success" style="margin-top:6px;padding:10px 24px;font-size:1rem;" onclick="Timer.ensureAudio();State.startTimer();Views.renderWorkout(${workoutId});">▶ Start Session</button>`;
+      clockHtml = `<button class="btn btn-success" style="margin-top:6px;padding:10px 24px;font-size:1rem;" onclick="Views.startSessionGuarded(${workoutId});">▶ Start Session</button>`;
     }
 
     const endSessionBtn = timerRunning
@@ -2465,8 +2473,8 @@ const Views = (function() {
         ${clockHtml}
       </div>
       <div class="content">
+        <div style="text-align:center;margin:0 0 12px;"><button style="padding:8px 16px;font-size:0.85rem;background:var(--bg-input);color:var(--text2);border:1px solid var(--border);border-radius:8px;cursor:pointer;min-height:44px;" onclick="Views.testSound();State.setSoundChecked(true);">🔊 Test sound</button><div id="test-sound-status" style="font-size:0.7rem;color:var(--text3);margin-top:3px;min-height:1em;"></div></div>
         <div class="exercise-list">${rows}</div>
-        <div style="text-align:center;margin:4px 0 8px;"><button style="padding:8px 16px;font-size:0.85rem;background:var(--bg-input);color:var(--text2);border:1px solid var(--border);border-radius:8px;cursor:pointer;min-height:40px;" onclick="Views.testSound()">🔊 Test sound</button><div id="test-sound-status" style="font-size:0.7rem;color:var(--text3);margin-top:3px;min-height:1em;"></div></div>
         ${endSessionBtn}
         <div class="workout-notes">
           <label>How did it feel overall?</label>
@@ -2539,7 +2547,7 @@ const Views = (function() {
     }
 
     return `
-      <div class="ex-row" onclick="Router.go('/w/${workoutId}/e/${index}')">
+      <div class="ex-row" onclick="Views.openExercise(${workoutId}, ${index})">
         <span class="ex-num">${num}</span>
         <div class="ex-info">
           <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
@@ -3619,6 +3627,26 @@ const Views = (function() {
     }
   }
 
+  // ---- Sound-check gate ----
+  // The alarm has silently failed on the real phone before (iOS audio routing), so before the
+  // first exercise we make sure the beep was actually heard. Tapping 🔊 Test sound satisfies it;
+  // otherwise the first "begin" action (Start Session / opening an exercise) prods with a live beep.
+  function soundChecked() { return !!State.getWIP()?.soundChecked; }
+  function promptSoundCheck() {
+    testSound();                 // play the beep now — the prod doubles as the actual test
+    const heard = confirm('🔊 Sound check — did you hear the beep?\n\nOK — yes, I heard it.\nCancel — flip the ringer switch on the side of your phone, then tap 🔊 Test sound.');
+    if (heard) { State.setSoundChecked(true); return true; }
+    return false;                // stay put so they can fix the ringer / retest
+  }
+  function startSessionGuarded(workoutId) {
+    if (!soundChecked() && !promptSoundCheck()) return;
+    Timer.ensureAudio(); State.startTimer(); renderWorkout(workoutId);
+  }
+  function openExercise(workoutId, index) {
+    if (!soundChecked() && !promptSoundCheck()) return;
+    Router.go(`/w/${workoutId}/e/${index}`);
+  }
+
   function updateBanner(exercise) {
     const bannerEl = document.getElementById('progression-banner');
     if (!bannerEl) return;
@@ -4321,7 +4349,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise };
 })();
 
 // =====================================================
@@ -4385,7 +4413,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.10.2';
+const APP_VERSION = '1.11.0';
 
 // =====================================================
 // APP INIT
