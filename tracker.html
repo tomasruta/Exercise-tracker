@@ -783,7 +783,11 @@ const Data = (function() {
   function getSessions() {
     try {
       const parsed = JSON.parse(localStorage.getItem(SESSIONS_KEY));
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+      // Guarantee chronological order (oldest→newest). The whole app assumes newest is LAST — live
+      // sessions append, and next-workout / last-session / getLastEntry all read from the end. An
+      // imported log can be newest-FIRST, which silently flipped "next" and "last session" (v1.10.2).
+      return parsed.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.startedAt || '').localeCompare(b.startedAt || ''));
     } catch { return []; }
   }
 
@@ -3867,6 +3871,9 @@ const Views = (function() {
     const newSessions = result.sessions.filter(s => !existingKeys.has(`${s.date}|${s.workoutId}`));
     const dupes = result.sessions.length - newSessions.length;
 
+    // Imported sessions came FROM a markdown backup (your log) → already backed up, so don't nag
+    // "not exported". (getSessions re-sorts on read, so combine order doesn't matter here.)
+    newSessions.forEach(s => { s.exported = true; });
     const combined = [...existing, ...newSessions];
     try {
       Data.saveSessions(combined);
@@ -4378,7 +4385,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.10.2';
 
 // =====================================================
 // APP INIT
