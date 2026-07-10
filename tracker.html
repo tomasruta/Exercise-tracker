@@ -3966,6 +3966,7 @@ const Views = (function() {
         <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px;">
           <button class="btn btn-secondary" onclick="Views.exportAll()">Export All Sessions</button>
           <button class="btn btn-secondary" onclick="Views.showImportModal()">Load History (Import)</button>
+          <button class="btn btn-secondary" style="color:var(--red);border-color:var(--red);" onclick="Views.clearAllHistory()">Clear All History</button>
         </div>
 
         <div id="storage-info" style="margin-top:24px;padding:12px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;font-size:0.8rem;color:var(--text2);">
@@ -4034,6 +4035,26 @@ const Views = (function() {
       // storage-full prompt. Alert and re-render so the screen never looks frozen.
       alert('Could not save the change — storage may be full. Export and clear old sessions.');
     }
+    renderSettings();
+  }
+
+  // Bulk-clear ALL session history (localStorage). For a clean re-import when the canonical copy
+  // lives elsewhere (the Documents log). WIP/settings untouched. Guarded by a confirm + backup warning.
+  function clearAllHistory() {
+    const sessions = Data.getSessions();
+    if (sessions.length === 0) { alert('No history to clear — it\'s already empty.'); return; }
+    const unexported = sessions.filter(s => !s.exported).length;
+    const warn = unexported > 0
+      ? `\n\n⚠️ ${unexported} of these have NOT been exported from this app. Only wipe if your data is safely backed up elsewhere (e.g. your Documents log).`
+      : '';
+    if (!confirm(`Delete ALL ${sessions.length} session(s)? This cannot be undone.${warn}`)) return;
+    try {
+      Data.saveSessions([]);
+    } catch (e) {
+      alert('Could not clear — storage error. Nothing was changed.');
+      return;
+    }
+    State.init();
     renderSettings();
   }
 
@@ -4293,7 +4314,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound };
 })();
 
 // =====================================================
@@ -4357,7 +4378,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.10.1';
 
 // =====================================================
 // APP INIT
