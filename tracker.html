@@ -519,7 +519,7 @@ const VARIANTS = {
     { id: 'spider', label: 'Spider curl', trackingType: 'weight_reps', isDefault: false }
   ],
   nordicCurl: [
-    { id: 'nordic', label: 'Nordic curl', trackingType: 'weight_reps', isDefault: true },
+    { id: 'nordic', label: 'Nordic curl (proper)', trackingType: 'weight_reps', isDefault: true },
     { id: 'ham-curl-seated', label: 'Ham curl (seated)', trackingType: 'weight_reps', isDefault: false, sets: 3, reps: '10-12', repRange: [10, 12], progressionType: 'compound' },
     { id: 'ham-curl-prone', label: 'Ham curl (prone)', trackingType: 'weight_reps', isDefault: false, sets: 3, reps: '10-12', repRange: [10, 12], progressionType: 'compound' }
   ]
@@ -1370,12 +1370,23 @@ const Markdown = (function() {
       // Unilateral split_weight
       if (s0.weightL !== undefined) {
         const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
-        const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
-        const allSameW = validSets.every(s => s.weightL === validSets[0].weightL && s.weightR === validSets[0].weightR);
-        const wStr = allSameW
-          ? ` @ L:${validSets[0]?.weightL||0}${wLabel} R:${validSets[0]?.weightR||0}${wLabel}`
-          : ` @ varies`;
-        md += `- **${displayName}** — ${validSets.length}×(${setsStr})${wStr}\n`;
+        const known = w => w !== '' && w !== undefined && w !== null;
+        const anyKnown = validSets.some(s => known(s.weightL) || known(s.weightR));
+        if (!anyKnown) {
+          // Weights genuinely unrecorded (e.g. legacy "@ varies" imports) — stay honest & byte-stable
+          const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+          md += `- **${displayName}** — ${validSets.length}×(${setsStr}) @ varies\n`;
+        } else {
+          const allSameW = validSets.every(s => s.weightL === validSets[0].weightL && s.weightR === validSets[0].weightR);
+          if (allSameW) {
+            const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+            md += `- **${displayName}** — ${validSets.length}×(${setsStr}) @ L:${validSets[0]?.weightL||0}${wLabel} R:${validSets[0]?.weightR||0}${wLabel}\n`;
+          } else {
+            // Varying known weights — per-set grammar (lossless, re-importable). Was "@ varies" (dropped the kg) pre-v1.10.
+            const perSet = validSets.map(s => `L${s.repsL}/R${s.repsR} @ L:${s.weightL||0}${wLabel} R:${s.weightR||0}${wLabel}`).join(', ');
+            md += `- **${displayName}** — ${validSets.length}×(${perSet})\n`;
+          }
+        }
         md += formatNotes(data.notes);
         md += '\n';
         continue;
@@ -1482,6 +1493,7 @@ const Markdown = (function() {
       'singlelegcalfraise': 'sl-calf-raise',
       'slcalfraise': 'sl-calf-raise',
       'slcalfraisestanding': 'sl-calf-raise',
+      'hamcurlactivation': 'ham-curl',   // historical one-off label (W4, 15 Apr) → the W4 ham-curl slot
     };
     for (const [norm, id] of Object.entries(oldNames)) {
       if (!map[norm]) {
@@ -1516,12 +1528,29 @@ const Markdown = (function() {
     const sessions = [];
     const blocks = text.split(/^## /m).filter(b => b.trim());
     let matched = 0, unmatched = 0, unmatchedNames = [];
+    const skippedSessions = [];   // ## blocks meant to be sessions that couldn't be parsed
+    const skippedLines = [];      // exercise lines that couldn't be read/placed — never dropped silently
+    const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Capture a possibly-multi-line metadata value: first line's text + following lines up to the
+    // next **Field:**, with trailing blank lines trimmed (they're the separator before exercises).
+    const captureBlock = (arr, startIdx, endIdx, isField, firstText) => {
+      const out = [firstText];
+      for (let j = startIdx + 1; j < endIdx; j++) {
+        if (isField(arr[j])) break;
+        out.push(arr[j]);
+      }
+      while (out.length && out[out.length - 1].trim() === '') out.pop();
+      return out.join('\n');
+    };
 
     for (const block of blocks) {
       const lines = block.split('\n');
       // Parse date and workout number
       const headerMatch = lines[0].match(/(\d{1,2}\s+\w+\s+\d{4}).*?Workout\s*(\d)/i);
-      if (!headerMatch) continue;
+      if (!headerMatch) {
+        if (/workout/i.test(lines[0])) skippedSessions.push({ header: lines[0].trim(), reason: 'could not read date or workout number from the heading' });
+        continue;
+      }
 
       const dateStr = headerMatch[1];
       const workoutId = parseInt(headerMatch[2]);
@@ -1530,18 +1559,49 @@ const Markdown = (function() {
       const date = isNaN(d.getTime()) ? dateStr : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
       const workout = PROGRAMME.find(w => w.id === workoutId);
-      if (!workout) continue;
+      if (!workout) { skippedSessions.push({ header: lines[0].trim(), reason: `no Workout ${workoutId} in the current programme` }); continue; }
+
+      // Workout-local exercise lookup (this workout's exercise names + variant labels). Checked before
+      // the global first-writer-wins LOOKUP so a name shared across workouts resolves to the LOCAL slot
+      // (e.g. "Ham curl (seated)" → W4's ham-curl exercise, not W1's nordic-curl variant of the same label).
+      const localLookup = {};
+      for (const ex of workout.exercises) {
+        if (ex.isFence) continue;
+        const n = norm(ex.name);
+        if (!localLookup[n]) localLookup[n] = { id: ex.id, name: ex.name };
+        if (ex.variants) for (const v of ex.variants) {
+          const vn = norm(v.label);
+          if (!localLookup[vn]) localLookup[vn] = { id: ex.id, name: ex.name, variantId: v.id };
+        }
+      }
 
       const session = { workoutId, date, startedAt: '', exercises: {}, overall: '', injuries: '', gym: '' };
+      const placedNames = {};   // exIdx → source name of the line that filled it (for collision reporting)
 
-      // Parse gym/overall/injuries
-      for (const line of lines) {
-        const gymMatch = line.match(/\*\*Gym:\*\*\s*(.+)/);
-        if (gymMatch) session.gym = gymMatch[1];
-        const overallMatch = line.match(/\*\*Overall:\*\*\s*(.+)/);
-        if (overallMatch) session.overall = overallMatch[1];
-        const injuryMatch = line.match(/\*\*Injur\w*:\*\*\s*(.+)/);
-        if (injuryMatch) session.injuries = injuryMatch[1];
+      // --- Metadata (everything above the first exercise bullet) ---
+      // Gym single-line; Time → startedAt/completedAt (local wall-clock); Overall/Injuries may span lines.
+      const firstExIdx = lines.findIndex(l => /^-\s+\*\*/.test(l));
+      const metaEnd = firstExIdx >= 0 ? firstExIdx : lines.length;
+      const isMetaField = l => /^\*\*(Gym|Time|Overall|Injur\w*):\*\*/.test(l);
+      const toIso = (h, m) => new Date(`${date}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`).toISOString();
+      for (let li = 1; li < metaEnd; li++) {
+        const line = lines[li];
+        const gymMatch = line.match(/^\*\*Gym:\*\*\s*(.+)/);
+        if (gymMatch) { session.gym = gymMatch[1].trim(); continue; }
+        const timeMatch = line.match(/^\*\*Time:\*\*\s*(\d{1,2}):(\d{2})(?:\s*→\s*(\d{1,2}):(\d{2}))?/);
+        if (timeMatch) {
+          session.startedAt = toIso(timeMatch[1], timeMatch[2]);
+          if (timeMatch[3]) {
+            let end = toIso(timeMatch[3], timeMatch[4]);
+            if (new Date(end) < new Date(session.startedAt)) end = new Date(new Date(end).getTime() + 86400000).toISOString(); // crossed midnight
+            session.completedAt = end;
+          }
+          continue;
+        }
+        const ovMatch = line.match(/^\*\*Overall:\*\*\s*(.*)/);
+        if (ovMatch) { session.overall = captureBlock(lines, li, metaEnd, isMetaField, ovMatch[1]); continue; }
+        const injMatch = line.match(/^\*\*Injur\w*:\*\*\s*(.*)/);
+        if (injMatch) { session.injuries = captureBlock(lines, li, metaEnd, isMetaField, injMatch[1]); continue; }
       }
 
       // Parse exercises
@@ -1564,7 +1624,8 @@ const Markdown = (function() {
           // 0. Multi-timer: 3/4 positions (Left — straight leg (gastroc): 30s, ... : —)
           const mtMatch = rest.match(/^\d+\/\d+\s+positions?\s*\((.*)\)\s*$/);
           if (mtMatch) {
-            const steps = mtMatch[1].split(', ').map(part => {
+            const inner = mtMatch[1].trim();
+            const steps = inner === '' ? [] : inner.split(', ').map(part => {   // "0/4 positions ()" → [] (round-trips exactly)
               const ci = part.lastIndexOf(': ');
               const val = ci >= 0 ? part.slice(ci + 2).trim() : '';
               if (val === '' || val === '—') return { done: false };
@@ -1622,6 +1683,39 @@ const Markdown = (function() {
             }
           }
 
+          // 5a. Split_weight, per-set varying weights: 3×(L10/R10 @ L:6kg R:5kg, L10/R10 @ L:5kg R:5kg)
+          if (!parsed) {
+            const swPer = rest.match(/^(\d+)×[\[(](.+)[\])]$/);
+            if (swPer && /@\s*L:/.test(swPer[2])) {
+              const pairs = swPer[2].split(', ').map(p => {
+                const m = p.trim().match(/^L(\d+)\/R(\d+)\s*@\s*L:([\d.]+)kg\s*R:([\d.]+)kg$/);
+                return m ? { weightL: parseFloat(m[3]), repsL: parseInt(m[1]), weightR: parseFloat(m[4]), repsR: parseInt(m[2]) } : null;
+              });
+              if (pairs.every(Boolean)) parsed = { sets: pairs };
+            }
+          }
+
+          // 5b. Split_weight, weights unrecorded (legacy "@ varies"): 3×(L10/R10, L10/R10) @ varies
+          if (!parsed) {
+            const swVar = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*varies\b/i);
+            if (swVar) {
+              const pairs = swVar[2].split(',').map(p => {
+                const lr = p.trim().match(/L(\d+)\/R(\d+)/);
+                return lr ? { weightL: '', repsL: parseInt(lr[1]), weightR: '', repsR: parseInt(lr[2]) } : null;
+              }).filter(Boolean);
+              if (pairs.length) parsed = { sets: pairs };
+            }
+          }
+
+          // 5c. Split_reps, per-set leading weight (no N× wrapper): 9kg L5/R6, 7kg L5/R5, 7kg L5/R5
+          if (!parsed && /^[\d.]+kg\s+L\d+\/R\d+/.test(rest)) {
+            const setsPer = rest.split(',').map(p => {
+              const m = p.trim().match(/^([\d.]+)kg\s+L(\d+)\/R(\d+)$/);
+              return m ? { weight: parseFloat(m[1]), repsL: parseInt(m[2]), repsR: parseInt(m[3]) } : null;
+            });
+            if (setsPer.every(Boolean)) parsed = { sets: setsPer };
+          }
+
           // 6. Split_reps: 5×(L6/R8,L7/R7) @ 20kg
           if (!parsed) {
             const srMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*([\d.]+)kg/);
@@ -1660,28 +1754,43 @@ const Markdown = (function() {
         }
 
         if (parsed && exName) {
-          const matched_ = matchExercise(exName);
+          // Workout-local slot wins over the global first-writer-wins LOOKUP (fixes cross-workout name clashes).
+          const matched_ = localLookup[norm(exName)] || matchExercise(exName);
           if (matched_) {
             const exIdx = workout.exercises.findIndex(e => e.id === matched_.id);
             if (exIdx >= 0) {
               parsed.notes = '';
+              if (parsed.sets) parsed.sets.forEach(s => { s.touched = true; });   // imported sets are genuine (v1.9 invariant)
               // Variant from brackets OR from variant-label match
               if (variantId) parsed.variant = variantId;
               else if (matched_.variantId) parsed.variant = matched_.variantId;
               parsed.exId = matched_.id;
+              if (session.exercises[exIdx] !== undefined) {
+                // Two log lines map to the same exercise slot (the app holds one entry per slot per
+                // session). Keep the later/fuller entry, but REPORT the displaced one — never silent.
+                skippedLines.push({ name: placedNames[exIdx], date, workoutId, reason: `same exercise slot logged twice this session — superseded by a later “${exName}” entry` });
+              } else {
+                matched++;
+              }
               session.exercises[exIdx] = parsed;
+              placedNames[exIdx] = exName;
               currentExNotes = exIdx;
-              matched++;
             } else {
               unmatched++;
               unmatchedNames.push(exName);
+              skippedLines.push({ name: exName, date, workoutId, reason: `not part of Workout ${workoutId}` });
               currentExNotes = null;
             }
           } else {
             unmatched++;
             unmatchedNames.push(exName);
+            skippedLines.push({ name: exName, date, workoutId, reason: 'exercise name not recognised' });
             currentExNotes = null;
           }
+        } else if (nameMatch) {
+          // Looks like an exercise line but its value couldn't be parsed — REPORT it, never drop silently.
+          skippedLines.push({ name: exName, date, workoutId, reason: 'could not read the sets/weights on this line' });
+          currentExNotes = null;
         } else if (currentExNotes !== null && session.exercises[currentExNotes]) {
           // Accumulate multi-line notes. First note line is "  - text"; continuations are "    text".
           // Skip the derived rep-discrepancy flags (⬆️/⬇️) — they're regenerated on export, not real notes.
@@ -1701,7 +1810,7 @@ const Markdown = (function() {
       }
     }
 
-    return { sessions, matched, unmatched, unmatchedNames };
+    return { sessions, matched, unmatched, unmatchedNames, skippedSessions, skippedLines };
   }
 
   return { exportSession, exportAll, importMarkdown, formatDate, resolveDisplayName };
@@ -3769,20 +3878,29 @@ const Views = (function() {
     }
 
     let msg = `Imported ${newSessions.length} session(s), ${result.matched} exercise(s) matched.`;
-    if (dupes > 0) msg += ` ${dupes} duplicate(s) skipped.`;
-    if (result.unmatched > 0) {
-      msg += ` ${result.unmatched} exercise(s) could not be matched: ${result.unmatchedNames.join(', ')}`;
-    }
+    if (dupes > 0) msg += ` ${dupes} duplicate session(s) skipped.`;
 
-    resultEl.innerHTML = `<div class="import-result" style="background:var(--green-bg);color:var(--green);">${msg}</div>`;
+    // Never report success silently over dropped data: itemise everything not imported, with reasons.
+    const probs = [];
+    for (const s of (result.skippedSessions || [])) probs.push(`Session “${s.header}” — ${s.reason}`);
+    for (const l of (result.skippedLines || [])) probs.push(`${l.name} (W${l.workoutId}, ${l.date}) — ${l.reason}`);
 
     // Re-init state to pick up new history
     State.init();
 
-    setTimeout(() => {
-      document.getElementById('import-modal')?.remove();
-      renderHome();
-    }, 2000);
+    if (probs.length === 0) {
+      // Clean import: brief confirmation, then auto-close.
+      resultEl.innerHTML = `<div class="import-result" style="background:var(--green-bg);color:var(--green);">${msg}</div>`;
+      setTimeout(() => {
+        document.getElementById('import-modal')?.remove();
+        renderHome();
+      }, 2000);
+    } else {
+      // Something wasn't imported — DO NOT auto-dismiss. The user must actually read the list,
+      // otherwise "never silent" is defeated by a report that vanishes in 2s. They tap Done to close.
+      const list = probs.map(p => `<li>${esc(p)}</li>`).join('');
+      resultEl.innerHTML = `<div class="import-result" style="background:var(--amber-bg);color:var(--amber);">${msg} <strong>${probs.length} item(s) not imported</strong> (still safe in your source log):<ul style="margin:8px 0 0;padding-left:18px;">${list}</ul><button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="document.getElementById('import-modal')?.remove(); Views.renderHome();">Done</button></div>`;
+    }
   }
 
   // Compact "working loads" line for the Session History list — top-set kg of each genuinely-logged
@@ -4239,7 +4357,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.9.1';
+const APP_VERSION = '1.10.0';
 
 // =====================================================
 // APP INIT
