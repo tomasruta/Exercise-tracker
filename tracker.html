@@ -395,6 +395,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   align-items: center; margin-bottom: 4px;
 }
 .uni-side-label { font-size: 0.75rem; font-weight: 700; color: var(--text3); text-align: center; }
+.uni-col-label { font-size: 0.72rem; font-weight: 700; color: var(--text3); text-align: center; text-transform: uppercase; letter-spacing: 0.03em; }
 
 /* Split reps: per-set weight + L/R reps */
 .split-reps-header {
@@ -530,6 +531,7 @@ const VARIANTS = {
 // Rendered as amber badges on the workout list. One flat category: "equipment".
 // Human-readable mirror + how-to-extend → docs/exercise-equipment.md
 const EQUIPMENT = {
+  // — existing curated tags (v1.8.0) —
   'jefferson-curl':   ['Slant'],
   'back-squat':       ['Slant', 'Foam pad'],
   'reverse-squat':    ['Mat'],
@@ -537,7 +539,49 @@ const EQUIPMENT = {
   'kot-sissy-squat':  ['Zinenka'],
   'lateral-band-walk':['Band'],
   'rhythm-squat':     ['Slant'],
-  'hack-squat':       ['High slant']
+  'hack-squat':       ['High slant'],
+  // — added for Up-Next pills (DRAFT — review against the real gym; also enriches the main list) —
+  'backward-treadmill':['Treadmill'],
+  'sled':             ['Sled'],
+  'tibialis-raise':   ['Tib bar'],
+  'seated-calf-raise':['Machine'],
+  'sl-calf-raise':    ['Step'],
+  'couch-stretch':    ['Wall'],
+  'internal-hip-db-lift':['DB'],
+  'loaded-butterfly': ['Plate'],
+  'pigeon-stretch':   ['Bench'],
+  'reverse-nordics':  ['Mat'],
+  'nordic-curl':      ['Anchor'],
+  'glute-bridge':     ['Barbell', 'Bench'],
+  'ql-extension':     ['Bench'],
+  'back-extension':   ['Bench'],
+  'front-squat':      ['Barbell'],
+  'patrick-step-up':  ['DB', 'Box'],
+  'petersen-step-up': ['Box'],
+  'poliquin-step-up': ['Box'],
+  'atg-split-squat':  ['DB'],
+  'atg-lunge':        ['DB'],
+  'rdl':              ['DB'],
+  'farmers-carry':    ['DB'],
+  'calf-stretch':     ['Slant'],
+  'cable-pancake':    ['Cable'],
+  'cable-chop':       ['Cable'],
+  'pullover':         ['DB', 'Bench'],
+  'trap-3-raise':     ['DB', 'Bench'],
+  'shoulder-press':   ['DB'],
+  'powell-raise':     ['DB', 'Bench'],
+  'external-rotation':['Cable'],
+  'oh-tricep-ext':    ['Cable'],
+  'full-range-row':   ['DB', 'Bench'],
+  'incline-press':    ['DB', 'Incline'],
+  'hammer-curls':     ['DB', 'Incline'],
+  'scott-curl':       ['DB', 'Preacher'],
+  'pullup-overhand':  ['Bar'],
+  'pullup-neutral':   ['Bar'],
+  'chinup-underhand': ['Bar'],
+  'weighted-dips':    ['Bars'],
+  'ham-curl':         ['Machine']
+  // bodyweight-only (intentionally no pill): big-toe-stretch, cossack-squat
 };
 
 // Structured form cues for the 10 new exercises (Session 5)
@@ -1035,6 +1079,11 @@ const State = (function() {
     if (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) return true;
     if (s.repsL !== null && s.repsL !== undefined && s.repsL !== '') return true;
     if (s.repsR !== null && s.repsR !== undefined && s.repsR !== '') return true;
+    // A logged WEIGHT is real too — you recorded the load even if you left reps blank. No exercise
+    // pre-fills weight (only prefillReps), so a weight value can't sit on an untouched set → no phantom risk.
+    if (s.weight !== null && s.weight !== undefined && s.weight !== '') return true;
+    if (s.weightL !== null && s.weightL !== undefined && s.weightL !== '') return true;
+    if (s.weightR !== null && s.weightR !== undefined && s.weightR !== '') return true;
     return false;
   }
   function entryHasGenuineData(data) {
@@ -1384,21 +1433,26 @@ const Markdown = (function() {
         const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
         const known = w => w !== '' && w !== undefined && w !== null;
         const anyKnown = validSets.some(s => known(s.weightL) || known(s.weightR));
+        // cable-chop records which cable-anchor direction it was done in (alternates hi→lo / lo→hi each W6)
+        const chopDir = (ex.id === 'cable-chop' && data.chopDirection)
+          ? ` (${data.chopDirection === 'hi_lo' ? 'Hi→Lo' : 'Lo→Hi'})` : '';
+        let body;
         if (!anyKnown) {
           // Weights genuinely unrecorded (e.g. legacy "@ varies" imports) — stay honest & byte-stable
           const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
-          md += `- **${displayName}** — ${validSets.length}×(${setsStr}) @ varies\n`;
+          body = `${validSets.length}×(${setsStr}) @ varies`;
         } else {
           const allSameW = validSets.every(s => s.weightL === validSets[0].weightL && s.weightR === validSets[0].weightR);
           if (allSameW) {
             const setsStr = validSets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
-            md += `- **${displayName}** — ${validSets.length}×(${setsStr}) @ L:${validSets[0]?.weightL||0}${wLabel} R:${validSets[0]?.weightR||0}${wLabel}\n`;
+            body = `${validSets.length}×(${setsStr}) @ L:${validSets[0]?.weightL||0}${wLabel} R:${validSets[0]?.weightR||0}${wLabel}`;
           } else {
             // Varying known weights — per-set grammar (lossless, re-importable). Was "@ varies" (dropped the kg) pre-v1.10.
             const perSet = validSets.map(s => `L${s.repsL}/R${s.repsR} @ L:${s.weightL||0}${wLabel} R:${s.weightR||0}${wLabel}`).join(', ');
-            md += `- **${displayName}** — ${validSets.length}×(${perSet})\n`;
+            body = `${validSets.length}×(${perSet})`;
           }
         }
+        md += `- **${displayName}** — ${body}${chopDir}\n`;
         md += formatNotes(data.notes);
         md += '\n';
         continue;
@@ -1429,18 +1483,24 @@ const Markdown = (function() {
         continue;
       }
 
-      // Standard weight×reps or reps_only — filter empty/zero sets
-      const validSets = data.sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0);
+      // Standard weight×reps or reps_only. Keep a set if it has reps OR a weight the user actually
+      // entered — a weight-only set is a real logged load; silently dropping it lost kg from the backup.
+      const stdHasReps = s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0;
+      const stdWeightOnly = s => (s.reps === null || s.reps === undefined || s.reps === '')
+        && (s.weight !== null && s.weight !== undefined && s.weight !== '')
+        && (s.touched === undefined || s.touched);
+      const validSets = data.sets.filter(s => stdHasReps(s) || stdWeightOnly(s));
       if (validSets.length === 0) continue;
 
+      const repCell = s => stdHasReps(s) ? s.reps : '?';   // '?' = weight logged, reps left blank (round-trips to '')
       const weights = validSets.map(s => parseFloat(s.weight) || 0);
       const allSameWeight = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
       let setsStr, weightStr;
       if (allSameWeight) {
-        setsStr = validSets.map(s => s.reps).join(', ');
+        setsStr = validSets.map(repCell).join(', ');
         weightStr = weights[0] ? ` @ ${weights[0]}${wLabel}` : ' @ BW';
       } else {
-        setsStr = validSets.map(s => `${s.reps} @${parseFloat(s.weight)||0}`).join(', ');
+        setsStr = validSets.map(s => `${repCell(s)} @${parseFloat(s.weight)||0}`).join(', ');
         weightStr = ` ${wLabel}`;
       }
 
@@ -1625,13 +1685,17 @@ const Markdown = (function() {
         let parsed = null;
         let exName = null;
         let variantId = null;
+        let chopDirection = null;   // cable-chop anchor direction, from a trailing "(Hi→Lo)"/"(Lo→Hi)" marker
 
         // Extract exercise name (with optional variant)
         const nameMatch = line.match(/^-\s+\*\*(.+?)\*\*\s*(?:\[(\w[\w-]*)\])?\s*—\s*(.*)/);
         if (nameMatch) {
           exName = nameMatch[1];
           variantId = nameMatch[2] || null;
-          const rest = nameMatch[3].trim();
+          let rest = nameMatch[3].trim();
+          // Strip a trailing chop-direction marker (cable-chop only) before the value parsers run.
+          const chopM = rest.match(/\s*\((Hi→Lo|Lo→Hi)\)$/i);
+          if (chopM) { chopDirection = /hi→lo/i.test(chopM[1]) ? 'hi_lo' : 'lo_hi'; rest = rest.slice(0, chopM.index).trim(); }
 
           // 0. Multi-timer: 3/4 positions (Left — straight leg (gastroc): 30s, ... : —)
           const mtMatch = rest.match(/^\d+\/\d+\s+positions?\s*\((.*)\)\s*$/);
@@ -1746,7 +1810,8 @@ const Markdown = (function() {
             if (perSetMatch && perSetMatch[2].includes('@')) {
               const entries = perSetMatch[2].split(',').map(e => {
                 const parts = e.trim().split(/\s*@/);
-                return { reps: parseInt(parts[0]) || parts[0].trim(), weight: parseFloat(parts[1]) || 0 };
+                const rc = parts[0].trim();
+                return { reps: rc === '?' ? '' : (parseInt(parts[0]) || rc), weight: parseFloat(parts[1]) || 0 };
               });
               parsed = { sets: entries };
             }
@@ -1760,7 +1825,7 @@ const Markdown = (function() {
             if (m) {
               const repsArr = m[2].split(',').map(r => r.trim());
               const weight = stdMatch ? parseFloat(m[3]) : 0;
-              parsed = { sets: repsArr.map(r => ({ weight, reps: parseInt(r) || r })) };
+              parsed = { sets: repsArr.map(r => ({ weight, reps: r === '?' ? '' : (parseInt(r) || r) })) };
             }
           }
         }
@@ -1777,6 +1842,7 @@ const Markdown = (function() {
               if (variantId) parsed.variant = variantId;
               else if (matched_.variantId) parsed.variant = matched_.variantId;
               parsed.exId = matched_.id;
+              if (chopDirection) parsed.chopDirection = chopDirection;
               if (session.exercises[exIdx] !== undefined) {
                 // Two log lines map to the same exercise slot (the app holds one entry per slot per
                 // session). Keep the later/fuller entry, but REPORT the displaced one — never silent.
@@ -1837,6 +1903,15 @@ const Timer = (function() {
   let wakeLock = null;
 
   let _audioUnlocked = false;
+  // iOS 16.4+: declare a 'playback' audio session so our sound plays OVER other apps (a backgrounded
+  // video / music) and ignores the mute switch, instead of being ducked as ambient web audio. Claimed
+  // only when a timer STARTS or an alarm FIRES — not on app-open — so merely opening the app never
+  // interrupts the user's music. Also the prerequisite for any backgrounded beep: if Web Audio is STILL
+  // inaudible on-device with this set (it was silent 3 Jul), pre-scheduling a background alarm is
+  // pointless — that's the gated next step, decided by the device test.
+  function claimPlaybackSession() {
+    try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) {}
+  }
   function ensureAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -1853,7 +1928,11 @@ const Timer = (function() {
   }
   // Current audio-context state ('running' / 'suspended' / 'interrupted' / 'none') — surfaced on the
   // Test-sound button so the phone can report why it's silent when we can't reproduce it on desktop.
-  function audioState() { return audioCtx ? audioCtx.state : 'none'; }
+  function audioState() {
+    const ctx = audioCtx ? audioCtx.state : 'none';
+    const sess = (navigator.audioSession && navigator.audioSession.type) || 'n/a';
+    return `ctx:${ctx} · session:${sess}`;   // 'session:playback' = the over-other-apps category took on-device
+  }
 
   // ---- HTMLAudio fallback ----
   // Web-Audio was confirmed inaudible on the real iPhone even with the ringer on (3 Jul). An
@@ -1942,6 +2021,7 @@ const Timer = (function() {
   }
 
   function alarm() {
+    claimPlaybackSession();   // set the over-other-apps category before we make noise
     // Fallback FIRST — the <audio> path is the one that works on the real iPhone; Web-Audio is a bonus.
     playBeepFallback();
     try {
@@ -2009,6 +2089,7 @@ const Timer = (function() {
   // Uses Date.now() delta instead of decrementing a counter — immune to iOS background throttling
   function startCountdown(id, totalSeconds, onComplete) {
     ensureAudio();
+    claimPlaybackSession();   // take over audio while the timer runs, so the end-beep can cut through a backgrounded video
     requestWakeLock();
     State.startTimer();   // starting a countdown also starts the session clock
     if (timers[id]) clearInterval(timers[id].interval);
@@ -2655,6 +2736,7 @@ const Views = (function() {
         detail = lastEntry.sets.map(s => { const w = parseFloat(s.weight) || 0; return w ? `${w}kg × ${esc(s.reps)}` : `BW × ${esc(s.reps)}`; }).join(', ');
       }
     }
+    if (lastEntry.chopDirection) detail += ` <span style="color:var(--text3);">(${lastEntry.chopDirection === 'hi_lo' ? 'Hi→Lo' : 'Lo→Hi'})</span>`;
     return `
       <div class="last-session" style="cursor:pointer;" onclick="Router.go('/exercise/${ex.id}')">
         <div class="last-session-title">Last session (${Markdown.formatDate(lastEntry.date)}, W${lastEntry.workoutId}) <span style="color:var(--accent);font-weight:600;float:right;">History →</span></div>
@@ -2726,7 +2808,9 @@ const Views = (function() {
   function renderSplitWeightSets(ex, existingData, preFill) {
     const wLabel = ex.weightLabel || 'kg';
     const rLabel = ex.repsLabel || 'reps';
-    let html = '';
+    // Persistent column header (the placeholders vanish once you type — this is what let you confuse
+    // the kg box with the reps box). Aligns with the .uni-side-row grid: [side] [weight] [×] [reps].
+    let html = `<div class="uni-side-row" style="margin-bottom:8px;"><span></span><span class="uni-col-label">${wLabel}</span><span></span><span class="uni-col-label">${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const wL = existing?.weightL ?? (preFill.weightL || 0);
@@ -3144,14 +3228,14 @@ const Views = (function() {
       else meta = `${effEx.sets}×${effEx.reps}`;
       const completion = State.getExerciseCompletionStatus(i, ex.sets);
       const done = completion.status === 'complete' ? ' ✅' : '';
-      remaining.push({ index: i, num: exNum, name: ex.name, meta, flow: ex.flow, done });
+      remaining.push({ index: i, id: ex.id, num: exNum, name: ex.name, meta, flow: ex.flow, done });
     }
     if (remaining.length === 0) return '';
     const rows = remaining.map(r => {
       if (r.isFence) return `<div class="peek-fence">🥤 ${r.note}</div>`;
       return `<div class="peek-row" onclick="Views.peekTo(${workout.id}, ${currentExIndex}, ${r.index})">
         <span class="peek-num">${r.num}</span>
-        <span class="peek-name">${r.name}${r.done}</span>
+        <span class="peek-name">${r.name}${(EQUIPMENT[r.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${r.done}</span>
         <span class="peek-meta">${r.meta}${r.flow === 'SS' ? ' <span class="badge badge-ss" style="font-size:0.6rem;">SS</span>' : ''}</span>
       </div>`;
     }).join('');
@@ -3436,6 +3520,7 @@ const Views = (function() {
     const variant = getActiveVariant(ex);
     const data = { notes, exId: ex.id };
     if (variant) data.variant = variant.id;
+    if (ex.id === 'cable-chop') data.chopDirection = Data.getChopDirection();   // record which anchor direction this session used
     if (document.getElementById('ex-completed')?.value === 'true') data.completed = true;
 
     // A set counts toward progress only if the user edited one of its inputs — now (data-touched
@@ -4413,7 +4498,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.12.0';
 
 // =====================================================
 // APP INIT
