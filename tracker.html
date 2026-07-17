@@ -2387,7 +2387,7 @@ const Views = (function() {
         <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:10px;padding:12px;margin-bottom:16px;">
           <div style="font-weight:600;color:var(--amber);">Session in progress</div>
           <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">W${wip.workoutId} — ${w ? w.name : ''} (${Markdown.formatDate(wip.date)})</div>
-          ${sessionClockHtml(true)}
+          ${sessionClockHtml('minutes')}
           <div style="display:flex;gap:8px;margin-top:8px;">
             <button class="btn btn-amber" style="flex:1;font-size:0.85rem;padding:10px;" onclick="Router.go('/w/${wip.workoutId}')">Resume</button>
             <button class="btn btn-secondary" style="flex:1;font-size:0.85rem;padding:10px;" onclick="State.abandonSession();Views.renderHome()">Discard</button>
@@ -2437,7 +2437,7 @@ const Views = (function() {
         </div>
       </div>`;
 
-    startSessionClock(true);
+    startSessionClock('minutes');
   }
 
   function renderWorkout(workoutId) {
@@ -2504,7 +2504,7 @@ const Views = (function() {
     const timerRunning = startedAt && !completedAt;
 
     const clockHtml = startedAt
-      ? sessionClockHtml(false)
+      ? sessionClockHtml('full')
       : `<button class="btn btn-success" style="margin-top:6px;padding:10px 24px;font-size:1rem;" onclick="Views.startSessionGuarded(${workoutId});">▶ Start Session</button>`;
 
     const endSessionBtn = timerRunning
@@ -2544,7 +2544,7 @@ const Views = (function() {
         </div>
       </div>`;
 
-    startSessionClock(false);
+    startSessionClock('full');
   }
 
   // ---- Session clock ----
@@ -2553,6 +2553,11 @@ const Views = (function() {
   // navigation, so each render repaints the markup and restarts the tick; startSessionClock() clears
   // any previous interval first (a re-render that isn't a route change — e.g. End Session — would
   // otherwise leave the old interval clobbering the finished clock back into a running one).
+  // Three modes, one clock:
+  //   'full'    — workout header, which has the room:      Started 14:32 · 12:45
+  //   'compact' — exercise header, tight at 375px:         ⏱ 12:45
+  //   'minutes' — home card. A status line, not an instrument: no ticking seconds, and it reads the
+  //               same way finished sessions always have (Timer.formatDuration → "12min" / "1h 5min").
   function fmtElapsed(ms) {
     const totalSec = Math.floor(ms / 1000);
     const h = Math.floor(totalSec / 3600);
@@ -2560,12 +2565,14 @@ const Views = (function() {
     const s = totalSec % 60;
     return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
   }
-  // compact = the tight exercise-page header (⏱ 12:45); full = the workout header (Started 14:32 · 12:45).
-  function sessionClockLive(startedAt, compact) {
-    const el = fmtElapsed(Date.now() - new Date(startedAt).getTime());
-    return compact ? `⏱ ${el}` : `Started ${Timer.formatTimeOfDay(startedAt)} · ${el}`;
+  function sessionClockLive(startedAt, mode) {
+    const ms = Date.now() - new Date(startedAt).getTime();
+    // "0min" for the first 60s reads like a bug, so say so plainly instead.
+    if (mode === 'minutes') return `⏱ ${ms < 60000 ? '<1min' : Timer.formatDuration(ms)}`;
+    const el = fmtElapsed(ms);
+    return mode === 'compact' ? `⏱ ${el}` : `Started ${Timer.formatTimeOfDay(startedAt)} · ${el}`;
   }
-  function sessionClockHtml(compact) {
+  function sessionClockHtml(mode) {
     const wip = State.getWIP();
     const startedAt = wip?.startedAt;
     if (!startedAt) return '';
@@ -2573,22 +2580,22 @@ const Views = (function() {
     let txt;
     if (completedAt) {
       const dur = Timer.formatDuration(new Date(completedAt) - new Date(startedAt));
-      txt = compact
-        ? `⏱ ${dur} ✓`
-        : `${Timer.formatTimeOfDay(startedAt)} → ${Timer.formatTimeOfDay(completedAt)} (${dur}) ✓`;
+      txt = mode === 'full'
+        ? `${Timer.formatTimeOfDay(startedAt)} → ${Timer.formatTimeOfDay(completedAt)} (${dur}) ✓`
+        : `⏱ ${dur} ✓`;
     } else {
-      txt = sessionClockLive(startedAt, compact);
+      txt = sessionClockLive(startedAt, mode);
     }
-    return `<div id="session-clock" class="session-clock${compact ? ' session-clock-compact' : ''}">${txt}</div>`;
+    return `<div id="session-clock" class="session-clock${mode === 'full' ? '' : ' session-clock-compact'}">${txt}</div>`;
   }
-  function startSessionClock(compact) {
+  function startSessionClock(mode) {
     if (window._sessionClockInterval) { clearInterval(window._sessionClockInterval); window._sessionClockInterval = null; }
     const wip = State.getWIP();
     if (!wip?.startedAt || wip.completedAt) return;   // not running — the static markup already says it all
     const tick = () => {
       const el = document.getElementById('session-clock');
       if (!el) return;
-      el.textContent = sessionClockLive(wip.startedAt, compact);
+      el.textContent = sessionClockLive(wip.startedAt, mode);
     };
     tick();
     window._sessionClockInterval = setInterval(tick, 1000);
@@ -3357,7 +3364,7 @@ const Views = (function() {
       <div class="header">
         <button class="back-btn" onclick="Views.saveAndBack(${workoutId}, ${exIndex})">← Back</button>
         <h1>W${workoutId} — ${exNum} out of ${totalEx}</h1>
-        ${sessionClockHtml(true)}
+        ${sessionClockHtml('compact')}
       </div>
       <div class="content ex-detail">
         <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${workoutMembershipBadges(ex.id, workoutId)}</div>
@@ -3404,7 +3411,7 @@ const Views = (function() {
 
     if (existingData) Views.updateBanner(ex);
 
-    startSessionClock(true);
+    startSessionClock('compact');
   }
 
   // Start or stop the hold timer for one side (main/l/r) of a duration/completion exercise. Folds the
