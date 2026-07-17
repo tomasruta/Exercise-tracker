@@ -47,7 +47,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   --fence-bg: #fffbeb;
   --new-badge: #8b5cf6;
   --equip-badge: #b45309;
-  --workouts-badge: #64748b; /* slate — "also in these workouts" pills, distinct from equip/SS/new */
+  --workouts-badge: #e2e8f0; /* light slate — "also in these workouts" pills, distinct from equip/SS/new */
   color-scheme: light; /* always light — never follow system dark mode */
 }
 
@@ -131,8 +131,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .badge-new { background: var(--new-badge); color: #fff; }
 .badge-ss { background: var(--ss-color); color: #fff; }
 .badge-equip { background: var(--equip-badge); color: #fff; }
-.badge-workouts { background: var(--workouts-badge); color: #fff; font-size: 0.6rem; padding: 1px 4px; letter-spacing: 0.02em; }
-.badge-workouts-current { opacity: 0.4; }
+.badge-workouts { background: var(--workouts-badge); color: #64748b; font-size: 0.6rem; padding: 1px 4px; letter-spacing: 0.02em; }
 
 /* ===== MALTO FENCE ===== */
 .malto-fence {
@@ -2605,12 +2604,12 @@ const Views = (function() {
   function workoutsForExercise(exId) {
     return PROGRAMME.filter(w => w.exercises.some(e => e.id === exId)).map(w => w.id);
   }
-  // Small slate pills listing every workout this exercise is in (only when shared across >1), with
-  // the one you're currently in dimmed so "also lives in W1 & W6" reads at a glance.
+  // Small light-grey pills listing the OTHER workouts this exercise is in — the week you're currently
+  // in is never shown (you already know), so "also lives in W1 & W6" reads at a glance.
   function workoutMembershipBadges(exId, currentWorkoutId) {
-    const ids = workoutsForExercise(exId);
-    if (ids.length < 2) return '';
-    return ids.map(id => ` <span class="badge badge-workouts${id === currentWorkoutId ? ' badge-workouts-current' : ''}">W${id}</span>`).join('');
+    const others = workoutsForExercise(exId).filter(id => id !== currentWorkoutId);
+    if (!others.length) return '';
+    return others.map(id => ` <span class="badge badge-workouts">W${id}</span>`).join('');
   }
 
   // ---- Variant helpers ----
