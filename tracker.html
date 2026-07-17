@@ -530,8 +530,12 @@ const VARIANTS = {
 // Shared across workouts: an ID that appears in W1+W3+W6 gets the same gear.
 // Rendered as amber badges on the workout list. One flat category: "equipment".
 // Human-readable mirror + how-to-extend → docs/exercise-equipment.md
+// Equipment pills ("what to bring") — ONLY the exercises Tomáš has explicitly assigned equipment to.
+// DELIBERATELY not auto-expanded to the rest of the programme: an agent-guessed map for all ~46
+// exercises was tried on 16 Jul and rolled back the same day — he only wants pills where he chose
+// them himself. Don't "helpfully" fill this in; add an entry only when Tomáš asks for that exercise.
+// Rendered on the workout list (renderExRow) and the Up-Next peek (renderPeekView).
 const EQUIPMENT = {
-  // — existing curated tags (v1.8.0) —
   'jefferson-curl':   ['Slant'],
   'back-squat':       ['Slant', 'Foam pad'],
   'reverse-squat':    ['Mat'],
@@ -539,49 +543,7 @@ const EQUIPMENT = {
   'kot-sissy-squat':  ['Zinenka'],
   'lateral-band-walk':['Band'],
   'rhythm-squat':     ['Slant'],
-  'hack-squat':       ['High slant'],
-  // — added for Up-Next pills (DRAFT — review against the real gym; also enriches the main list) —
-  'backward-treadmill':['Treadmill'],
-  'sled':             ['Sled'],
-  'tibialis-raise':   ['Tib bar'],
-  'seated-calf-raise':['Machine'],
-  'sl-calf-raise':    ['Step'],
-  'couch-stretch':    ['Wall'],
-  'internal-hip-db-lift':['DB'],
-  'loaded-butterfly': ['Plate'],
-  'pigeon-stretch':   ['Bench'],
-  'reverse-nordics':  ['Mat'],
-  'nordic-curl':      ['Anchor'],
-  'glute-bridge':     ['Barbell', 'Bench'],
-  'ql-extension':     ['Bench'],
-  'back-extension':   ['Bench'],
-  'front-squat':      ['Barbell'],
-  'patrick-step-up':  ['DB', 'Box'],
-  'petersen-step-up': ['Box'],
-  'poliquin-step-up': ['Box'],
-  'atg-split-squat':  ['DB'],
-  'atg-lunge':        ['DB'],
-  'rdl':              ['DB'],
-  'farmers-carry':    ['DB'],
-  'calf-stretch':     ['Slant'],
-  'cable-pancake':    ['Cable'],
-  'cable-chop':       ['Cable'],
-  'pullover':         ['DB', 'Bench'],
-  'trap-3-raise':     ['DB', 'Bench'],
-  'shoulder-press':   ['DB'],
-  'powell-raise':     ['DB', 'Bench'],
-  'external-rotation':['Cable'],
-  'oh-tricep-ext':    ['Cable'],
-  'full-range-row':   ['DB', 'Bench'],
-  'incline-press':    ['DB', 'Incline'],
-  'hammer-curls':     ['DB', 'Incline'],
-  'scott-curl':       ['DB', 'Preacher'],
-  'pullup-overhand':  ['Bar'],
-  'pullup-neutral':   ['Bar'],
-  'chinup-underhand': ['Bar'],
-  'weighted-dips':    ['Bars'],
-  'ham-curl':         ['Machine']
-  // bodyweight-only (intentionally no pill): big-toe-stretch, cossack-squat
+  'hack-squat':       ['High slant']
 };
 
 // Structured form cues for the 10 new exercises (Session 5)
