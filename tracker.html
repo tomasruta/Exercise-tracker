@@ -1893,8 +1893,9 @@ const Timer = (function() {
       } catch (e) { /* retry on next gesture */ }
     }
   }
-  // Current audio-context state ('running' / 'suspended' / 'interrupted' / 'none') — surfaced on the
-  // Test-sound button so the phone can report why it's silent when we can't reproduce it on desktop.
+  // Current audio-context state ('running' / 'suspended' / 'interrupted' / 'none'). No longer shown in
+  // the UI (removed from Test sound 17 Jul as noise) — kept as the diagnostic hook to re-surface if the
+  // phone goes silent again in a way we can't reproduce on desktop.
   function audioState() {
     const ctx = audioCtx ? audioCtx.state : 'none';
     const sess = (navigator.audioSession && navigator.audioSession.type) || 'n/a';
@@ -3698,12 +3699,12 @@ const Views = (function() {
     try {
       Timer.ensureAudio();
       Timer.alarm();
-      // Plain-language result; keep the raw audio state only as tiny debug text so we can still
-      // diagnose device silence we can't reproduce on desktop.
+      // Plain-language result only. The raw Timer.audioState() readout used to print here too; removed
+      // 17 Jul as noise. Timer.audioState() is kept as the escape hatch — re-add the line below if the
+      // alarm ever goes silent on-device again in a way desktop can't reproduce.
       if (status) status.innerHTML =
         `<div style="color:#16a34a;font-weight:600;font-size:0.85rem;">✓ Sound works!</div>`
-        + `<div style="color:var(--text3);font-size:0.72rem;line-height:1.3;">Didn't hear it? Flip the ringer switch on the side of your phone.</div>`
-        + `<div style="color:var(--text3);opacity:0.55;font-size:0.62rem;margin-top:1px;">audio: ${Timer.audioState()}</div>`;
+        + `<div style="color:var(--text3);font-size:0.72rem;line-height:1.3;">Didn't hear it? Flip the ringer switch on the side of your phone.</div>`;
     } catch (e) {
       if (status) status.textContent = '⚠ ' + (e && e.message ? e.message : e);
     }
