@@ -61,6 +61,12 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   display: flex; align-items: center; gap: 12px;
 }
 .header h1 { font-size: 1.1rem; font-weight: 600; flex: 1; }
+.session-clock { font-size: 0.8rem; color: var(--text2); margin-top: 2px; }
+/* Exercise-page header is tight at 375px — drop "Started HH:MM", keep the running total, don't wrap. */
+.session-clock-compact {
+  margin-top: 0; flex-shrink: 0; font-variant-numeric: tabular-nums;
+  font-weight: 600; white-space: nowrap;
+}
 .back-btn {
   background: var(--bg-card); border: 1px solid var(--border); color: var(--accent);
   font-size: 1rem; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 10px;
@@ -2380,6 +2386,7 @@ const Views = (function() {
         <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:10px;padding:12px;margin-bottom:16px;">
           <div style="font-weight:600;color:var(--amber);">Session in progress</div>
           <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">W${wip.workoutId} — ${w ? w.name : ''} (${Markdown.formatDate(wip.date)})</div>
+          ${sessionClockHtml(true)}
           <div style="display:flex;gap:8px;margin-top:8px;">
             <button class="btn btn-amber" style="flex:1;font-size:0.85rem;padding:10px;" onclick="Router.go('/w/${wip.workoutId}')">Resume</button>
             <button class="btn btn-secondary" style="flex:1;font-size:0.85rem;padding:10px;" onclick="State.abandonSession();Views.renderHome()">Discard</button>
@@ -2428,6 +2435,8 @@ const Views = (function() {
           <button class="btn btn-secondary" onclick="Router.go('/settings')">Settings & History</button>
         </div>
       </div>`;
+
+    startSessionClock(true);
   }
 
   function renderWorkout(workoutId) {
@@ -2491,18 +2500,11 @@ const Views = (function() {
 
     const startedAt = wipData?.startedAt;
     const completedAt = wipData?.completedAt;
-    const startTimeStr = startedAt ? Timer.formatTimeOfDay(startedAt) : '';
     const timerRunning = startedAt && !completedAt;
 
-    let clockHtml = '';
-    if (completedAt) {
-      const dur = Timer.formatDuration(new Date(completedAt) - new Date(startedAt));
-      clockHtml = `<div id="session-clock" style="font-size:0.8rem;color:var(--text2);margin-top:2px;">${startTimeStr} → ${Timer.formatTimeOfDay(completedAt)} (${dur}) ✓</div>`;
-    } else if (startedAt) {
-      clockHtml = `<div id="session-clock" style="font-size:0.8rem;color:var(--text2);margin-top:2px;">Started ${startTimeStr} · 0:00</div>`;
-    } else {
-      clockHtml = `<button class="btn btn-success" style="margin-top:6px;padding:10px 24px;font-size:1rem;" onclick="Views.startSessionGuarded(${workoutId});">▶ Start Session</button>`;
-    }
+    const clockHtml = startedAt
+      ? sessionClockHtml(false)
+      : `<button class="btn btn-success" style="margin-top:6px;padding:10px 24px;font-size:1rem;" onclick="Views.startSessionGuarded(${workoutId});">▶ Start Session</button>`;
 
     const endSessionBtn = timerRunning
       ? `<div style="margin:16px 0;"><button class="btn" style="width:100%;padding:14px;font-size:1rem;background:var(--red);color:#fff;border:none;border-radius:8px;" onclick="Timer.cleanup();State.endTimer();Views.renderWorkout(${workoutId});">⏹ End Session</button></div>`
@@ -2541,23 +2543,54 @@ const Views = (function() {
         </div>
       </div>`;
 
-    // Start session clock (only tick if timer is still running)
-    if (timerRunning) {
-      const startMs = new Date(startedAt).getTime();
-      function updateClock() {
-        const el = document.getElementById('session-clock');
-        if (!el) return;
-        const elapsed = Date.now() - startMs;
-        const totalSec = Math.floor(elapsed / 1000);
-        const h = Math.floor(totalSec / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
-        const s = totalSec % 60;
-        const elapsedStr = h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
-        el.textContent = `Started ${startTimeStr} · ${elapsedStr}`;
-      }
-      updateClock();
-      window._sessionClockInterval = setInterval(updateClock, 1000);
+    startSessionClock(false);
+  }
+
+  // ---- Session clock ----
+  // The overall session time is shown on every screen you can be on mid-session (workout list +
+  // each exercise page), so it never disappears while you're training. Views re-render wholesale on
+  // navigation, so each render repaints the markup and restarts the tick; startSessionClock() clears
+  // any previous interval first (a re-render that isn't a route change — e.g. End Session — would
+  // otherwise leave the old interval clobbering the finished clock back into a running one).
+  function fmtElapsed(ms) {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return h > 0 ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+  }
+  // compact = the tight exercise-page header (⏱ 12:45); full = the workout header (Started 14:32 · 12:45).
+  function sessionClockLive(startedAt, compact) {
+    const el = fmtElapsed(Date.now() - new Date(startedAt).getTime());
+    return compact ? `⏱ ${el}` : `Started ${Timer.formatTimeOfDay(startedAt)} · ${el}`;
+  }
+  function sessionClockHtml(compact) {
+    const wip = State.getWIP();
+    const startedAt = wip?.startedAt;
+    if (!startedAt) return '';
+    const completedAt = wip?.completedAt;
+    let txt;
+    if (completedAt) {
+      const dur = Timer.formatDuration(new Date(completedAt) - new Date(startedAt));
+      txt = compact
+        ? `⏱ ${dur} ✓`
+        : `${Timer.formatTimeOfDay(startedAt)} → ${Timer.formatTimeOfDay(completedAt)} (${dur}) ✓`;
+    } else {
+      txt = sessionClockLive(startedAt, compact);
     }
+    return `<div id="session-clock" class="session-clock${compact ? ' session-clock-compact' : ''}">${txt}</div>`;
+  }
+  function startSessionClock(compact) {
+    if (window._sessionClockInterval) { clearInterval(window._sessionClockInterval); window._sessionClockInterval = null; }
+    const wip = State.getWIP();
+    if (!wip?.startedAt || wip.completedAt) return;   // not running — the static markup already says it all
+    const tick = () => {
+      const el = document.getElementById('session-clock');
+      if (!el) return;
+      el.textContent = sessionClockLive(wip.startedAt, compact);
+    };
+    tick();
+    window._sessionClockInterval = setInterval(tick, 1000);
   }
 
   function renderExRow(ex, index, num, workoutId) {
@@ -3323,6 +3356,7 @@ const Views = (function() {
       <div class="header">
         <button class="back-btn" onclick="Views.saveAndBack(${workoutId}, ${exIndex})">← Back</button>
         <h1>W${workoutId} — ${exNum} out of ${totalEx}</h1>
+        ${sessionClockHtml(true)}
       </div>
       <div class="content ex-detail">
         <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${workoutMembershipBadges(ex.id, workoutId)}</div>
@@ -3368,6 +3402,8 @@ const Views = (function() {
     }
 
     if (existingData) Views.updateBanner(ex);
+
+    startSessionClock(true);
   }
 
   // Start or stop the hold timer for one side (main/l/r) of a duration/completion exercise. Folds the
