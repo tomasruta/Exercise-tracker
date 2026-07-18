@@ -48,6 +48,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   --new-badge: #8b5cf6;
   --equip-badge: #b45309;
   --workouts-badge: #e2e8f0; /* light slate — "also in these workouts" pills, distinct from equip/SS/new */
+  --location-badge: #0f766e; /* deep green — "U žen" gym-area location pills (Max Fitness Flora women's area) */
   color-scheme: light; /* always light — never follow system dark mode */
 }
 
@@ -138,6 +139,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .badge-ss { background: var(--ss-color); color: #fff; }
 .badge-equip { background: var(--equip-badge); color: #fff; }
 .badge-workouts { background: var(--workouts-badge); color: #64748b; font-size: 0.6rem; padding: 1px 4px; letter-spacing: 0.02em; }
+.badge-location { background: var(--location-badge); color: #fff; }
 
 /* ===== MALTO FENCE ===== */
 .malto-fence {
@@ -639,16 +641,16 @@ const PROGRAMME = [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
-      { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent). Fixed: W1+W4 seated, W3+W6 SL standing (gastrocnemius).', notes: 'Mar 25: standing on squat machine didn\'t work well, couldn\'t get right impulse. Only 25kg. Go harder.' },
-      { id: 'couch-stretch', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', trackingType: 'duration', unilateral: 'split_weight', timerSeconds: 60, formCues: 'Start the L then R timer — beeps at 60s.', notes: '' },
-      { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
-      { id: 'pullover', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
-      { id: 'trap-3-raise', name: 'Trap-3 raise', sets: 3, reps: '8', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', prefillReps: 8, formCues: '', notes: '' },
-      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.' },
-      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'Check that spine is NOT in imprint — should feel lower back muscles, not abs. If abs dominate, drop weight.', notes: 'Mar 17: Started 18kg too much, 15kg also hard, 13kg still good impulse. Accept weakness, build from scratch. Mar 28: Struggled again, had to go to 13kg. Be careful.' },
-      { id: 'glute-bridge', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: '', notes: '', isNew: true },
+      { id: 'seated-calf-raise', gymArea: 'U žen', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent). Fixed: W1+W4 seated, W3+W6 SL standing (gastrocnemius).', notes: 'Mar 25: standing on squat machine didn\'t work well, couldn\'t get right impulse. Only 25kg. Go harder.' },
+      { id: 'couch-stretch', gymArea: 'U žen', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', trackingType: 'duration', unilateral: 'split_weight', timerSeconds: 60, formCues: 'Start the L then R timer — beeps at 60s.', notes: '' },
+      { id: 'internal-hip-db-lift', gymArea: 'U žen', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'loaded-butterfly', gymArea: 'U žen', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'pigeon-stretch', gymArea: 'U žen', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
+      { id: 'pullover', gymArea: 'U žen', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
+      { id: 'trap-3-raise', gymArea: 'U žen', name: 'Trap-3 raise', sets: 3, reps: '8', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', prefillReps: 8, formCues: '', notes: '' },
+      { id: 'reverse-squat', gymArea: 'U žen', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'Check that spine is NOT in imprint — should feel lower back muscles, not abs. If abs dominate, drop weight.', notes: 'Mar 17: Started 18kg too much, 15kg also hard, 13kg still good impulse. Accept weakness, build from scratch. Mar 28: Struggled again, had to go to 13kg. Be careful.' },
+      { id: 'glute-bridge', gymArea: 'U žen', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: '', notes: '', isNew: true },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SEQ', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.' },
       { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot must be fully settled, not lifting. Torso drops below horizontal — must be pre-fence.', notes: 'Mar 25: Beautiful work. First round harder than second. Always check bottom foot. Mar 30: 8 reps maybe too much — moving lumbar. Try 7 next time.' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'nordic-curl', name: 'Nordic curl', sets: 5, reps: '5', flow: 'SS', supersetWith: 'back-squat', repRange: [5, 5], progressionType: 'compound', prefillReps: 5, variants: VARIANTS.nordicCurl, formCues: 'Try actual nordics at Max Fitness Flora — look for anchor point. Ham curl fallback if no anchor.', notes: 'Mar 30: Ham curl sub — barely feeling impulse. Need to try actual nordics.' },
@@ -662,11 +664,11 @@ const PROGRAMME = [
     subtitle: "~105 min",
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
-      { id: 'patrick-step-up', name: 'Patrick step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'duration', timerSeconds: 45, formCues: 'Start the timer — beeps at 45s.', notes: '' },
-      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45s×2/side', flow: 'SEQ', trackingType: 'multi_timer',
+      { id: 'sled', gymArea: 'U žen', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'tibialis-raise', gymArea: 'U žen', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
+      { id: 'patrick-step-up', gymArea: 'U žen', name: 'Patrick step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'big-toe-stretch', gymArea: 'U žen', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'duration', timerSeconds: 45, formCues: 'Start the timer — beeps at 45s.', notes: '' },
+      { id: 'calf-stretch', gymArea: 'U žen', name: 'Calf stretch', sets: 1, reps: '45s×2/side', flow: 'SEQ', trackingType: 'multi_timer',
         timerSequence: [
           { label: 'Left — straight leg (gastroc)', seconds: 45 },
           { label: 'Left — bent knee (soleus)', seconds: 45 },
@@ -674,8 +676,8 @@ const PROGRAMME = [
           { label: 'Right — bent knee (soleus)', seconds: 45 }
         ],
         formCues: 'Straight leg = gastroc. Bent knee = soleus. 45s each position, each side.', notes: '' },
-      { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
-      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'jefferson-curl', gymArea: 'U žen', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
+      { id: 'cable-pancake', gymArea: 'U žen', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'atg-split-squat', name: 'ATG split squat (no walking)', sets: 5, reps: '6-8/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', formCues: 'Stationary — no walking. Same DBs both hands. Full set one leg, then switch. Double progression 6-8/side.', notes: '' },
@@ -691,14 +693,14 @@ const PROGRAMME = [
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
-      { id: 'sl-calf-raise', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 12, formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
-      { id: 'petersen-step-up', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 15, formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
-      { id: 'lateral-band-walk', name: 'Lateral band walk', sets: 1, reps: '15/15', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 15, repsLabel: 'steps', formCues: '', notes: '', isNew: true },
-      { id: 'cossack-squat', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 8, formCues: '', notes: '', isNew: true },
-      { id: 'hack-squat', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Barbell Hackenschmidt. Heels high on two thick plates / high slant — gets knees + glutes more.', notes: '' },
-      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
-      { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
+      { id: 'tibialis-raise', gymArea: 'U žen', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
+      { id: 'sl-calf-raise', gymArea: 'U žen', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 12, formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
+      { id: 'petersen-step-up', gymArea: 'U žen', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 15, formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
+      { id: 'lateral-band-walk', gymArea: 'U žen', name: 'Lateral band walk', sets: 1, reps: '15/15', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 15, repsLabel: 'steps', formCues: '', notes: '', isNew: true },
+      { id: 'cossack-squat', gymArea: 'U žen', name: 'Cossack squat', sets: 2, reps: '8/8', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 8, formCues: '', notes: '', isNew: true },
+      { id: 'hack-squat', gymArea: 'U žen', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Barbell Hackenschmidt. Heels high on two thick plates / high slant — gets knees + glutes more.', notes: '' },
+      { id: 'reverse-squat', gymArea: 'U žen', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
+      { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SEQ', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
       { id: 'powell-raise', name: 'Powell raise', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'FORM RESET: 1-2kg, strict, 3s eccentric. Brief prone post-fence — pause malto sipping.', notes: '' },
@@ -716,10 +718,10 @@ const PROGRAMME = [
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent).', notes: '' },
       { id: 'reverse-nordics', name: 'Reverse nordics', sets: 3, reps: '10', flow: 'SEQ', trackingType: 'reps_only', prefillReps: 10, formCues: 'Kneeling on mat. Tips of feet up. Bodyweight only — no loading.', notes: '' },
-      { id: 'internal-hip-db-lift', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'pigeon-stretch', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'loaded-butterfly', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'pullover', name: 'Pullover', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'ql-extension', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: '' },
+      { id: 'internal-hip-db-lift', gymArea: 'U žen', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'pigeon-stretch', gymArea: 'U žen', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'loaded-butterfly', gymArea: 'U žen', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'pullover', gymArea: 'U žen', name: 'Pullover', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'ql-extension', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: '' },
       { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot fully settled. Torso drops below horizontal.', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'front-squat', name: 'Front squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'ham-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Wrist CARs during rest! Figure out foot positioning if using Smith machine. Try without Smith next time.', notes: '' },
@@ -736,10 +738,10 @@ const PROGRAMME = [
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
       { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
-      { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
-      { id: 'poliquin-step-up', name: 'Poliquin step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '3 plates height. Put leg further away. Go down with bum to feel it around knee.', notes: '' },
-      { id: 'big-toe-stretch', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'duration', timerSeconds: 45, formCues: 'Start the timer — beeps at 45s.', notes: '' },
-      { id: 'calf-stretch', name: 'Calf stretch', sets: 1, reps: '45s×2/side', flow: 'SEQ', trackingType: 'multi_timer',
+      { id: 'tibialis-raise', gymArea: 'U žen', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
+      { id: 'poliquin-step-up', gymArea: 'U žen', name: 'Poliquin step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '3 plates height. Put leg further away. Go down with bum to feel it around knee.', notes: '' },
+      { id: 'big-toe-stretch', gymArea: 'U žen', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'duration', timerSeconds: 45, formCues: 'Start the timer — beeps at 45s.', notes: '' },
+      { id: 'calf-stretch', gymArea: 'U žen', name: 'Calf stretch', sets: 1, reps: '45s×2/side', flow: 'SEQ', trackingType: 'multi_timer',
         timerSequence: [
           { label: 'Left — straight leg (gastroc)', seconds: 45 },
           { label: 'Left — bent knee (soleus)', seconds: 45 },
@@ -747,8 +749,8 @@ const PROGRAMME = [
           { label: 'Right — bent knee (soleus)', seconds: 45 }
         ],
         formCues: 'Straight leg = gastroc. Bent knee = soleus. 45s each position, each side.', notes: '' },
-      { id: 'jefferson-curl', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
-      { id: 'cable-pancake', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
+      { id: 'jefferson-curl', gymArea: 'U žen', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
+      { id: 'cable-pancake', gymArea: 'U žen', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6-8 steps/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', repsLabel: 'steps', formCues: 'Walking. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. All sets at 8/side → add weight.', notes: '' },
@@ -2633,7 +2635,7 @@ const Views = (function() {
       <div class="ex-row" onclick="Views.openExercise(${workoutId}, ${index})">
         <span class="ex-num">${num}</span>
         <div class="ex-info">
-          <span class="ex-name">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
+          <span class="ex-name">${ex.name}${ex.gymArea ? ' <span class="badge badge-location">' + ex.gymArea + '</span>' : ''}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
           <span class="ex-meta">${metaStr}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${workoutMembershipBadges(ex.id, workoutId)}${lastStr ? ' · ' + lastStr : ''}</span>
         </div>
         <span class="ex-status">${statusIcon}</span>
@@ -4503,7 +4505,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.12.0';
+const APP_VERSION = '1.13.0';
 
 // =====================================================
 // APP INIT
