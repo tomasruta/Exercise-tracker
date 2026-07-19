@@ -106,6 +106,41 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .btn-amber { background: var(--amber); color: #fff; }
 .btn:active { opacity: 0.85; }
 
+/* ===== VIDEO ROADMAP ===== */
+.vr-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px; margin-bottom: 12px;
+}
+.vr-card.vr-watched { opacity: 0.6; }
+.vr-title { font-weight: 600; font-size: 1rem; line-height: 1.3; }
+.vr-watched .vr-title { text-decoration: line-through; text-decoration-color: var(--text3); }
+.vr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.vr-chip {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
+  background: var(--ss-bg); color: var(--ss-color);
+  border-radius: 999px; padding: 3px 9px;
+}
+.vr-chip-ex { background: var(--green-bg); color: var(--green); cursor: pointer; }
+.vr-note { font-size: 0.85rem; color: var(--text2); margin-top: 8px; white-space: pre-wrap; }
+.vr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.vr-link {
+  font-size: 0.85rem; font-weight: 600; text-decoration: none;
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 8px; padding: 8px 14px; cursor: pointer; display: inline-block;
+}
+.vr-link-add { background: var(--bg-input); color: var(--text2); }
+.vr-act {
+  font-size: 0.8rem; font-weight: 600; color: var(--text2);
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; cursor: pointer;
+}
+.vr-act-del { color: var(--red); border-color: var(--red-bg); margin-left: auto; }
+.vr-section-label {
+  font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--text3); margin: 20px 0 10px;
+}
+.vr-empty { color: var(--text2); text-align: center; padding: 30px 10px; }
+
 /* ===== WORKOUT LIST ===== */
 .exercise-list { display: flex; flex-direction: column; gap: 2px; }
 .ss-group {
@@ -910,7 +945,62 @@ const Data = (function() {
     else localStorage.removeItem(`gym-cues-${exerciseId}`);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym };
+  // ── Video Roadmap ──────────────────────────────────────────────
+  // Personal queue of technique videos to watch / re-watch (mostly ATG).
+  // Stored as the whole list under one key; seeded once from SEED_VIDEO_ROADMAP.
+  // Entry shape: { id, title, tag, exercise, url, note, watched, added }.
+  const VIDEO_ROADMAP_KEY = 'gym-video-roadmap';
+  const SEED_VIDEO_ROADMAP = [
+    {
+      id: 'rdl-beginner-atg',
+      title: 'Lost RDL — Beginner (ATG)',
+      tag: 'ATG',
+      exercise: 'rdl',
+      url: '',
+      note: 'Re-learn the RDL from the ATG beginner progression: hinge at the hips, DBs close to the legs, stop at the hamstring stretch — no lumbar rounding. Paste the video link once you find it.',
+      watched: false,
+      added: '2026-07-19'
+    }
+  ];
+
+  function getVideoRoadmap() {
+    // Key absent → first run: return a copy of the seed (not yet persisted).
+    // Key present (even "[]") → honour the stored list, including "deleted everything".
+    if (localStorage.getItem(VIDEO_ROADMAP_KEY) === null) {
+      return SEED_VIDEO_ROADMAP.map(v => ({ ...v }));
+    }
+    try {
+      const list = JSON.parse(localStorage.getItem(VIDEO_ROADMAP_KEY));
+      return Array.isArray(list) ? list : [];
+    } catch { return []; }
+  }
+
+  function saveVideoRoadmap(list) {
+    try {
+      localStorage.setItem(VIDEO_ROADMAP_KEY, JSON.stringify(list));
+    } catch (e) {
+      alert('Storage full — the video roadmap was NOT saved. Export/clear old sessions in Settings.');
+      throw e;
+    }
+  }
+
+  function addVideo(video) {
+    const list = getVideoRoadmap();
+    list.unshift(video);        // newest at the top of the queue
+    saveVideoRoadmap(list);
+  }
+
+  function updateVideo(id, patch) {
+    const list = getVideoRoadmap();
+    const v = list.find(x => x.id === id);
+    if (v) { Object.assign(v, patch); saveVideoRoadmap(list); }
+  }
+
+  function deleteVideo(id) {
+    saveVideoRoadmap(getVideoRoadmap().filter(x => x.id !== id));
+  }
+
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym, getVideoRoadmap, saveVideoRoadmap, addVideo, updateVideo, deleteVideo };
 })();
 
 // =====================================================
@@ -2478,6 +2568,7 @@ const Views = (function() {
           }).join('')}
         </div>
         <div class="home-actions">
+          <button class="btn btn-secondary" onclick="Router.go('/videos')">🎬 Video Roadmap</button>
           <button class="btn btn-secondary" onclick="Router.go('/settings')">Settings & History</button>
         </div>
       </div>`;
@@ -4520,7 +4611,107 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise };
+  // ── Video Roadmap ──────────────────────────────────────────────
+  // A personal watch-queue of technique videos (mostly ATG). Unwatched entries
+  // sit at the top; watched ones drop to a muted "Watched" group at the bottom.
+  // Each entry can carry a link out to the video and a tag to an exercise.
+  function _exerciseName(exId) {
+    if (!exId) return null;
+    for (const w of PROGRAMME) {
+      const e = w.exercises.find(x => x.id === exId);
+      if (e) return e.name;
+    }
+    return null;
+  }
+
+  function renderVideoRoadmap() {
+    _peekReturnTo = null;
+    const all = Data.getVideoRoadmap();
+    const unwatched = all.filter(v => !v.watched);
+    const watched = all.filter(v => v.watched);
+
+    const card = (v) => {
+      const exName = _exerciseName(v.exercise);
+      const chips = [];
+      if (v.tag) chips.push(`<span class="vr-chip">${esc(v.tag)}</span>`);
+      if (exName) chips.push(`<span class="vr-chip vr-chip-ex" onclick="event.stopPropagation();Router.go('/exercise/${esc(v.exercise)}')">${esc(exName)} →</span>`);
+      const linkBtn = v.url
+        ? `<a class="vr-link" href="${esc(v.url)}" target="_blank" rel="noopener">▶ Watch</a>`
+        : `<button class="vr-link vr-link-add" onclick="Views._setVideoUrl('${esc(v.id)}')">+ Add link</button>`;
+      return `
+        <div class="vr-card${v.watched ? ' vr-watched' : ''}">
+          <div class="vr-title">${esc(v.title)}</div>
+          ${chips.length ? `<div class="vr-chips">${chips.join('')}</div>` : ''}
+          ${v.note ? `<div class="vr-note">${esc(v.note)}</div>` : ''}
+          <div class="vr-actions">
+            ${linkBtn}
+            <button class="vr-act" onclick="Views._toggleVideoWatched('${esc(v.id)}')">${v.watched ? '↩ Unwatch' : '✓ Watched'}</button>
+            <button class="vr-act" onclick="Views._editVideoNote('${esc(v.id)}')">✎ Note</button>
+            <button class="vr-act vr-act-del" onclick="Views._deleteVideo('${esc(v.id)}')">🗑</button>
+          </div>
+        </div>`;
+    };
+
+    app.innerHTML = `
+      <div class="header">
+        <button class="back-btn" onclick="Router.go('/')">← Home</button>
+        <h1>Video Roadmap</h1>
+      </div>
+      <div class="content">
+        <button class="btn btn-primary" style="margin-bottom:16px;" onclick="Views._addVideo()">+ Add video</button>
+        ${all.length === 0 ? `<div class="vr-empty">No videos yet. Add one to start your roadmap.</div>` : ''}
+        ${unwatched.map(card).join('')}
+        ${watched.length ? `<div class="vr-section-label">Watched</div>${watched.map(card).join('')}` : ''}
+      </div>`;
+  }
+
+  function _addVideo() {
+    const title = prompt('Video title:');
+    if (!title || !title.trim()) return;
+    const url = prompt('Link (optional — paste the video URL, or leave blank):') || '';
+    const note = prompt('Note (optional):') || '';
+    Data.addVideo({
+      id: 'v-' + Date.now(),
+      title: title.trim(),
+      tag: '',
+      exercise: '',
+      url: url.trim(),
+      note: note.trim(),
+      watched: false,
+      added: new Date().toISOString().slice(0, 10)
+    });
+    renderVideoRoadmap();
+  }
+
+  function _setVideoUrl(id) {
+    const v = Data.getVideoRoadmap().find(x => x.id === id);
+    const url = prompt('Paste the video link:', (v && v.url) || '');
+    if (url === null) return;   // cancelled
+    Data.updateVideo(id, { url: url.trim() });
+    renderVideoRoadmap();
+  }
+
+  function _editVideoNote(id) {
+    const v = Data.getVideoRoadmap().find(x => x.id === id);
+    const note = prompt('Note:', (v && v.note) || '');
+    if (note === null) return;   // cancelled
+    Data.updateVideo(id, { note: note.trim() });
+    renderVideoRoadmap();
+  }
+
+  function _toggleVideoWatched(id) {
+    const v = Data.getVideoRoadmap().find(x => x.id === id);
+    if (v) Data.updateVideo(id, { watched: !v.watched });
+    renderVideoRoadmap();
+  }
+
+  function _deleteVideo(id) {
+    if (!confirm('Remove this video from the roadmap?')) return;
+    Data.deleteVideo(id);
+    renderVideoRoadmap();
+  }
+
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, renderVideoRoadmap, _addVideo, _setVideoUrl, _editVideoNote, _toggleVideoWatched, _deleteVideo };
 })();
 
 // =====================================================
@@ -4549,6 +4740,9 @@ const Router = (function() {
     if (parts[0] === 'exercise' && parts[1]) {
       return { view: 'exerciseHistory', exerciseId: parts[1] };
     }
+    if (parts[0] === 'videos') {
+      return { view: 'videoRoadmap' };
+    }
     return { view: 'home' };
   }
 
@@ -4565,6 +4759,7 @@ const Router = (function() {
       case 'settings': Views.renderSettings(); break;
       case 'sessionDetail': Views.renderSessionDetail(r.sessionIndex); break;
       case 'exerciseHistory': Views.renderExerciseHistory(r.exerciseId); break;
+      case 'videoRoadmap': Views.renderVideoRoadmap(); break;
       case 'home': default: Views.renderHome(); break;
     }
   }
@@ -4584,7 +4779,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.14.0';
+const APP_VERSION = '1.15.0';
 
 // =====================================================
 // APP INIT
