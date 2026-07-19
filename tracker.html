@@ -1055,15 +1055,58 @@ const State = (function() {
     if (s.weightR !== null && s.weightR !== undefined && s.weightR !== '') return true;
     return false;
   }
+  // ONE definition of "this set row is real" — an untouched prefilled row never counts.
+  // entryHasGenuineData and sessionRichness both route through it; don't re-check `touched` by hand.
+  function setIsGenuine(s) {
+    return ((s.touched === undefined) ? true : s.touched) && setHasRealValue(s);
+  }
   function entryHasGenuineData(data) {
     if (!data) return false;
     if (data.completed) return true;                                   // explicit "Completed exercise" tap
     if (data.timerSteps !== undefined) return data.timerSteps.some(s => s.done);
     if (data.done || data.doneL || data.doneR) return true;
     if (Array.isArray(data.sets) && data.sets.length > 0) {
-      return data.sets.some(s => ((s.touched === undefined) ? true : s.touched) && setHasRealValue(s));
+      return data.sets.some(setIsGenuine);
     }
     return false;
+  }
+  // How much REAL data a session carries. The tiebreaker when an import collides with a stored
+  // session on date+workoutId: two levels compared in order — how many exercises were genuinely
+  // logged, then how many real set-rows / timer-steps sit underneath them. Uses the same genuineness
+  // helpers as everything else (the `touched`-consistency invariant), so a thin stored session can
+  // never masquerade as richer than the full copy in your markdown log.
+  function sessionRichness(session) {
+    let exercises = 0, datapoints = 0;
+    for (const data of Object.values((session && session.exercises) || {})) {
+      if (!entryHasGenuineData(data)) continue;
+      exercises++;
+      if (Array.isArray(data.sets) && data.sets.length > 0) datapoints += data.sets.filter(setIsGenuine).length;
+      else if (Array.isArray(data.timerSteps)) datapoints += data.timerSteps.filter(s => s.done).length;
+      else datapoints++;
+    }
+    return { exercises, datapoints };
+  }
+  // Which copy wins when an import collides with a stored session on date+workoutId?
+  // 'replace' = the incoming copy carries strictly more real data · 'identical' = same amount,
+  // nothing to gain · 'keep' = the stored copy is fuller. Named + exported so the round-trip harness
+  // tests THIS rule rather than a re-implementation of it living in the test file.
+  function importCollisionVerdict(stored, incoming) {
+    const mine = sessionRichness(stored), theirs = sessionRichness(incoming);
+    if (theirs.exercises > mine.exercises ||
+        (theirs.exercises === mine.exercises && theirs.datapoints > mine.datapoints)) return 'replace';
+    if (theirs.exercises === mine.exercises && theirs.datapoints === mine.datapoints) return 'identical';
+    return 'keep';
+  }
+  // Carry over any stored field the incoming copy left blank (overall/injuries notes, gym,
+  // timestamps). A fuller exercise list must never arrive at the cost of context the markdown
+  // didn't happen to carry. `exercises` is an object, never blank, so the richer copy always wins it.
+  function mergeSessionFields(stored, incoming) {
+    const merged = { ...stored, ...incoming };
+    const blank = v => v === undefined || v === null || v === '';
+    for (const k of Object.keys(stored)) {
+      if (blank(merged[k]) && !blank(stored[k])) merged[k] = stored[k];
+    }
+    return merged;
   }
 
   function finishSession() {
@@ -1152,7 +1195,7 @@ const State = (function() {
     return results;
   }
 
-  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setSoundChecked };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked };
 })();
 
 // =====================================================
@@ -3985,16 +4028,39 @@ const Views = (function() {
       return;
     }
 
-    // Dedup: skip sessions that match an existing date + workoutId
+    // Dedup, content-aware. A stored session and an incoming one can collide on date+workoutId.
+    // The old behaviour skipped the incoming copy REGARDLESS of content, so a thin stored session
+    // permanently masked the fuller one in the log — reported as nothing but "1 duplicate skipped".
+    // (That's what made only one rhythm-squat session show on the phone.) Now: compare how much real
+    // data each carries, keep the richer, and account for every collision by date.
     const existing = Data.getSessions();
-    const existingKeys = new Set(existing.map(s => `${s.date}|${s.workoutId}`));
-    const newSessions = result.sessions.filter(s => !existingKeys.has(`${s.date}|${s.workoutId}`));
-    const dupes = result.sessions.length - newSessions.length;
+    const combined = existing.slice();
+    const byKey = new Map();
+    combined.forEach((s, i) => byKey.set(`${s.date}|${s.workoutId}`, i));
+    const newSessions = [], replaced = [], thinnerKept = [], identical = [];
+
+    for (const s of result.sessions) {
+      const key = `${s.date}|${s.workoutId}`;
+      if (!byKey.has(key)) { newSessions.push(s); continue; }
+      const i = byKey.get(key);
+      const mine = State.sessionRichness(combined[i]);
+      const theirs = State.sessionRichness(s);
+      const verdict = State.importCollisionVerdict(combined[i], s);
+      if (verdict === 'replace') {
+        s.exported = true;
+        combined[i] = State.mergeSessionFields(combined[i], s);
+        replaced.push({ ...s, mine, theirs });
+      } else if (verdict === 'identical') {
+        identical.push(s);                       // genuine no-op — nothing to see, nothing lost
+      } else {
+        thinnerKept.push({ ...s, mine, theirs }); // stored copy wins; worth knowing your log is thinner
+      }
+    }
 
     // Imported sessions came FROM a markdown backup (your log) → already backed up, so don't nag
     // "not exported". (getSessions re-sorts on read, so combine order doesn't matter here.)
     newSessions.forEach(s => { s.exported = true; });
-    const combined = [...existing, ...newSessions];
+    combined.push(...newSessions);
     try {
       Data.saveSessions(combined);
     } catch (e) {
@@ -4004,13 +4070,20 @@ const Views = (function() {
       return;
     }
 
+    const nice = r => `${r.exercises} exercise(s) / ${r.datapoints} set(s)`;
     let msg = `Imported ${newSessions.length} session(s), ${result.matched} exercise(s) matched.`;
-    if (dupes > 0) msg += ` ${dupes} duplicate session(s) skipped.`;
+    if (replaced.length > 0) msg += ` ${replaced.length} upgraded to a fuller version.`;
+    // A genuinely identical duplicate is a no-op, not a problem — but still NAME the dates rather
+    // than hiding them behind a bare count, so a skip is never invisible.
+    if (identical.length > 0) msg += ` ${identical.length} already stored, nothing new (${identical.map(s => `${s.date} W${s.workoutId}`).join(', ')}).`;
 
-    // Never report success silently over dropped data: itemise everything not imported, with reasons.
+    // Never report success silently over dropped or CHANGED data: itemise it, with reasons.
     const probs = [];
     for (const s of (result.skippedSessions || [])) probs.push(`Session “${s.header}” — ${s.reason}`);
     for (const l of (result.skippedLines || [])) probs.push(`${l.name} (W${l.workoutId}, ${l.date}) — ${l.reason}`);
+    for (const k of thinnerKept) probs.push(`Session ${k.date} (W${k.workoutId}) — kept the copy already in the app (${nice(k.mine)}); the imported one was thinner (${nice(k.theirs)}). Nothing lost here, but your log may be missing data for that day.`);
+    // Replacements ARE imported — but they overwrite stored data, so they must be seen, not auto-dismissed.
+    for (const r of replaced) probs.push(`Session ${r.date} (W${r.workoutId}) — upgraded: the app had ${nice(r.mine)}, your log had ${nice(r.theirs)}. The fuller version is now stored.`);
 
     // Re-init state to pick up new history
     State.init();
@@ -4023,10 +4096,15 @@ const Views = (function() {
         renderHome();
       }, 2000);
     } else {
-      // Something wasn't imported — DO NOT auto-dismiss. The user must actually read the list,
-      // otherwise "never silent" is defeated by a report that vanishes in 2s. They tap Done to close.
+      // Something wasn't imported, or stored data changed — DO NOT auto-dismiss. The user must
+      // actually read the list, otherwise "never silent" is defeated by a report that vanishes in 2s.
+      // Heading stays honest about which kind of list this is (nothing imported vs data upgraded).
+      const notImported = probs.length - replaced.length;
+      const heading = notImported > 0
+        ? `<strong>${notImported} item(s) not imported</strong> (still safe in your source log)${replaced.length ? `, ${replaced.length} session(s) upgraded` : ''}:`
+        : `<strong>${replaced.length} session(s) upgraded</strong> — stored data changed, so read this before closing:`;
       const list = probs.map(p => `<li>${esc(p)}</li>`).join('');
-      resultEl.innerHTML = `<div class="import-result" style="background:var(--amber-bg);color:var(--amber);">${msg} <strong>${probs.length} item(s) not imported</strong> (still safe in your source log):<ul style="margin:8px 0 0;padding-left:18px;">${list}</ul><button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="document.getElementById('import-modal')?.remove(); Views.renderHome();">Done</button></div>`;
+      resultEl.innerHTML = `<div class="import-result" style="background:var(--amber-bg);color:var(--amber);">${msg} ${heading}<ul style="margin:8px 0 0;padding-left:18px;">${list}</ul><button class="btn btn-primary" style="margin-top:12px;width:100%;" onclick="document.getElementById('import-modal')?.remove(); Views.renderHome();">Done</button></div>`;
     }
   }
 
@@ -4085,6 +4163,10 @@ const Views = (function() {
         <h1>Settings & History</h1>
       </div>
       <div class="content">
+        <div style="margin-bottom:20px;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <span style="font-weight:600;font-size:0.95rem;">Version</span>
+          <span style="font-size:0.95rem;color:var(--text2);font-variant-numeric:tabular-nums;">${APP_VERSION}</span>
+        </div>
         <div class="summary-section">
           <h3>Session History (${sessions.length} total)</h3>
           ${sessionRows}
@@ -4099,9 +4181,6 @@ const Views = (function() {
         <div id="storage-info" style="margin-top:24px;padding:12px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;font-size:0.8rem;color:var(--text2);">
           <div style="font-weight:600;margin-bottom:6px;">Storage</div>
           <div id="storage-usage">Calculating...</div>
-        </div>
-        <div style="text-align:center;margin-top:12px;font-size:0.75rem;color:var(--text3);">
-          Strength v${APP_VERSION}
         </div>
       </div>`;
 
@@ -4505,7 +4584,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.13.1';
+const APP_VERSION = '1.14.0';
 
 // =====================================================
 // APP INIT
