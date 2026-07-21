@@ -153,6 +153,20 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .ex-detail { padding-bottom: 100px; }
 .ex-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
 .ex-target { font-size: 1rem; color: var(--text2); margin-bottom: 12px; }
+/* ATG standard + gap-to-standard. Reference only — no inputs, no tap targets. */
+.atg-std {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 12px; font-size: 0.85rem;
+}
+.atg-std-head { color: var(--text2); }
+.atg-std-head b { color: var(--text); font-weight: 600; }
+.atg-std-bar { height: 6px; border-radius: 3px; background: var(--bg-input); overflow: hidden; margin: 8px 0 6px; }
+.atg-std-fill { height: 100%; border-radius: 3px; background: var(--amber); }
+.atg-std.met .atg-std-fill { background: var(--green); }
+.atg-std-pct { font-weight: 600; color: var(--amber); float: right; font-variant-numeric: tabular-nums; }
+.atg-std.met .atg-std-pct { color: var(--green); }
+.atg-std-you { color: var(--text2); }
+.atg-std-hint { color: var(--text3); margin-top: 4px; font-size: 0.8rem; }
 .cue-section {
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; margin-bottom: 12px;
@@ -624,6 +638,75 @@ const FORM_CUES = {
     mistakes: ['Shrug', 'Pull with arms', 'Band too heavy', 'Stop short of full retraction'],
     you: ['Medium band']
   }
+};
+
+// Current bodyweight — the denominator for every "% of bodyweight" ATG standard.
+// Auto-refreshed from the Renpho scale export on every ./deploy.sh run.
+const BODYWEIGHT_KG = 74.2; // auto:renpho — set by scripts/update_bodyweight.py, do not edit by hand
+const BODYWEIGHT_DATE = '2026-07-18'; // auto:renpho — date of the weigh-in above
+
+// ATG standards — Ben Patrick's published benchmarks, keyed by exercise ID.
+// Source of truth: vault "Building strength library/_standards.md" (the 23 Physical Standards,
+// Aug 2024, + the a1athlete supplementary list). Web-checked 21 Jul 2026: still the current list.
+// SIDECAR BY DESIGN — never inline these onto PROGRAMME entries. verify_video_library.py parses
+// exercise lines positionally and a new inline field silently drops exercises from its count
+// (that's the gymArea bug, fix 5caa3f6). A separate dict is invisible to it.
+//
+//   kind:'pct'  → pctBW is % of bodyweight. Computable target.
+//   kind:'reps' → bodyweight rep target, compared against logged reps.
+//   kind:'note' → qualitative or cross-exercise; displayed, never scored.
+//   perHand     → the standard is per dumbbell, so it compares against the per-hand number he logs.
+//   loadFrom    → how to turn logged sets into a load comparable to the standard. Defaults:
+//                 split_weight + perHand → 'minSide' (weaker side is the honest gap),
+//                 split_weight otherwise → 'sumSides', everything else → 'value'.
+// Exercises with no published standard are ABSENT — the app then renders nothing for them.
+const ATG_STANDARDS = {
+  // --- Lower legs ---
+  // One dumbbell, one leg at a time — so it's a plain kg figure, scored off the weaker side.
+  'sl-calf-raise':     { kind: 'pct', pctBW: 25, reps: 10, loadFrom: 'minSide', label: '25% BW × 10 per leg', hint: 'no bounce' },
+  'seated-calf-raise': { kind: 'pct', pctBW: 50, reps: 15, label: '50% BW × 15', hint: 'no bounce' },
+  'tibialis-raise': {
+    'wall':    { kind: 'reps', reps: 25, label: '25 reps', hint: '2s pause top and bottom' },
+    'tib-bar': { kind: 'pct', pctBW: 20, reps: 15, label: '20% BW × 15', hint: 'no bounce' }
+  },
+  // --- Knee / quad ---
+  'atg-split-squat':   { kind: 'pct', pctBW: 25, reps: 8, perHand: true, label: '25% BW/hand × 8', hint: 'flat ground, or back foot up to 6"' },
+  'atg-lunge':         { kind: 'pct', pctBW: 25, reps: null, perHand: true, label: '25% BW/hand', hint: 'same standard as the ATG split squat' },
+  'hack-squat':        { kind: 'pct', pctBW: 25, reps: 20, label: '25% BW × 20', hint: 'Hackenschmidt — knee connective tissue' },
+  'back-squat':        { kind: 'pct', pctBW: 100, reps: 6, label: '100% BW × 6', hint: 'no bounce — own the last quarter' },
+  'patrick-step-up':   { kind: 'reps', reps: 25, label: '25 consecutive reps', hint: 'to full ankle bend' },
+  'poliquin-step-up':  { kind: 'pct', pctBW: 66, reps: 20, label: '66% BW × 20', hint: '3-4" box, heels elevated 45°' },
+  'kot-sissy-squat':   { kind: 'reps', reps: 20, label: '20 reps at bodyweight', hint: 'shins parallel to floor' },
+  // --- Hamstring ---
+  'nordic-curl': {
+    'nordic':          { kind: 'reps', reps: 5, label: '5 full reps' },
+    'ham-curl-seated': { kind: 'pct', pctBW: 85, reps: 8, label: '85% BW × 8' },
+    'ham-curl-prone':  { kind: 'pct', pctBW: 85, reps: 8, label: '85% BW × 8' }
+  },
+  // --- Lower back + posterior chain ---
+  // RDL is done with a dumbbell in each hand, so both DBs count toward the 100% BW barbell standard.
+  'rdl':               { kind: 'pct', pctBW: 100, reps: 12, loadFrom: 'valueX2', label: '100% BW × 12', hint: 'full stretch — both dumbbells counted together' },
+  'back-extension':  { '45deg': { kind: 'pct', pctBW: 25, reps: 20, label: '25% BW × 20' } },
+  'ql-extension':      { kind: 'reps', reps: 20, label: '20 reps' },
+  'reverse-squat': {
+    'cable':     { kind: 'pct', pctBW: 50, reps: 20, label: '50% BW × 20' },
+    'garhammer': { kind: 'reps', reps: 10, label: '10 reps (Level 2)', hint: 'bent up, straight down' }
+  },
+  'jefferson-curl':    { kind: 'pct', pctBW: 25, reps: 10, label: '25% BW × 10', hint: 'wrists below toes' },
+  'cable-pancake':     { kind: 'note', label: 'Head to floor', hint: 'flexibility standard' },
+  // --- Push / pull ---
+  'incline-press':     { kind: 'pct', pctBW: 37.5, reps: 8, perHand: true, label: '37.5% BW/hand × 8' },
+  'shoulder-press':    { kind: 'pct', pctBW: 25, reps: 10, perHand: true, label: '25% BW/hand × 10' },
+  'pullover':          { kind: 'pct', pctBW: 25, reps: 12, label: '25% BW × 12' },
+  'powell-raise':      { kind: 'pct', pctBW: 10, reps: 12, label: '10% BW × 12' },
+  'external-rotation': { kind: 'pct', pctBW: 10, reps: 12, label: '10% BW × 12' },
+  'trap-3-raise':      { kind: 'pct', pctBW: 10, reps: 5, perHand: true, label: '10% BW/hand × 5', hint: '5s eccentric per rep' },
+  // Bodyweight rep standards on lifts he trains WEIGHTED — shown for reference, never scored,
+  // because a weighted 6-rep set isn't comparable to a bodyweight 10-rep standard.
+  'pullup-overhand':   { kind: 'note', label: '10 full reps at bodyweight', hint: 'shoulders to bar, full extension at the bottom' },
+  'chinup-underhand':  { kind: 'note', label: '10 reps at bodyweight', hint: 'shoulders touch bar' },
+  'weighted-dips':     { kind: 'note', label: '12 reps at bodyweight', hint: 'full range of motion' },
+  'full-range-row':    { kind: 'note', label: 'Match your press weight', hint: 'ATG principle: row what you press' }
 };
 
 // ID alias map for backward compatibility with old session data
@@ -1196,6 +1279,86 @@ const State = (function() {
   }
 
   return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked };
+})();
+
+// =====================================================
+// STANDARDS MODULE — how far am I from the ATG standard
+// =====================================================
+// Pure computation, no DOM. Compares the top of your last ramp against the ATG benchmark
+// scaled to BODYWEIGHT_KG. "Current" uses the LAST set of the last genuine entry — the same
+// top-of-ramp convention as the prefill and the workout-list weight, so all three agree.
+const Standards = (function() {
+
+  // Variant-aware lookup. A plain standard has `kind`; a variant map does not.
+  function resolve(exId, activeVariant) {
+    const raw = ATG_STANDARDS[exId];
+    if (!raw) return null;
+    if (raw.kind) return raw;
+    return (activeVariant && raw[activeVariant.id]) || null;
+  }
+
+  function targetKg(std) {
+    if (!std || std.kind !== 'pct') return null;
+    return (std.pctBW / 100) * BODYWEIGHT_KG;
+  }
+
+  function num(v) { const n = parseFloat(v); return isNaN(n) ? null : n; }
+
+  // Turn the last set into a load comparable to the standard, plus the reps behind it.
+  function readLastSet(std, effEx, lastEntry) {
+    if (!lastEntry || !lastEntry.sets || !lastEntry.sets.length) return { kg: null, reps: null };
+    const s = lastEntry.sets[lastEntry.sets.length - 1];
+    const mode = std.loadFrom || (effEx.unilateral === 'split_weight' ? (std.perHand ? 'minSide' : 'sumSides') : 'value');
+    let kg = null;
+    if (mode === 'minSide') {
+      const l = num(s.weightL), r = num(s.weightR);
+      kg = (l === null || r === null) ? (l === null ? r : l) : Math.min(l, r);
+    } else if (mode === 'sumSides') {
+      kg = (num(s.weightL) || 0) + (num(s.weightR) || 0);
+    } else {
+      kg = num(s.weight);
+      if (kg !== null && mode === 'valueX2') kg = kg * 2;
+    }
+    // Reps: unilateral entries report per side, so the weaker side is the honest number.
+    let reps = null;
+    if (s.repsL !== undefined || s.repsR !== undefined) {
+      const l = num(s.repsL), r = num(s.repsR);
+      reps = (l === null || r === null) ? (l === null ? r : l) : Math.min(l, r);
+    } else {
+      reps = num(s.reps);
+    }
+    return { kg, reps };
+  }
+
+  // Returns null when the exercise has no published standard.
+  // pct is weight-driven (encouraging while ramping); `met` requires BOTH weight and reps,
+  // which is what turns the bar green — so it never reads "done" on a short set.
+  function progress(ex, effEx, activeVariant, lastEntry) {
+    const std = resolve(ex.id, activeVariant);
+    if (!std) return null;
+    const out = { std, kind: std.kind, targetKg: targetKg(std), currentKg: null, currentReps: null, pct: null, weightMet: false, repsMet: false, met: false, hasHistory: false };
+    if (std.kind === 'note') return out;
+
+    const last = readLastSet(std, effEx, lastEntry);
+    out.currentKg = last.kg;
+    out.currentReps = last.reps;
+    out.hasHistory = (last.kg !== null || last.reps !== null);
+    if (!out.hasHistory) return out;
+
+    if (std.kind === 'reps') {
+      out.pct = last.reps === null ? null : Math.round((last.reps / std.reps) * 100);
+      out.repsMet = last.reps !== null && last.reps >= std.reps;
+      out.weightMet = true; // no weight component to this standard
+    } else {
+      out.pct = last.kg === null ? null : Math.round((last.kg / out.targetKg) * 100);
+      out.weightMet = last.kg !== null && last.kg >= out.targetKg - 0.05;
+      out.repsMet = !std.reps || (last.reps !== null && last.reps >= std.reps);
+    }
+    out.met = out.weightMet && out.repsMet;
+    return out;
+  }
+
+  return { resolve, targetKg, progress };
 })();
 
 // =====================================================
@@ -2760,6 +2923,52 @@ const Views = (function() {
   }
 
   // ---- Last session display ----
+  // ATG standard + how far off it you are. Renders nothing for exercises with no published
+  // standard. Weight drives the percentage; the bar only goes green once reps are there too.
+  function renderStandardLine(ex, effEx, activeVariant, lastEntry) {
+    const p = Standards.progress(ex, effEx, activeVariant, lastEntry);
+    if (!p) return '';
+    const unit = p.std.perHand ? 'kg/hand' : 'kg';
+    const half = kg => (Math.round(kg * 2) / 2);
+    const hint = p.std.hint ? `<div class="atg-std-hint">${p.std.hint}</div>` : '';
+
+    if (p.kind === 'note') {
+      return `<div class="atg-std">
+        <div class="atg-std-head">ATG standard: <b>${p.std.label}</b></div>
+        ${hint}
+      </div>`;
+    }
+
+    const targetTxt = p.kind === 'pct' ? ` = <b style="white-space:nowrap;">${half(p.targetKg)} ${unit}</b>` : '';
+    const head = `<div class="atg-std-head">ATG standard: <b>${p.std.label}</b>${targetTxt}</div>`;
+
+    if (!p.hasHistory || p.pct === null) {
+      return `<div class="atg-std">${head}
+        <div class="atg-std-you" style="margin-top:6px;">No sets logged yet — shown for reference.</div>
+        ${hint}
+      </div>`;
+    }
+
+    // Bar is capped at 100% so it can't overflow; the number itself tells the truth.
+    const width = Math.max(2, Math.min(100, p.pct));
+    let you;
+    if (p.kind === 'reps') {
+      you = `You: ${p.currentReps} reps`;
+    } else {
+      you = `You: <span style="white-space:nowrap;">${p.currentKg} ${unit}</span>`;
+      if (p.weightMet && !p.repsMet) you += ` — weight met, ${p.currentReps} of ${p.std.reps} reps`;
+      else if (p.met) you += ' — standard met ✓';
+      else if (p.std.reps && p.currentReps !== null) you += ` × ${p.currentReps} reps`;
+    }
+    return `<div class="atg-std${p.met ? ' met' : ''}">
+      <span class="atg-std-pct">${p.pct}%</span>
+      ${head}
+      <div class="atg-std-bar"><div class="atg-std-fill" style="width:${width}%"></div></div>
+      <div class="atg-std-you">${you}</div>
+      ${hint}
+    </div>`;
+  }
+
   function formatLastEntry(lastEntry, ex) {
     if (!lastEntry) return '';
     let detail = '';
@@ -3414,6 +3623,7 @@ const Views = (function() {
       <div class="content ex-detail">
         <div class="ex-title">${ex.name}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${workoutMembershipBadges(ex.id, workoutId)}</div>
         <div class="ex-target">${effEx.sets} × ${effEx.reps}${effEx.repRange ? ` (range: ${effEx.repRange[0]}-${effEx.repRange[1]})` : ''}</div>
+        ${renderStandardLine(ex, effEx, activeVar, lastEntry)}
         ${ssInfo}
         ${variantHtml}
         ${chopHtml}
@@ -4167,6 +4377,10 @@ const Views = (function() {
           <span style="font-weight:600;font-size:0.95rem;">Version</span>
           <span style="font-size:0.95rem;color:var(--text2);font-variant-numeric:tabular-nums;">${APP_VERSION}</span>
         </div>
+        <div style="margin-bottom:20px;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <span style="font-weight:600;font-size:0.95rem;">Bodyweight <span style="font-weight:400;color:var(--text3);">— scales ATG standards</span></span>
+          <span style="font-size:0.95rem;color:var(--text2);font-variant-numeric:tabular-nums;white-space:nowrap;">${BODYWEIGHT_KG} kg <span style="color:var(--text3);">· ${Markdown.formatDate(BODYWEIGHT_DATE)}</span></span>
+        </div>
         <div class="summary-section">
           <h3>Session History (${sessions.length} total)</h3>
           ${sessionRows}
@@ -4584,7 +4798,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.14.0';
+const APP_VERSION = '1.15.0';
 
 // =====================================================
 // APP INIT
