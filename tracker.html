@@ -293,6 +293,18 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .modal-actions .btn { flex: 1; }
 .import-result { margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 0.85rem; }
 
+/* ===== FINISH-TIME GAP PROMPT ===== */
+.gap-group { margin-bottom: 14px; }
+.gap-ex-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; }
+.gap-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.gap-label { flex: 1; font-size: 0.85rem; color: var(--text2); }
+.gap-input {
+  width: 96px; min-height: 44px; padding: 8px 10px; text-align: center;
+  background: var(--bg-input); border: 2px solid var(--border); border-radius: 10px;
+  font-size: 1rem; font-weight: 600; color: var(--text);
+}
+.gap-note { font-size: 0.85rem; color: var(--text3); margin-bottom: 8px; }
+
 /* ===== VARIANT PILLS ===== */
 .variant-pills { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
 .variant-pill {
@@ -1278,7 +1290,7 @@ const State = (function() {
     return results;
   }
 
-  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked };
 })();
 
 // =====================================================
@@ -4020,65 +4032,152 @@ const Views = (function() {
     bannerEl.innerHTML = `<div class="progression-banner ${cls}">${icon}${banner.text}</div>`;
   }
 
-  function findDataWarnings(workoutId) {
+  // Which fields a set of this type is expected to carry. Anything not listed here (sled,
+  // weight_distance, duration, completion, multi_timer) has its own flow and is left alone.
+  function expectedSetFields(effEx, trackingType) {
+    const uni = effEx.unilateral;
+    if (trackingType === 'weight_reps') {
+      if (uni === 'split_weight') return [['weightL', 'kg L'], ['repsL', 'reps L'], ['weightR', 'kg R'], ['repsR', 'reps R']];
+      if (uni === 'split_reps') return [['weight', 'kg'], ['repsL', 'reps L'], ['repsR', 'reps R']];
+      return [['weight', 'kg'], ['reps', 'reps']];
+    }
+    if (trackingType === 'reps_only') {
+      if (uni === 'split_reps') return [['repsL', 'reps L'], ['repsR', 'reps R']];
+      return [['reps', 'reps']];
+    }
+    return null;
+  }
+
+  // A blank is a hole you never filled. A logged 0 is a statement (BW lifts export "@ BW"),
+  // so 0 is a real value here — the old detector treated it as missing and cried wolf on them.
+  function isBlankField(v) { return v === null || v === undefined || v === ''; }
+
+  // Gaps worth asking about at Finish: a set you genuinely logged but left half-filled.
+  // Genuineness comes from State.setIsGenuine — never a hand-rolled predicate — so an untouched
+  // prefilled row (a ghost, pruned moments later) can never be mistaken for a missing number.
+  function findDataGaps(workoutId) {
     const wip = State.getWIP();
     if (!wip) return [];
     const workout = PROGRAMME.find(w => w.id === workoutId);
     if (!workout) return [];
-    const warnings = [];
+    const gaps = [];
 
     for (const [idx, data] of Object.entries(wip.exercises)) {
-      const ex = workout.exercises[parseInt(idx)];
+      const exIndex = parseInt(idx);
+      const ex = workout.exercises[exIndex];
       if (!ex || ex.isFence) continue;
-      if (!data.sets || data.sets.length === 0) continue;
-      const name = ex.name;
+      if (!Array.isArray(data.sets) || data.sets.length === 0) continue;
 
-      // Standard weight×reps: check for 0 weight when other sets have weight, or 0 reps
-      const s0 = data.sets[0];
-      if (s0.weight !== undefined && s0.reps !== undefined) {
-        const weights = data.sets.map(s => parseFloat(s.weight) || 0);
-        const reps = data.sets.map(s => parseInt(s.reps) || 0);
-        const hasWeight = weights.some(w => w > 0);
-        const hasReps = reps.some(r => r > 0);
+      const effEx = getEffectiveExercise(ex);
+      const fields = expectedSetFields(effEx, getEffectiveTrackingType(ex));
+      if (!fields) continue;
 
-        if (hasWeight) {
-          const zeroWeightSets = weights.map((w, i) => w === 0 && reps[i] > 0 ? i + 1 : null).filter(Boolean);
-          if (zeroWeightSets.length > 0) {
-            warnings.push(`${name}: set${zeroWeightSets.length > 1 ? 's' : ''} ${zeroWeightSets.join(', ')} — weight is 0 but has reps`);
+      let genuineSets = 0;
+      data.sets.forEach((s, setIndex) => {
+        if (!State.setIsGenuine(s)) return;
+        genuineSets++;
+        for (const [field, label] of fields) {
+          if (isBlankField(s[field])) {
+            gaps.push({ kind: 'field', exIndex, exName: ex.name, setIndex, field, label });
           }
         }
-        if (hasReps) {
-          const zeroRepSets = reps.map((r, i) => r === 0 && weights[i] > 0 ? i + 1 : null).filter(Boolean);
-          if (zeroRepSets.length > 0) {
-            warnings.push(`${name}: set${zeroRepSets.length > 1 ? 's' : ''} ${zeroRepSets.join(', ')} — has weight but reps is 0`);
-          }
-        }
-      }
+      });
 
-      // Split_reps: check L/R reps
-      if (s0.repsL !== undefined) {
-        const hasAnyReps = data.sets.some(s => (parseInt(s.repsL) || 0) > 0 || (parseInt(s.repsR) || 0) > 0);
-        if (hasAnyReps) {
-          const zeroSets = data.sets.map((s, i) => {
-            const l = parseInt(s.repsL) || 0; const r = parseInt(s.repsR) || 0;
-            if (l === 0 || r === 0) return i + 1;
-            return null;
-          }).filter(Boolean);
-          if (zeroSets.length > 0 && zeroSets.length < data.sets.length) {
-            warnings.push(`${name}: set${zeroSets.length > 1 ? 's' : ''} ${zeroSets.join(', ')} — missing L or R reps`);
-          }
-        }
+      // Fewer sets than programmed — flagged gently, with no input. Stopping a set early is a
+      // legitimate training decision, not a mistake, so this is a note rather than a question.
+      const planned = parseInt(effEx.sets) || 0;
+      if (genuineSets > 0 && planned > genuineSets) {
+        gaps.push({ kind: 'note', exIndex, exName: ex.name, text: `${genuineSets} of ${planned} sets logged` });
       }
     }
-    return warnings;
+    return gaps;
   }
 
   function finishWorkout(workoutId) {
-    const warnings = findDataWarnings(workoutId);
-    if (warnings.length > 0) {
-      const msg = 'Some exercises may have missing data:\n\n' + warnings.join('\n') + '\n\nFinish anyway?';
-      if (!confirm(msg)) return;
+    const gaps = findDataGaps(workoutId);
+    // Only a fillable hole is worth interrupting for. Stopping a lift early is a training
+    // decision, so a short set count alone never opens this — it only adds context once
+    // something else has already earned the prompt.
+    if (gaps.some(g => g.kind === 'field')) { showGapModal(workoutId, gaps); return; }
+    doFinish(workoutId);
+  }
+
+  // The gap prompt: the numbers are still in your head at this exact moment, so ask once, inline.
+  // A courtesy, never a validation wall — both buttons finish the workout.
+  function showGapModal(workoutId, gaps) {
+    const grouped = [];
+    for (const g of gaps) {
+      let group = grouped.find(x => x.exIndex === g.exIndex);
+      if (!group) { group = { exIndex: g.exIndex, exName: g.exName, items: [] }; grouped.push(group); }
+      group.items.push(g);
     }
+    // An exercise with only a set-count note has nothing to answer — don't list it.
+    const byExercise = grouped.filter(group => group.items.some(i => i.kind === 'field'));
+    const fieldCount = gaps.filter(g => g.kind === 'field').length;
+
+    const groupsHtml = byExercise.map(group => {
+      const rows = group.items.map(g => {
+        if (g.kind === 'note') return `<div class="gap-note">${g.text}</div>`;
+        const numeric = g.field.startsWith('reps');
+        return `<div class="gap-row">
+          <label class="gap-label" for="gap-${g.exIndex}-${g.setIndex}-${g.field}">Set ${g.setIndex + 1} — ${g.label}</label>
+          <input class="gap-input" id="gap-${g.exIndex}-${g.setIndex}-${g.field}" type="number"
+            inputmode="${numeric ? 'numeric' : 'decimal'}" step="${numeric ? '1' : 'any'}" placeholder="—">
+        </div>`;
+      }).join('');
+      return `<div class="gap-group"><div class="gap-ex-name">${group.exName}</div>${rows}</div>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'gap-modal';
+    overlay.innerHTML = `
+      <div class="modal">
+        <h2>Missing a few numbers</h2>
+        <p style="font-size:0.85rem;color:var(--text2);margin-bottom:12px;">
+          ${fieldCount > 0 ? 'Fill in what you remember — anything you leave blank stays blank.' : 'Just so you know before this session is saved.'}
+        </p>
+        ${groupsHtml}
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="Views.skipGapsAndFinish(${workoutId})">Finish as is</button>
+          ${fieldCount > 0 ? `<button class="btn btn-primary" onclick="Views.fillGapsAndFinish(${workoutId})">Save &amp; finish</button>` : ''}
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    // Tapping outside keeps you in the workout — the escape hatch the old confirm's Cancel gave you.
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    window._pendingGaps = gaps;
+  }
+
+  function skipGapsAndFinish(workoutId) {
+    document.getElementById('gap-modal')?.remove();
+    window._pendingGaps = null;
+    doFinish(workoutId);
+  }
+
+  function fillGapsAndFinish(workoutId) {
+    const gaps = window._pendingGaps || [];
+    const wip = State.getWIP();
+    if (wip) {
+      const touchedExercises = new Set();
+      for (const g of gaps) {
+        if (g.kind !== 'field') continue;
+        const input = document.getElementById(`gap-${g.exIndex}-${g.setIndex}-${g.field}`);
+        if (!input || input.value === '') continue;
+        const entry = wip.exercises[g.exIndex];
+        if (!entry || !entry.sets || !entry.sets[g.setIndex]) continue;
+        entry.sets[g.setIndex][g.field] = input.value;
+        entry.sets[g.setIndex].touched = true;
+        touchedExercises.add(g.exIndex);
+      }
+      for (const exIndex of touchedExercises) State.logExercise(exIndex, wip.exercises[exIndex]);
+    }
+    document.getElementById('gap-modal')?.remove();
+    window._pendingGaps = null;
+    doFinish(workoutId);
+  }
+
+  function doFinish(workoutId) {
     const session = State.finishSession();
     if (!session) return;
     // Flip chop direction after completing W6
@@ -4734,7 +4833,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise };
 })();
 
 // =====================================================
@@ -4798,7 +4897,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.15.0';
+const APP_VERSION = '1.16.0';
 
 // =====================================================
 // APP INIT
