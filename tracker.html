@@ -572,6 +572,7 @@ const EQUIPMENT = {
   'jefferson-curl':   ['Slant'],
   'back-squat':       ['Slant', 'Foam pad'],
   'reverse-squat':    ['Mat'],
+  'reverse-nordics':  ['Mat'],
   'band-pull-apart':  ['Band'],
   'kot-sissy-squat':  ['Zinenka'],
   'lateral-band-walk':['Band'],
@@ -776,8 +777,8 @@ const PROGRAMME = [
       { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'atg-split-squat', name: 'ATG split squat (no walking)', sets: 5, reps: '6-8/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', formCues: 'Stationary — no walking. Same DBs both hands. Full set one leg, then switch. Double progression 6-8/side.', notes: '' },
-      { id: 'pullup-overhand', name: 'Weighted pull-up (overhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Pronated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
-      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-overhand', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
+      { id: 'pullup-overhand', name: 'Weighted pull-up (overhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Pronated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
+      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-overhand', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
       { id: 'scott-curl', name: 'Scott curl (Zottman)', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', variants: VARIANTS.scottCurl, formCues: '', notes: '', isNew: true }
     ]
   },
@@ -821,7 +822,7 @@ const PROGRAMME = [
       { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
       { id: 'front-squat', name: 'Front squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'ham-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Wrist CARs during rest! Figure out foot positioning if using Smith machine. Try without Smith next time.', notes: '' },
       { id: 'ham-curl', name: 'Ham curl (seated)', sets: 5, reps: '8-10', flow: 'SS', supersetWith: 'front-squat', repRange: [8, 10], progressionType: 'compound', variants: VARIANTS.hamCurl, formCues: '', notes: '' },
-      { id: 'chinup-underhand', name: 'Weighted chin-up (underhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: 'Supinated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
+      { id: 'chinup-underhand', name: 'Weighted chin-up (underhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: 'Supinated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
       { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'chinup-underhand', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence. Rest back properly on bench for stable push.', notes: '' },
       { id: 'hammer-curls', name: 'Incline hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
@@ -871,8 +872,8 @@ const PROGRAMME = [
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
       { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', trackingType: 'reps_only', prefillReps: 12, formCues: '', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'band-pull-apart', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
-      { id: 'pullup-neutral', name: 'Weighted neutral pull-up', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Neutral/hammer grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
-      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-neutral', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '' },
+      { id: 'pullup-neutral', name: 'Weighted neutral pull-up', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Neutral/hammer grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
+      { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-neutral', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
       { id: 'cable-chop', name: 'Half-kneel cable chop', sets: 3, reps: '10/side', flow: 'SS', supersetWith: 'oh-tricep-ext', unilateral: 'split_weight', prefillReps: 10, formCues: '', notes: '', isNew: true },
       { id: 'oh-tricep-ext', name: 'Overhead tricep ext', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'cable-chop', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
@@ -1143,6 +1144,9 @@ const State = (function() {
     if (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) return true;
     if (s.repsL !== null && s.repsL !== undefined && s.repsL !== '') return true;
     if (s.repsR !== null && s.repsR !== undefined && s.repsR !== '') return true;
+    // Assisted-reps sets (pull-up/dip assist machine): an all-assisted set can have unassisted
+    // reps blank or explicit 0 — the assisted count alone is real logged data.
+    if (s.repsAssisted !== null && s.repsAssisted !== undefined && s.repsAssisted !== '') return true;
     // A logged WEIGHT is real too — you recorded the load even if you left reps blank. No exercise
     // pre-fills weight (only prefillReps), so a weight value can't sit on an untouched set → no phantom risk.
     if (s.weight !== null && s.weight !== undefined && s.weight !== '') return true;
@@ -1676,10 +1680,19 @@ const Markdown = (function() {
       const stdWeightOnly = s => (s.reps === null || s.reps === undefined || s.reps === '')
         && (s.weight !== null && s.weight !== undefined && s.weight !== '')
         && (s.touched === undefined || s.touched);
-      const validSets = data.sets.filter(s => stdHasReps(s) || stdWeightOnly(s));
+      // Assisted reps (assist-machine pull-ups/dips, v1.17.0): a set is real if it carries an
+      // assisted count too, even with unassisted 0/blank (a fully-assisted rep is still a rep).
+      const stdHasAssisted = s => s.repsAssisted !== null && s.repsAssisted !== undefined && s.repsAssisted !== '';
+      const validSets = data.sets.filter(s => stdHasReps(s) || stdWeightOnly(s) || stdHasAssisted(s));
       if (validSets.length === 0) continue;
 
-      const repCell = s => stdHasReps(s) ? s.reps : '?';   // '?' = weight logged, reps left blank (round-trips to '')
+      // '?' = value left blank (round-trips to ''). Assisted sets append '+Na' — unassisted 0 is
+      // shown explicitly (never omitted), so "0+6a" (all-assisted) round-trips losslessly.
+      const repCell = s => {
+        if (!stdHasAssisted(s)) return stdHasReps(s) ? s.reps : '?';
+        const uReps = (s.reps === null || s.reps === undefined || s.reps === '') ? '?' : s.reps;
+        return `${uReps}+${s.repsAssisted}a`;
+      };
       const weights = validSets.map(s => parseFloat(s.weight) || 0);
       const allSameWeight = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
       let setsStr, weightStr;
@@ -1991,20 +2004,37 @@ const Markdown = (function() {
             }
           }
 
-          // 7a. Per-set weights: 3×(6 @41.3, 6 @40, 6 @38) kg
+          // Rep-cell parser shared by 7a/7b: plain int, '?' (blank/logged-weight-only), or the
+          // assisted-reps grammar 'N+Ma' / '?+Ma' (v1.17.0, e.g. "4+2a" or all-assisted "0+6a").
+          // A token containing '+' is an assisted-reps attempt — must match the grammar or the
+          // caller aborts the WHOLE line (malformed "4+a" gets REPORTED, never misread as reps 4).
+          // Anything else falls back to the pre-v1.17.0 lenient parse (kept byte-for-byte so
+          // pre-existing odd tokens like a stray unit-suffixed value keep parsing as before).
+          const parseRepCell = raw => {
+            const tok = raw.trim();
+            if (tok === '?') return { reps: '' };
+            let am = tok.match(/^(\d+)\+(\d+)a$/);
+            if (am) return { reps: parseInt(am[1]), repsAssisted: parseInt(am[2]) };
+            am = tok.match(/^\?\+(\d+)a$/);
+            if (am) return { reps: '', repsAssisted: parseInt(am[1]) };
+            if (tok.includes('+')) return null;
+            return { reps: parseInt(tok) || tok };
+          };
+
+          // 7a. Per-set weights: 3×(6 @41.3, 6 @40, 6 @38) kg — also 3×(4+2a @41.3, ...) assisted
           if (!parsed) {
             const perSetMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*(\w+)?/);
             if (perSetMatch && perSetMatch[2].includes('@')) {
               const entries = perSetMatch[2].split(',').map(e => {
                 const parts = e.trim().split(/\s*@/);
-                const rc = parts[0].trim();
-                return { reps: rc === '?' ? '' : (parseInt(parts[0]) || rc), weight: parseFloat(parts[1]) || 0 };
+                const rc = parseRepCell(parts[0]);
+                return rc ? { ...rc, weight: parseFloat(parts[1]) || 0 } : null;
               });
-              parsed = { sets: entries };
+              if (entries.every(Boolean)) parsed = { sets: entries };
             }
           }
 
-          // 7b. Standard weight×reps: 5×(6,8,6) @ 50kg or @ BW
+          // 7b. Standard weight×reps: 5×(6,8,6) @ 50kg or @ BW — also 3×(4+2a,2+4a,6) @ BW assisted
           if (!parsed) {
             const stdMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*([\d.]+)/);
             const bwMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*BW/);
@@ -2012,7 +2042,8 @@ const Markdown = (function() {
             if (m) {
               const repsArr = m[2].split(',').map(r => r.trim());
               const weight = stdMatch ? parseFloat(m[3]) : 0;
-              parsed = { sets: repsArr.map(r => ({ weight, reps: r === '?' ? '' : (parseInt(r) || r) })) };
+              const entries = repsArr.map(r => { const rc = parseRepCell(r); return rc ? { weight, ...rc } : null; });
+              if (entries.every(Boolean)) parsed = { sets: entries };
             }
           }
         }
@@ -2590,6 +2621,15 @@ const Views = (function() {
       .replace(/'/g, '&#39;');
   }
 
+  // Assisted-reps display token — "4+2a" (unassisted+assisted). Mirrors Markdown.exportSession's
+  // repCell (same 'a' suffix grammar) so on-screen text always matches what the export/Chat-paste
+  // would show. Plain reps (no repsAssisted) pass through unchanged — every other exercise is unaffected.
+  function repDisplay(s) {
+    if (s.repsAssisted === null || s.repsAssisted === undefined || s.repsAssisted === '') return s.reps;
+    const uReps = (s.reps === null || s.reps === undefined || s.reps === '') ? '?' : s.reps;
+    return `${uReps}+${s.repsAssisted}a`;
+  }
+
   function getNextWorkoutId() {
     const sessions = Data.getSessions();
     if (sessions.length === 0) return 1;
@@ -3001,7 +3041,7 @@ const Views = (function() {
       } else if (s0.distance !== undefined) {
         detail = lastEntry.sets.map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(', ');
       } else {
-        detail = lastEntry.sets.map(s => { const w = parseFloat(s.weight) || 0; return w ? `${w}kg × ${esc(s.reps)}` : `BW × ${esc(s.reps)}`; }).join(', ');
+        detail = lastEntry.sets.map(s => { const w = parseFloat(s.weight) || 0; return w ? `${w}kg × ${esc(repDisplay(s))}` : `BW × ${esc(repDisplay(s))}`; }).join(', ');
       }
     }
     if (lastEntry.chopDirection) detail += ` <span style="color:var(--text3);">(${lastEntry.chopDirection === 'hi_lo' ? 'Hi→Lo' : 'Lo→Hi'})</span>`;
@@ -3033,6 +3073,32 @@ const Views = (function() {
           <input type="number" class="set-input weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${weight}" data-set="${s}">
           <span class="set-x">×</span>
           <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${reps}" data-set="${s}">
+        </div>
+        ${s === 0 && preFill.bumped && !existingData ? `<div class="bump-note">Auto-bumped from ${preFill.from}kg</div>` : ''}`;
+    }
+    return html;
+  }
+
+  // Assisted-reps (assist-machine pull-ups/dips): kg + unassisted reps + assisted reps, per set.
+  // Unassisted FIRST, assisted after (Tomáš's explicit ask). Reuses the split-reps-row 6-col grid
+  // (label/kg/×/reps/+/assist) so three inputs fit at 375px without new CSS. The assisted field is
+  // NEVER prefilled — a blank assist box means "didn't need it", not a data gap (see findDataGaps).
+  function renderAssistedRepsSets(ex, existingData, preFill) {
+    const wLabel = ex.weightLabel || 'kg';
+    let html = `<div class="split-reps-header"><span></span><span>${wLabel}</span><span></span><span>Reps</span><span></span><span>Assist</span></div>`;
+    for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
+      const existing = existingData?.sets?.[s];
+      const weight = existing?.weight ?? (preFill.weight || 0);
+      const reps = existing?.reps ?? (ex.prefillReps || '');
+      const repsAssisted = existing?.repsAssisted ?? '';
+      html += `
+        <div class="split-reps-row">
+          <span class="set-label">Set ${s + 1}</span>
+          <input type="number" class="set-input weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${weight}" data-set="${s}">
+          <span class="set-x">×</span>
+          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="reps" value="${reps}" data-set="${s}">
+          <span class="set-x">+</span>
+          <input type="number" class="set-input repsA-input" inputmode="numeric" step="1" placeholder="reps" value="${repsAssisted}" data-set="${s}">
         </div>
         ${s === 0 && preFill.bumped && !existingData ? `<div class="bump-note">Auto-bumped from ${preFill.from}kg</div>` : ''}`;
     }
@@ -3618,7 +3684,8 @@ const Views = (function() {
         else inputsHtml = renderRepsOnlySets(effEx, existingData, preFill);
         break;
       case 'weight_reps': default:
-        if (effEx.unilateral === 'split_weight') inputsHtml = renderSplitWeightSets(effEx, existingData, preFill);
+        if (effEx.assistedReps) inputsHtml = renderAssistedRepsSets(effEx, existingData, preFill);
+        else if (effEx.unilateral === 'split_weight') inputsHtml = renderSplitWeightSets(effEx, existingData, preFill);
         else if (effEx.unilateral === 'split_reps') inputsHtml = renderSplitRepsSets(effEx, existingData, preFill);
         else inputsHtml = renderWeightRepsSets(effEx, existingData, preFill);
         break;
@@ -3655,7 +3722,7 @@ const Views = (function() {
       </div>`;
 
     // Add listeners for all inputs
-    document.querySelectorAll('.weight-input, .reps-input, .wl-input, .wr-input, .rl-input, .rr-input, .sr-weight-input, .sled-weight, .sled-lengths, .sled-time, .wd-weight, .wd-distance').forEach(input => {
+    document.querySelectorAll('.weight-input, .reps-input, .repsA-input, .wl-input, .wr-input, .rl-input, .rr-input, .sr-weight-input, .sled-weight, .sled-lengths, .sled-time, .wd-weight, .wd-distance').forEach(input => {
       input.addEventListener('input', () => {
         input.dataset.touched = '1';   // distinguishes a set you actually entered from prefilled defaults
         Views._triggerAutoSave();
@@ -3890,7 +3957,19 @@ const Views = (function() {
         break;
       }
       case 'weight_reps': default: {
-        if (effEx.unilateral === 'split_weight') {
+        if (effEx.assistedReps) {
+          data.sets = [];
+          for (let s = 0; s < numSetsSave; s++) {
+            const wInput = document.querySelector(`.weight-input[data-set="${s}"]`);
+            const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
+            const raInput = document.querySelector(`.repsA-input[data-set="${s}"]`);
+            data.sets.push({
+              weight: wInput ? parseFloat(wInput.value) || 0 : 0,
+              reps: rInput ? (rInput.value === '' ? '' : parseInt(rInput.value) || rInput.value) : '',
+              repsAssisted: raInput ? (raInput.value === '' ? '' : parseInt(raInput.value) || 0) : ''
+            });
+          }
+        } else if (effEx.unilateral === 'split_weight') {
           data.sets = [];
           for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
@@ -4077,6 +4156,8 @@ const Views = (function() {
         if (!State.setIsGenuine(s)) return;
         genuineSets++;
         for (const [field, label] of fields) {
+          // An all-assisted set genuinely has no unassisted reps to report — not a gap (v1.17.0 assisted reps).
+          if (field === 'reps' && !isBlankField(s.repsAssisted)) continue;
           if (isBlankField(s[field])) {
             gaps.push({ kind: 'field', exIndex, exName: ex.name, setIndex, field, label });
           }
@@ -4613,14 +4694,15 @@ const Views = (function() {
       return `${data.weight||0}${wLabel} — ` + data.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
     }
     // Standard weight×reps
-    const validSets = data.sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0);
+    const hasAssisted = s => s.repsAssisted !== null && s.repsAssisted !== undefined && s.repsAssisted !== '';
+    const validSets = data.sets.filter(s => (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) || hasAssisted(s));
     if (validSets.length === 0) return '—';
     const weights = validSets.map(s => parseFloat(s.weight) || 0);
     const allSame = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
     if (allSame) {
-      return `${validSets.length}×[${validSets.map(s => esc(s.reps)).join(', ')}] @ ${weights[0] ? weights[0] + wLabel : 'BW'}`;
+      return `${validSets.length}×[${validSets.map(s => esc(repDisplay(s))).join(', ')}] @ ${weights[0] ? weights[0] + wLabel : 'BW'}`;
     }
-    return `${validSets.length}×[${validSets.map(s => `${esc(s.reps)}@${parseFloat(s.weight)||0}`).join(', ')}] ${wLabel}`;
+    return `${validSets.length}×[${validSets.map(s => `${esc(repDisplay(s))}@${parseFloat(s.weight)||0}`).join(', ')}] ${wLabel}`;
   }
 
   // ---- Format sets as readable HTML rows (not export format) ----
@@ -4668,10 +4750,11 @@ const Views = (function() {
       ).join('')}</div>`;
     }
     // Standard weight×reps
-    const validSets = data.sets.filter(s => s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0);
+    const hasAssistedR = s => s.repsAssisted !== null && s.repsAssisted !== undefined && s.repsAssisted !== '';
+    const validSets = data.sets.filter(s => (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) || hasAssistedR(s));
     if (validSets.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
     return `<div class="sd-sets">${validSets.map((s, i) =>
-      `<div class="sd-set"><span class="sd-num">${i+1}</span> ${parseFloat(s.weight)||0}${wLabel} × ${esc(s.reps)}</div>`
+      `<div class="sd-set"><span class="sd-num">${i+1}</span> ${parseFloat(s.weight)||0}${wLabel} × ${esc(repDisplay(s))}</div>`
     ).join('')}</div>`;
   }
 
@@ -4897,7 +4980,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.16.0';
+const APP_VERSION = '1.17.0';
 
 // =====================================================
 // APP INIT
