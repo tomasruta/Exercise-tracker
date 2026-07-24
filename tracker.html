@@ -304,6 +304,14 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   font-size: 1rem; font-weight: 600; color: var(--text);
 }
 .gap-note { font-size: 0.85rem; color: var(--text3); margin-bottom: 8px; }
+.gap-untouched-row { margin-bottom: 12px; }
+.untouched-choice-group { display: flex; gap: 8px; }
+.untouched-choice-btn {
+  flex: 1; min-height: 44px; padding: 8px 10px;
+  background: var(--bg-card); border: 2px solid var(--border); border-radius: 10px;
+  font-size: 0.9rem; font-weight: 600; color: var(--text2); cursor: pointer;
+}
+.untouched-choice-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
 
 /* ===== VARIANT PILLS ===== */
 .variant-pills { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -323,6 +331,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 }
 .timer-side { font-weight: 600; font-size: 0.85rem; color: var(--text2); min-width: 44px; }
 .partial-status { font-size: 0.75rem; color: var(--amber); font-weight: 600; }
+.skip-status { font-size: 0.95rem; color: var(--text3); font-weight: 600; }
 .timer-display { font-size: 2.5rem; font-weight: 700; font-variant-numeric: tabular-nums; flex: 1; text-align: center; }
 .timer-btn {
   padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;
@@ -1084,6 +1093,12 @@ const State = (function() {
     if (!wip || !wip.exercises[exIndex]) return { status: 'none', filled: 0, total: expectedSets || 0 };
     const data = wip.exercises[exIndex];
 
+    // Skip-stated (v1.18.0): an explicit "skipped"/"not logged" declaration from the finish-time
+    // sweep — its own status, distinct from both ✅ and a partial fraction.
+    if (data.skipState) {
+      return { status: data.skipState === 'skipped' ? 'skipped' : 'not-logged', filled: 0, total: expectedSets || 0 };
+    }
+
     // Explicit completion ("Completed exercise" tapped) wins over inferred status
     if (data.completed) {
       const t = expectedSets || (data.sets ? data.sets.length : 0) || 1;
@@ -1213,8 +1228,12 @@ const State = (function() {
     if (!wip.completedAt) wip.completedAt = new Date().toISOString();
     // Drop ghost entries — exercise screens opened but never actually logged — so the saved session
     // matches exactly what history shows and what export writes. Uses the same genuine-data test.
+    // Skip-stated entries (v1.18.0) are deliberately NOT genuine (no phantom history/datapoints) but
+    // must survive this prune — they're an explicit "skipped"/"not logged" statement, not a ghost.
     for (const idx of Object.keys(wip.exercises)) {
-      if (!entryHasGenuineData(wip.exercises[idx])) delete wip.exercises[idx];
+      const e = wip.exercises[idx];
+      if (e && e.skipState) continue;
+      if (!entryHasGenuineData(e)) delete wip.exercises[idx];
     }
     // CRITICAL: save session BEFORE clearing WIP.
     // If saveSessions throws (quota exceeded), WIP survives for retry.
@@ -1556,6 +1575,16 @@ const Markdown = (function() {
       const activeVariant = data.variant && ex.variants ? ex.variants.find(v => v.id === data.variant) : null;
       const effectiveRepRange = activeVariant?.repRange || ex.repRange;
 
+      // Skip-stated (v1.18.0): an explicit "skipped"/"not logged" declaration from the finish-time
+      // sweep. Only entries with this field emit the line — old sessions never had it, so their
+      // export is byte-identical to before.
+      if (data.skipState) {
+        md += `- **${displayName}** — ${data.skipState === 'skipped' ? 'skipped' : 'not logged'}\n`;
+        md += formatNotes(data.notes);
+        md += '\n';
+        continue;
+      }
+
       // Multi-timer exercises
       if (data.timerSteps !== undefined) {
         const doneCount = data.timerSteps.filter(s => s.done).length;
@@ -1896,6 +1925,12 @@ const Markdown = (function() {
           // Strip a trailing chop-direction marker (cable-chop only) before the value parsers run.
           const chopM = rest.match(/\s*\((Hi→Lo|Lo→Hi)\)$/i);
           if (chopM) { chopDirection = /hi→lo/i.test(chopM[1]) ? 'hi_lo' : 'lo_hi'; rest = rest.slice(0, chopM.index).trim(); }
+
+          // -1. Skip-stated (v1.18.0): "skipped" or "not logged" — no sets, an explicit declaration.
+          // Exact match only — "skipped extra text" is malformed and falls through to skippedLines,
+          // never silently misread as a skip.
+          if (rest === 'skipped') parsed = { skipState: 'skipped' };
+          else if (rest === 'not logged') parsed = { skipState: 'not-logged' };
 
           // 0. Multi-timer: 3/4 positions (Left — straight leg (gastroc): 30s, ... : —)
           const mtMatch = rest.match(/^\d+\/\d+\s+positions?\s*\((.*)\)\s*$/);
@@ -2865,6 +2900,7 @@ const Views = (function() {
     const completion = State.getExerciseCompletionStatus(index, ex.sets);
     const statusIcon = completion.status === 'complete' ? '✅'
       : completion.status === 'partial' ? `<span class="partial-status">${completion.filled}/${completion.total}</span>`
+      : (completion.status === 'skipped' || completion.status === 'not-logged') ? `<span class="skip-status">⊘</span>`
       : '';
     const lastEntry = State.getLastEntry(ex.id);
     const trackingType = getEffectiveTrackingType(ex);
@@ -3059,20 +3095,38 @@ const Views = (function() {
   // the user tapped "+ Add set" (which appends to the saved sets array, so it persists across nav).
   function _numSets(effEx, existingData) { return Math.max(effEx.sets || 1, existingData?.sets?.length || 0); }
 
+  // Ghost prefills (v1.18.0): an UNTOUCHED set shows its would-be reps/weight as a grey placeholder,
+  // never as a real value — a mere visit must never look logged (that's how a real session got lost).
+  // Legacy sets (touched === undefined) are trusted as already-real, mirroring State.setIsGenuine.
+  function _setTouched(existing) {
+    return existing ? ((existing.touched === undefined) ? true : existing.touched) : false;
+  }
+  // value = the computed prefill/logged number for this field; touched = is this SET touched.
+  // Touched → render as a real value (today's behaviour). Untouched → blank value, and the would-be
+  // number becomes the placeholder (falls back to the column label when there's nothing to ghost).
+  function _ghostField(value, touched, label) {
+    if (touched) return { v: (value === undefined || value === null) ? '' : value, p: label };
+    const hasVal = !(value === '' || value === null || value === undefined);
+    return { v: '', p: hasVal ? value : label };
+  }
+
   function renderWeightRepsSets(ex, existingData, preFill) {
     const wLabel = ex.weightLabel || 'kg';
     const rLabel = ex.repsLabel || 'reps';
     let html = `<div class="sets-header"><span></span><span>${wLabel}</span><span></span><span>${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
+      const touched = _setTouched(existing);
       const weight = existing?.weight ?? (preFill.weight || 0);
       const reps = existing?.reps ?? (ex.prefillReps || '');
+      const w = _ghostField(weight, touched, wLabel);
+      const r = _ghostField(reps, touched, rLabel);
       html += `
         <div class="set-row">
           <span class="set-label">Set ${s + 1}</span>
-          <input type="number" class="set-input weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${weight}" data-set="${s}">
+          <input type="number" class="set-input weight-input" inputmode="decimal" step="0.5" placeholder="${w.p}" value="${w.v}" data-set="${s}">
           <span class="set-x">×</span>
-          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${reps}" data-set="${s}">
+          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${r.p}" value="${r.v}" data-set="${s}">
         </div>
         ${s === 0 && preFill.bumped && !existingData ? `<div class="bump-note">Auto-bumped from ${preFill.from}kg</div>` : ''}`;
     }
@@ -3085,18 +3139,21 @@ const Views = (function() {
   // NEVER prefilled — a blank assist box means "didn't need it", not a data gap (see findDataGaps).
   function renderAssistedRepsSets(ex, existingData, preFill) {
     const wLabel = ex.weightLabel || 'kg';
-    let html = `<div class="split-reps-header"><span></span><span>${wLabel}</span><span></span><span>Reps</span><span></span><span>Assist</span></div>`;
+    let html = `<div class="split-reps-header" style="font-size:0.62rem;"><span></span><span>${wLabel}</span><span></span><span>Reps no assist</span><span></span><span>Assisted reps</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
+      const touched = _setTouched(existing);
       const weight = existing?.weight ?? (preFill.weight || 0);
       const reps = existing?.reps ?? (ex.prefillReps || '');
       const repsAssisted = existing?.repsAssisted ?? '';
+      const w = _ghostField(weight, touched, wLabel);
+      const r = _ghostField(reps, touched, 'reps');
       html += `
         <div class="split-reps-row">
           <span class="set-label">Set ${s + 1}</span>
-          <input type="number" class="set-input weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${weight}" data-set="${s}">
+          <input type="number" class="set-input weight-input" inputmode="decimal" step="0.5" placeholder="${w.p}" value="${w.v}" data-set="${s}">
           <span class="set-x">×</span>
-          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="reps" value="${reps}" data-set="${s}">
+          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${r.p}" value="${r.v}" data-set="${s}">
           <span class="set-x">+</span>
           <input type="number" class="set-input repsA-input" inputmode="numeric" step="1" placeholder="reps" value="${repsAssisted}" data-set="${s}">
         </div>
@@ -3110,11 +3167,13 @@ const Views = (function() {
     let html = `<div class="sets-header" style="grid-template-columns:50px 1fr;"><span></span><span>${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
+      const touched = _setTouched(existing);
       const reps = existing?.reps ?? (ex.prefillReps || '');
+      const r = _ghostField(reps, touched, rLabel);
       html += `
         <div class="set-row" style="grid-template-columns:50px 1fr;">
           <span class="set-label">Set ${s + 1}</span>
-          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${reps}" data-set="${s}">
+          <input type="number" class="set-input reps-input" inputmode="numeric" step="1" placeholder="${r.p}" value="${r.v}" data-set="${s}">
         </div>`;
     }
     return html;
@@ -3125,15 +3184,18 @@ const Views = (function() {
     let html = `<div class="split-reps-header" style="grid-template-columns:50px 30px 1fr 30px 1fr;"><span></span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
+      const touched = _setTouched(existing);
       const rL = existing?.repsL ?? (ex.prefillReps || '');
       const rR = existing?.repsR ?? (ex.prefillReps || '');
+      const l = _ghostField(rL, touched, rLabel);
+      const r = _ghostField(rR, touched, rLabel);
       html += `
         <div class="split-reps-row" style="grid-template-columns:50px 30px 1fr 30px 1fr;">
           <span class="set-label">Set ${s + 1}</span>
           <span class="uni-side-label">L</span>
-          <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rL}" data-set="${s}">
+          <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${l.p}" value="${l.v}" data-set="${s}">
           <span class="uni-side-label">R</span>
-          <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rR}" data-set="${s}">
+          <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${r.p}" value="${r.v}" data-set="${s}">
         </div>`;
     }
     return html;
@@ -3147,24 +3209,29 @@ const Views = (function() {
     let html = `<div class="uni-side-row" style="margin-bottom:8px;"><span></span><span class="uni-col-label">${wLabel}</span><span></span><span class="uni-col-label">${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
+      const touched = _setTouched(existing);
       const wL = existing?.weightL ?? (preFill.weightL || 0);
       const rL = existing?.repsL ?? (ex.prefillReps || '');
       const wR = existing?.weightR ?? (preFill.weightR || 0);
       const rR = existing?.repsR ?? (ex.prefillReps || '');
+      const wlG = _ghostField(wL, touched, wLabel);
+      const rlG = _ghostField(rL, touched, rLabel);
+      const wrG = _ghostField(wR, touched, wLabel);
+      const rrG = _ghostField(rR, touched, rLabel);
       html += `
         <div class="uni-set-group">
           <div class="uni-set-label">Set ${s + 1}</div>
           <div class="uni-side-row">
             <span class="uni-side-label">L</span>
-            <input type="number" class="set-input wl-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${wL}" data-set="${s}">
+            <input type="number" class="set-input wl-input" inputmode="decimal" step="0.5" placeholder="${wlG.p}" value="${wlG.v}" data-set="${s}">
             <span class="set-x">×</span>
-            <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rL}" data-set="${s}">
+            <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rlG.p}" value="${rlG.v}" data-set="${s}">
           </div>
           <div class="uni-side-row">
             <span class="uni-side-label">R</span>
-            <input type="number" class="set-input wr-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${wR}" data-set="${s}">
+            <input type="number" class="set-input wr-input" inputmode="decimal" step="0.5" placeholder="${wrG.p}" value="${wrG.v}" data-set="${s}">
             <span class="set-x">×</span>
-            <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rR}" data-set="${s}">
+            <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rrG.p}" value="${rrG.v}" data-set="${s}">
           </div>
         </div>`;
     }
@@ -3179,17 +3246,21 @@ const Views = (function() {
     let html = `<div class="split-reps-header"><span></span><span>${wLabel}</span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
+      const touched = _setTouched(existing);
       const weight = existing?.weight ?? fallbackWeight;
       const rL = existing?.repsL ?? (ex.prefillReps || '');
       const rR = existing?.repsR ?? (ex.prefillReps || '');
+      const w = _ghostField(weight, touched, wLabel);
+      const l = _ghostField(rL, touched, rLabel);
+      const r = _ghostField(rR, touched, rLabel);
       html += `
         <div class="split-reps-row">
           <span class="set-label">Set ${s + 1}</span>
-          <input type="number" class="set-input sr-weight-input" inputmode="decimal" step="0.5" placeholder="${wLabel}" value="${weight}" data-set="${s}">
+          <input type="number" class="set-input sr-weight-input" inputmode="decimal" step="0.5" placeholder="${w.p}" value="${w.v}" data-set="${s}">
           <span class="uni-side-label">L</span>
-          <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rL}" data-set="${s}">
+          <input type="number" class="set-input rl-input" inputmode="numeric" step="1" placeholder="${l.p}" value="${l.v}" data-set="${s}">
           <span class="uni-side-label">R</span>
-          <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${rLabel}" value="${rR}" data-set="${s}">
+          <input type="number" class="set-input rr-input" inputmode="numeric" step="1" placeholder="${r.p}" value="${r.v}" data-set="${s}">
         </div>
         ${s === 0 && preFill.bumped && !existingData ? `<div class="bump-note">Auto-bumped from ${preFill.from}kg</div>` : ''}`;
     }
@@ -3869,6 +3940,24 @@ const Views = (function() {
       || !!(prevSets && prevSets[s] && prevSets[s].touched);
     // Collect as many set rows as are on screen — grows when the user tapped "+ Add set".
     const numSetsSave = _numSets(effEx, { sets: prevSets });
+    // Ghost prefills (v1.18.0) render an untouched field's would-be number as a placeholder, not a
+    // value — so a blank DOM input no longer means "collect 0/''" here. Recompute the same prefill
+    // an untouched set would ghost, and fall back to it when a field is blank AND still untouched,
+    // so the stored WIP data (and what "Completed exercise ✓" exports) matches pre-ghost behaviour.
+    const variantFilter = (variant && ex.variants)
+      ? { variantId: variant.id, defaultVariantId: (ex.variants.find(v => v.isDefault) || ex.variants[0]).id }
+      : null;
+    const preFill = Progression.getPreFill(ex.id, effEx, variantFilter);
+    // Blank + untouched → the ghosted prefill (matches what pre-ghost markup used to hold as `value`).
+    // Blank + touched → the user genuinely cleared it, so it collects as empty/0 same as before ghosting.
+    const repVal = (input, s) => {
+      if (input && input.value !== '') return parseInt(input.value) || input.value;
+      return setTouched(s) ? '' : (ex.prefillReps || '');
+    };
+    const weightVal = (input, s, fallback) => {
+      if (input && input.value !== '') return parseFloat(input.value) || 0;
+      return setTouched(s) ? 0 : (fallback || 0);
+    };
 
     switch (trackingType) {
       case 'duration': {
@@ -3944,14 +4033,14 @@ const Views = (function() {
         if (effEx.unilateral === 'split_reps') {
           for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
-              repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
-              repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
+              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s),
+              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s),
             });
           }
         } else {
           for (let s = 0; s < numSetsSave; s++) {
             const r = document.querySelector(`.reps-input[data-set="${s}"]`);
-            data.sets.push({ reps: r ? (r.value === '' ? '' : parseInt(r.value) || r.value) : '' });
+            data.sets.push({ reps: repVal(r, s) });
           }
         }
         break;
@@ -3964,8 +4053,8 @@ const Views = (function() {
             const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
             const raInput = document.querySelector(`.repsA-input[data-set="${s}"]`);
             data.sets.push({
-              weight: wInput ? parseFloat(wInput.value) || 0 : 0,
-              reps: rInput ? (rInput.value === '' ? '' : parseInt(rInput.value) || rInput.value) : '',
+              weight: weightVal(wInput, s, preFill.weight),
+              reps: repVal(rInput, s),
               repsAssisted: raInput ? (raInput.value === '' ? '' : parseInt(raInput.value) || 0) : ''
             });
           }
@@ -3973,19 +4062,19 @@ const Views = (function() {
           data.sets = [];
           for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
-              weightL: parseFloat(document.querySelector(`.wl-input[data-set="${s}"]`)?.value) || 0,
-              repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
-              weightR: parseFloat(document.querySelector(`.wr-input[data-set="${s}"]`)?.value) || 0,
-              repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
+              weightL: weightVal(document.querySelector(`.wl-input[data-set="${s}"]`), s, preFill.weightL),
+              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s),
+              weightR: weightVal(document.querySelector(`.wr-input[data-set="${s}"]`), s, preFill.weightR),
+              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s),
             });
           }
         } else if (effEx.unilateral === 'split_reps') {
           data.sets = [];
           for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
-              weight: parseFloat(document.querySelector(`.sr-weight-input[data-set="${s}"]`)?.value) || 0,
-              repsL: document.querySelector(`.rl-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rl-input[data-set="${s}"]`)?.value) || 0,
-              repsR: document.querySelector(`.rr-input[data-set="${s}"]`)?.value === '' ? '' : parseInt(document.querySelector(`.rr-input[data-set="${s}"]`)?.value) || 0,
+              weight: weightVal(document.querySelector(`.sr-weight-input[data-set="${s}"]`), s, preFill.weight),
+              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s),
+              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s),
             });
           }
         } else {
@@ -3994,8 +4083,8 @@ const Views = (function() {
             const wInput = document.querySelector(`.weight-input[data-set="${s}"]`);
             const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
             data.sets.push({
-              weight: wInput ? parseFloat(wInput.value) || 0 : 0,
-              reps: rInput ? (rInput.value === '' ? '' : parseInt(rInput.value) || rInput.value) : ''
+              weight: weightVal(wInput, s, preFill.weight),
+              reps: repVal(rInput, s)
             });
           }
         }
@@ -4174,18 +4263,125 @@ const Views = (function() {
     return gaps;
   }
 
+  // Every programme exercise in this workout the user never resolved this session: no genuine set,
+  // no "Completed exercise ✓" tap, and no skip-state already recorded. The finish-time sweep asks
+  // about each one instead of letting it vanish silently (v1.18.0).
+  function findUntouchedExercises(workoutId) {
+    const wip = State.getWIP();
+    if (!wip) return [];
+    const workout = PROGRAMME.find(w => w.id === workoutId);
+    if (!workout) return [];
+    const out = [];
+    workout.exercises.forEach((ex, exIndex) => {
+      if (ex.isFence) return;
+      const data = wip.exercises[exIndex];
+      if (data && data.skipState) return;
+      if (data && State.entryHasGenuineData(data)) return;
+      out.push({ exIndex, exName: ex.name });
+    });
+    return out;
+  }
+
+  // Build a fresh entry for an exercise never opened this session — the same programme-prefill
+  // values (reps/weight) a ghost placeholder would have shown, so "✓ Did it" materialises exactly
+  // what tapping "Completed exercise ✓" on an opened-but-untouched screen would have saved.
+  function materializeUntouchedEntry(workoutId, exIndex, notes) {
+    const workout = PROGRAMME.find(w => w.id === workoutId);
+    const ex = workout && workout.exercises[exIndex];
+    if (!ex) return { notes: notes || '' };
+    const effEx = getEffectiveExercise(ex);
+    const trackingType = getEffectiveTrackingType(ex);
+    const activeVar = ex.variants ? getActiveVariant(ex) : null;
+    const variantFilter = (activeVar && ex.variants)
+      ? { variantId: activeVar.id, defaultVariantId: (ex.variants.find(v => v.isDefault) || ex.variants[0]).id }
+      : null;
+    const data = { exId: ex.id, notes: notes || '' };
+    if (activeVar) data.variant = activeVar.id;
+    const numSets = effEx.sets || 1;
+    switch (trackingType) {
+      case 'duration':
+      case 'completion':
+        if (effEx.unilateral) { data.doneL = true; data.doneR = true; }
+        else data.done = true;
+        break;
+      case 'multi_timer': {
+        const n = effEx.timerSequence ? effEx.timerSequence.length : 0;
+        data.timerSteps = Array.from({ length: n }, () => ({ done: true, time: 0 }));
+        break;
+      }
+      case 'sled':
+      case 'weight_distance':
+        break;   // no meaningful prefill for these — completed:true alone records the intent
+      case 'reps_only':
+        data.sets = Array.from({ length: numSets }, () => (
+          effEx.unilateral === 'split_reps'
+            ? { repsL: ex.prefillReps || '', repsR: ex.prefillReps || '', touched: false }
+            : { reps: ex.prefillReps || '', touched: false }
+        ));
+        break;
+      case 'weight_reps': default: {
+        const preFill = Progression.getPreFill(ex.id, effEx, variantFilter);
+        data.sets = Array.from({ length: numSets }, () => {
+          if (effEx.assistedReps) return { weight: preFill.weight || 0, reps: ex.prefillReps || '', repsAssisted: '', touched: false };
+          if (effEx.unilateral === 'split_weight') return { weightL: preFill.weightL || 0, repsL: ex.prefillReps || '', weightR: preFill.weightR || 0, repsR: ex.prefillReps || '', touched: false };
+          if (effEx.unilateral === 'split_reps') return { weight: preFill.weight || 0, repsL: ex.prefillReps || '', repsR: ex.prefillReps || '', touched: false };
+          return { weight: preFill.weight || 0, reps: ex.prefillReps || '', touched: false };
+        });
+        break;
+      }
+    }
+    return data;
+  }
+
   function finishWorkout(workoutId) {
     const gaps = findDataGaps(workoutId);
-    // Only a fillable hole is worth interrupting for. Stopping a lift early is a training
-    // decision, so a short set count alone never opens this — it only adds context once
-    // something else has already earned the prompt.
-    if (gaps.some(g => g.kind === 'field')) { showGapModal(workoutId, gaps); return; }
+    const untouched = findUntouchedExercises(workoutId);
+    // Only a fillable hole (or an unresolved exercise) is worth interrupting for. Stopping a lift
+    // early is a training decision, so a short set count alone never opens this on its own.
+    if (gaps.some(g => g.kind === 'field') || untouched.length > 0) { showGapModal(workoutId, gaps, untouched); return; }
     doFinish(workoutId);
+  }
+
+  // Tap a "✓ Did it" / "Skip" choice for one of the wholly-untouched rows. Tapping the already-active
+  // choice again deselects it (back to "neither" → recorded as "not logged" on finish).
+  function setUntouchedChoice(exIndex, choice, btnEl) {
+    const pending = window._pendingUntouched || [];
+    const item = pending.find(u => u.exIndex === exIndex);
+    if (!item) return;
+    item.choice = (item.choice === choice) ? null : choice;
+    const row = btnEl.closest('.gap-untouched-row');
+    if (row) row.querySelectorAll('.untouched-choice-btn').forEach(b => b.classList.remove('active'));
+    if (item.choice) btnEl.classList.add('active');
+  }
+
+  // Turn the sheet's per-row choices into WIP entries just before finishing. Neither chosen →
+  // 'not-logged' (an honest "no claim of intent"), never silently dropped.
+  function applyUntouchedChoices(workoutId) {
+    const pending = window._pendingUntouched || [];
+    window._pendingUntouched = null;
+    const wip = State.getWIP();
+    if (!wip) return;
+    for (const u of pending) {
+      const exIndex = u.exIndex;
+      const existing = wip.exercises[exIndex];
+      const notes = (existing && existing.notes) || '';
+      let entry;
+      if (u.choice === 'done') {
+        entry = materializeUntouchedEntry(workoutId, exIndex, notes);
+        entry.completed = true;
+      } else {
+        const workout = PROGRAMME.find(w => w.id === workoutId);
+        const ex = workout && workout.exercises[exIndex];
+        entry = { exId: ex ? ex.id : undefined, notes, skipState: (u.choice === 'skip') ? 'skipped' : 'not-logged' };
+      }
+      State.logExercise(exIndex, entry);
+    }
   }
 
   // The gap prompt: the numbers are still in your head at this exact moment, so ask once, inline.
   // A courtesy, never a validation wall — both buttons finish the workout.
-  function showGapModal(workoutId, gaps) {
+  function showGapModal(workoutId, gaps, untouched) {
+    untouched = untouched || [];
     const grouped = [];
     for (const g of gaps) {
       let group = grouped.find(x => x.exIndex === g.exIndex);
@@ -4209,16 +4405,30 @@ const Views = (function() {
       return `<div class="gap-group"><div class="gap-ex-name">${group.exName}</div>${rows}</div>`;
     }).join('');
 
+    const untouchedHtml = untouched.length ? `
+      <div class="gap-untouched-section">
+        <div style="font-size:0.85rem;color:var(--text2);margin:${byExercise.length ? '16px' : '0'} 0 8px;">Not logged this session — mark what happened, or leave blank:</div>
+        ${untouched.map(u => `
+          <div class="gap-untouched-row">
+            <div class="gap-ex-name">${u.exName}</div>
+            <div class="untouched-choice-group">
+              <button type="button" class="untouched-choice-btn" onclick="Views.setUntouchedChoice(${u.exIndex}, 'done', this)">✓ Did it</button>
+              <button type="button" class="untouched-choice-btn" onclick="Views.setUntouchedChoice(${u.exIndex}, 'skip', this)">Skip</button>
+            </div>
+          </div>`).join('')}
+      </div>` : '';
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'gap-modal';
     overlay.innerHTML = `
       <div class="modal">
-        <h2>Missing a few numbers</h2>
+        <h2>${byExercise.length ? 'Missing a few numbers' : 'A few exercises weren’t logged'}</h2>
         <p style="font-size:0.85rem;color:var(--text2);margin-bottom:12px;">
-          ${fieldCount > 0 ? 'Fill in what you remember — anything you leave blank stays blank.' : 'Just so you know before this session is saved.'}
+          ${fieldCount > 0 ? 'Fill in what you remember — anything you leave blank stays blank.' : (byExercise.length ? 'Just so you know before this session is saved.' : 'They’ll be recorded as “not logged” unless you say otherwise.')}
         </p>
         ${groupsHtml}
+        ${untouchedHtml}
         <div class="modal-actions">
           <button class="btn btn-secondary" onclick="Views.skipGapsAndFinish(${workoutId})">Finish as is</button>
           ${fieldCount > 0 ? `<button class="btn btn-primary" onclick="Views.fillGapsAndFinish(${workoutId})">Save &amp; finish</button>` : ''}
@@ -4228,11 +4438,13 @@ const Views = (function() {
     // Tapping outside keeps you in the workout — the escape hatch the old confirm's Cancel gave you.
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
     window._pendingGaps = gaps;
+    window._pendingUntouched = untouched.map(u => ({ ...u, choice: null }));
   }
 
   function skipGapsAndFinish(workoutId) {
     document.getElementById('gap-modal')?.remove();
     window._pendingGaps = null;
+    applyUntouchedChoices(workoutId);
     doFinish(workoutId);
   }
 
@@ -4255,6 +4467,7 @@ const Views = (function() {
     }
     document.getElementById('gap-modal')?.remove();
     window._pendingGaps = null;
+    applyUntouchedChoices(workoutId);
     doFinish(workoutId);
   }
 
@@ -4708,6 +4921,10 @@ const Views = (function() {
   // ---- Format sets as readable HTML rows (not export format) ----
   function formatSetsReadable(data, ex) {
     const wLabel = ex?.weightLabel || 'kg';
+    if (data.skipState) {
+      const label = data.skipState === 'skipped' ? 'Skipped' : 'Not logged';
+      return `<div class="sd-sets"><div class="sd-set skip-status">⊘ ${label}</div></div>`;
+    }
     if (data.done !== undefined || data.doneL !== undefined) {
       if (data.doneL !== undefined) {
         const tL = data.timeL ? ` (${Timer.formatTime(data.timeL)})` : '';
@@ -4916,7 +5133,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise };
 })();
 
 // =====================================================
@@ -4980,7 +5197,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.17.0';
+const APP_VERSION = '1.18.0';
 
 // =====================================================
 // APP INIT
