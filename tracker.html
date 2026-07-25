@@ -964,6 +964,30 @@ const Data = (function() {
     return getSessions().filter(s => !s.exported);
   }
 
+  // Cloud-backup flag — set ONLY after GitHub confirms the write (see the Backup module).
+  // Deliberately SEPARATE from `exported`: that one means "I manually shared this somewhere",
+  // this one means "a copy provably exists off this phone". Conflating them would let a manual
+  // share suppress the backup nag, which is how a backup silently stops being a backup.
+  function markBackedUp(sessionIndex, path) {
+    const sessions = getSessions();
+    if (sessions[sessionIndex]) {
+      sessions[sessionIndex].backedUp = true;
+      if (path) sessions[sessionIndex].backupPath = path;
+      try {
+        saveSessions(sessions);
+      } catch (e) {
+        // Same conservative stance as markExported: the GitHub write already succeeded, only the
+        // local flag failed to persist (storage full). Worst case it re-pushes identical content,
+        // which pushSession's content check turns into a no-op. Never fail the caller for this.
+        console.error('Failed to persist backedUp flag:', e);
+      }
+    }
+  }
+
+  function getUnbackedSessions() {
+    return getSessions().filter(s => !s.backedUp);
+  }
+
   // Sled length distance (meters per length, persists across sessions)
   function getSledLength() {
     return parseFloat(localStorage.getItem(SLED_LENGTH_KEY)) || 15;
@@ -1015,7 +1039,7 @@ const Data = (function() {
     else localStorage.removeItem(`gym-cues-${exerciseId}`);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym };
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, markBackedUp, getUnbackedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym };
 })();
 
 // =====================================================
@@ -2148,6 +2172,206 @@ const Markdown = (function() {
 })();
 
 // =====================================================
+// BACKUP MODULE — zero-tap cloud backup (phone → private GitHub repo)
+// =====================================================
+// Durability, not a second Workout Log. On Finish, each session is PUT as its OWN markdown file
+// into a PRIVATE gym-backups repo via the GitHub Contents API (browser fetch + a fine-grained PAT).
+// A Mac-side clone then drops those files into the Obsidian vault. No backend, no build step.
+//
+// LOCKED DESIGN POINTS — re-read the reasons before "improving" any of these:
+//  - File content is EXACTLY Markdown.exportSession(session): no frontmatter, no wrapper. Being
+//    byte-identical to the manual export is what lets these files re-import losslessly through the
+//    same harness-verified parser. Frontmatter would land in importMarkdown's skippedLines.
+//  - Nothing is marked backed-up until GitHub CONFIRMS the write. A silent auto-backup that fails
+//    is worse than none — it manufactures false confidence (the exact failure mode behind the
+//    10-Jul wipe). Failures stay visible and are retried.
+//  - The token is scoped to ONE private data repo. NOT the public Exercise-tracker mirror (would
+//    publish training data), NOT the private source repo (blast radius). `test()` refuses a public repo.
+//  - The token lives only in localStorage and is NEVER written into any export or commit message.
+const Backup = (function() {
+  const TOKEN_KEY = 'gym-github-token';
+  const REPO_KEY = 'gym-github-repo';
+  const DEFAULT_REPO = 'tomasruta/gym-backups';
+  const API = 'https://api.github.com';
+
+  function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+  function setToken(t) {
+    if (t && t.trim()) localStorage.setItem(TOKEN_KEY, t.trim());
+    else localStorage.removeItem(TOKEN_KEY);
+  }
+  function getRepo() { return localStorage.getItem(REPO_KEY) || DEFAULT_REPO; }
+  function setRepo(r) {
+    if (r && r.trim() && r.trim() !== DEFAULT_REPO) localStorage.setItem(REPO_KEY, r.trim());
+    else localStorage.removeItem(REPO_KEY);
+  }
+  function isConfigured() { return !!getToken(); }
+
+  // Masked for display — the token itself is never rendered back into the DOM.
+  function maskedToken() {
+    const t = getToken();
+    if (!t) return '';
+    return t.length <= 10 ? '••••••' : t.slice(0, 4) + '••••••••' + t.slice(-4);
+  }
+
+  // UTF-8 safe base64. Plain btoa() throws on anything non-Latin1, and the export is full of
+  // é/ě/→/✅/×, so a naive btoa would fail on essentially every real session.
+  function b64encode(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function b64decode(b64str) {
+    const bin = atob(String(b64str || '').replace(/\s/g, ''));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  // Strip characters that break git paths, URLs, or Obsidian wikilinks.
+  function safeName(s) {
+    return String(s || '').replace(/[\/\\:*?"<>|#\[\]^]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  // One markdown file per workout: "sessions/2026-07-25 — W4 Posterior chain.md".
+  // ISO date PREFIX because this is a point-in-time record (vault naming charter), so the folder
+  // sorts chronologically in Obsidian's file list. Two of the same workout on one date get a
+  // numeric suffix derived from array position, so the name is stable across re-runs.
+  function pathFor(session, sessions) {
+    const workout = PROGRAMME.find(w => w.id === session.workoutId);
+    const name = safeName(workout ? workout.name : '');
+    let dupe = 0;
+    for (const s of (sessions || [])) {
+      if (s === session) break;
+      if (s.date === session.date && s.workoutId === session.workoutId) dupe++;
+    }
+    const suffix = dupe > 0 ? ` (${dupe + 1})` : '';
+    return `sessions/${session.date} — W${session.workoutId}${name ? ' ' + name : ''}${suffix}.md`;
+  }
+
+  function headers(extra) {
+    return Object.assign({
+      'Authorization': `Bearer ${getToken()}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    }, extra || {});
+  }
+
+  function contentsUrl(path) {
+    const encoded = path.split('/').map(encodeURIComponent).join('/');
+    return `${API}/repos/${getRepo()}/contents/${encoded}`;
+  }
+
+  // Wrong token, wrong repo, and offline are three completely different fixes — never collapse
+  // them into "backup failed", or the message tells you nothing about what to do next.
+  function explain(status, body) {
+    const detail = body && body.message ? ` — ${body.message}` : '';
+    if (status === 401) return 'Token rejected — expired or revoked. Paste a fresh one.';
+    if (status === 403) return 'Token lacks permission — it needs Contents: Read and write on this repo.';
+    if (status === 404) return `Repo "${getRepo()}" not found, or the token cannot see it.`;
+    if (status === 409) return 'Conflict with a newer commit — will retry.';
+    if (status === 422) return `GitHub rejected the write${detail}`;
+    return `GitHub error ${status}${detail}`;
+  }
+
+  // Push one session. Always resolves — never throws — with { ok, skipped, path, error, offline }.
+  async function pushSession(index) {
+    if (!isConfigured()) return { ok: false, error: 'Cloud backup is not set up.' };
+    const sessions = Data.getSessions();
+    const session = sessions[index];
+    if (!session) return { ok: false, error: 'Session not found.' };
+
+    const md = Markdown.exportSession(session);
+    if (!md) return { ok: false, error: 'Nothing to back up for this session.' };
+    const path = pathFor(session, sessions);
+
+    try {
+      // Existing file? We need its sha to update. Identical content is a no-op — which is what
+      // makes a re-import (which drops the local backedUp flag) cheap instead of a rewrite storm.
+      let sha = null;
+      const head = await fetch(contentsUrl(path), { headers: headers() });
+      if (head.status === 200) {
+        const existing = await head.json().catch(() => null);
+        if (existing) {
+          sha = existing.sha;
+          if (existing.content && b64decode(existing.content) === md) {
+            Data.markBackedUp(index, path);
+            return { ok: true, skipped: true, path };
+          }
+        }
+      } else if (head.status !== 404) {
+        return { ok: false, error: explain(head.status, await head.json().catch(() => null)) };
+      }
+
+      const body = { message: `W${session.workoutId} — ${session.date}`, content: b64encode(md) };
+      if (sha) body.sha = sha;
+      const res = await fetch(contentsUrl(path), {
+        method: 'PUT',
+        headers: headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+      });
+      if (res.status === 200 || res.status === 201) {
+        Data.markBackedUp(index, path);
+        return { ok: true, path };
+      }
+      return { ok: false, error: explain(res.status, await res.json().catch(() => null)) };
+    } catch (e) {
+      // Network-level failure (offline, DNS, blocked). Pending, never lost — the session is
+      // already safe in localStorage and stays flagged for the next sweep.
+      return { ok: false, error: 'No connection to GitHub — will retry.', offline: true };
+    }
+  }
+
+  // Indices of sessions GitHub has not confirmed. Index space is Data.getSessions() (sorted on read).
+  function pendingIndices() {
+    return Data.getSessions().map((s, i) => (s.backedUp ? -1 : i)).filter(i => i >= 0);
+  }
+
+  // Sweep every un-backed session. Sequential on purpose: parallel commits to one repo collide on
+  // sha, and a bad token should surface ONE clear error rather than N identical ones.
+  async function retryPending(onProgress) {
+    if (!isConfigured()) return { done: 0, failed: 0, error: null };
+    let done = 0, failed = 0, firstError = null;
+    for (const i of pendingIndices()) {
+      const r = await pushSession(i);
+      if (r.ok) { done++; }
+      else {
+        failed++;
+        if (!firstError) firstError = r.error;
+        // A token or repo problem fails identically for every session — stop hammering the API.
+        if (!r.offline) break;
+      }
+      if (onProgress) onProgress(done, failed);
+    }
+    return { done, failed, error: firstError };
+  }
+
+  // Verify token + repo WITHOUT writing anything.
+  async function test() {
+    if (!isConfigured()) return { ok: false, error: 'Enter a token first.' };
+    try {
+      const res = await fetch(`${API}/repos/${getRepo()}`, { headers: headers() });
+      if (res.status !== 200) return { ok: false, error: explain(res.status, await res.json().catch(() => null)) };
+      const repo = await res.json();
+      // Hard stop: a public repo here would publish the training log to the world. This is the
+      // single most expensive mistake available in this feature, so it is checked, not trusted.
+      if (!repo.private) {
+        return { ok: false, error: `"${repo.full_name}" is PUBLIC. Point this at a PRIVATE repo — your training data would be world-readable.` };
+      }
+      if (repo.permissions && repo.permissions.push === false) {
+        return { ok: false, error: `Token can read "${repo.full_name}" but not write to it. Needs Contents: Read and write.` };
+      }
+      return { ok: true, message: `Connected to ${repo.full_name} · private ✓` };
+    } catch (e) {
+      return { ok: false, error: 'No connection to GitHub.' };
+    }
+  }
+
+  return { getToken, setToken, getRepo, setRepo, DEFAULT_REPO, isConfigured, maskedToken,
+           pathFor, pushSession, pendingIndices, retryPending, test };
+})();
+
+// =====================================================
 // TIMER MODULE — countdown + stopwatch
 // =====================================================
 const Timer = (function() {
@@ -2690,6 +2914,20 @@ const Views = (function() {
         </div>`;
     }
 
+    // Cloud-backup nag — ONLY once backup is configured. Before that it would be permanent noise;
+    // after that, a pending count is a real durability gap and must be visible on the home screen.
+    let backupBanner = '';
+    if (Backup.isConfigured() && !wip) {
+      const unbacked = Data.getUnbackedSessions().length;
+      if (unbacked > 0) {
+        backupBanner = `
+        <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:10px;padding:12px;margin-bottom:16px;cursor:pointer;" onclick="Router.go('/settings')">
+          <div style="font-weight:600;color:var(--amber);">☁️ ${unbacked} session${unbacked > 1 ? 's' : ''} not backed up</div>
+          <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">Tap to retry in Settings.</div>
+        </div>`;
+      }
+    }
+
     // Check for unexported sessions
     const unexported = Data.getUnexportedSessions();
     let unexportedBanner = '';
@@ -2708,6 +2946,7 @@ const Views = (function() {
       <div class="content">
         <h1 style="font-size:1.5rem;margin-bottom:20px;">Strength</h1>
         ${wipBanner}
+        ${backupBanner}
         ${unexportedBanner}
         <div class="workout-grid">
           ${PROGRAMME.map(w => {
@@ -4481,6 +4720,107 @@ const Views = (function() {
     renderSummary(session);
   }
 
+  // Cloud-backup card in Settings. Shows the TRUE state (how many sessions GitHub has confirmed),
+  // the setup fields, and the manual escape hatches. 44px tap targets at 375px.
+  function renderBackupCard() {
+    const total = Data.getSessions().length;
+    const pending = Data.getUnbackedSessions().length;
+    const configured = Backup.isConfigured();
+
+    let status, statusColor, statusBg;
+    if (!configured) {
+      status = 'Not set up — no automatic backup';
+      statusColor = 'var(--text3)'; statusBg = 'var(--bg-card)';
+    } else if (pending === 0) {
+      status = total === 0 ? 'Ready — no sessions yet' : `All ${total} session${total > 1 ? 's' : ''} backed up ✓`;
+      statusColor = 'var(--green)'; statusBg = 'var(--green-bg)';
+    } else {
+      status = `${pending} session${pending > 1 ? 's' : ''} waiting to back up`;
+      statusColor = 'var(--amber)'; statusBg = 'var(--amber-bg)';
+    }
+
+    return `
+      <div class="summary-section" style="margin-top:24px;">
+        <h3>☁️ Cloud backup</h3>
+        <div style="padding:12px 14px;background:${statusBg};border:1px solid ${statusColor};border-radius:10px;font-size:0.9rem;font-weight:600;color:${statusColor};margin-bottom:10px;">
+          ${status}
+        </div>
+        <div style="font-size:0.8rem;color:var(--text2);margin-bottom:12px;line-height:1.45;">
+          Each finished workout is saved as its own markdown file in a <strong>private</strong> GitHub repo,
+          then pulled into the Obsidian vault on the Mac. Your Workout Log is never touched.
+        </div>
+
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;">Private repo</label>
+        <input id="backup-repo" type="text" inputmode="url" autocapitalize="none" autocorrect="off" spellcheck="false"
+               value="${esc(Backup.getRepo())}" placeholder="${esc(Backup.DEFAULT_REPO)}"
+               style="width:100%;padding:12px;font-size:0.9rem;border:1px solid var(--border);border-radius:8px;margin-bottom:12px;box-sizing:border-box;">
+
+        <label style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:4px;">
+          Access token ${configured ? `<span style="font-weight:400;color:var(--green);">— saved (${esc(Backup.maskedToken())})</span>` : ''}
+        </label>
+        <input id="backup-token" type="password" autocapitalize="none" autocorrect="off" spellcheck="false"
+               placeholder="${configured ? 'Paste a new token to replace' : 'github_pat_...'}"
+               style="width:100%;padding:12px;font-size:0.9rem;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;box-sizing:border-box;">
+        <div style="font-size:0.75rem;color:var(--text3);margin-bottom:12px;">
+          Fine-grained token, <strong>this one private repo only</strong>, permission “Contents: Read and write”.
+          Stored on this phone only.
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <button class="btn btn-secondary" style="min-height:44px;" onclick="Views.saveBackupSettings()">Save &amp; test connection</button>
+          <button class="btn btn-secondary" style="min-height:44px;" onclick="Views.backupAllNow()">Back up all pending now</button>
+          ${configured ? `<button class="btn btn-secondary" style="min-height:44px;color:var(--red);border-color:var(--red);" onclick="Views.clearBackupToken()">Remove token</button>` : ''}
+        </div>
+        <div id="backup-settings-result" style="margin-top:10px;font-size:0.85rem;"></div>
+      </div>`;
+  }
+
+  function backupResultBox(ok, msg) {
+    const el = document.getElementById('backup-settings-result');
+    if (!el) return;
+    const color = ok ? 'var(--green)' : 'var(--red)';
+    const bg = ok ? 'var(--green-bg)' : 'var(--red-bg)';
+    el.innerHTML = `<div style="padding:10px 12px;background:${bg};border:1px solid ${color};border-radius:8px;color:${color};">${esc(msg)}</div>`;
+  }
+
+  async function saveBackupSettings() {
+    const repoEl = document.getElementById('backup-repo');
+    const tokenEl = document.getElementById('backup-token');
+    if (repoEl) Backup.setRepo(repoEl.value);
+    // Only overwrite the stored token when a new one was actually typed — the field renders empty
+    // by design (we never echo the token back), so a blank field must mean "leave it alone".
+    if (tokenEl && tokenEl.value.trim()) {
+      Backup.setToken(tokenEl.value);
+      tokenEl.value = '';
+    }
+    backupResultBox(true, 'Testing…');
+    const r = await Backup.test();
+    if (r.ok) {
+      backupResultBox(true, r.message);
+      // Re-render so the status line and the masked-token label reflect reality immediately.
+      setTimeout(() => renderSettings(), 900);
+    } else {
+      backupResultBox(false, r.error);
+    }
+  }
+
+  async function backupAllNow() {
+    if (!Backup.isConfigured()) { backupResultBox(false, 'Enter a token first.'); return; }
+    const pending = Data.getUnbackedSessions().length;
+    if (pending === 0) { backupResultBox(true, 'Nothing pending — everything is already backed up.'); return; }
+    backupResultBox(true, `Backing up ${pending} session${pending > 1 ? 's' : ''}…`);
+    const r = await Backup.retryPending((done) => backupResultBox(true, `Backed up ${done}/${pending}…`));
+    if (r.failed === 0) backupResultBox(true, `Backed up ${r.done} session${r.done > 1 ? 's' : ''} ✓`);
+    else backupResultBox(false, `${r.done} succeeded, ${r.failed} failed — ${r.error || 'unknown error'}`);
+    setTimeout(() => renderSettings(), 1200);
+  }
+
+  function clearBackupToken() {
+    if (!confirm('Remove the backup token from this phone?\n\nSessions already backed up stay safe on GitHub. New workouts will stop backing up until you paste a token again.')) return;
+    Backup.setToken('');
+    renderSettings();
+  }
+
   function renderSummary(session) {
     const workout = PROGRAMME.find(w => w.id === session.workoutId);
     if (!workout) { renderHome(); return; }
@@ -4549,7 +4889,9 @@ const Views = (function() {
           ${exerciseItems}
         </div>
 
-        <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px;">
+        <div id="backup-status" style="margin-top:20px;"></div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">
           <button class="btn btn-primary" onclick="Views.copyMarkdown()">Copy as Markdown</button>
           <button class="btn btn-secondary" onclick="Views.shareMarkdown()">Share</button>
           <button class="btn btn-secondary" onclick="Router.go('/')">Done — Back to Home</button>
@@ -4558,6 +4900,42 @@ const Views = (function() {
 
     // Store markdown for copy/share
     window._lastMarkdown = md;
+
+    // Zero-tap cloud backup. Fires automatically, reports honestly, and never blocks the summary
+    // screen — a failed push leaves the session flagged pending for the next sweep.
+    runSummaryBackup();
+  }
+
+  // Renders into #backup-status on the summary screen. Silent only when backup isn't set up
+  // (a nag there would be pure noise until the token exists — Settings is where you set it up).
+  async function runSummaryBackup() {
+    const el = document.getElementById('backup-status');
+    if (!el) return;
+    if (!Backup.isConfigured()) {
+      el.innerHTML = `<div style="padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;font-size:0.82rem;color:var(--text3);text-align:center;">
+        ☁️ Cloud backup not set up — <span style="text-decoration:underline;cursor:pointer;" onclick="Router.go('/settings')">turn it on in Settings</span></div>`;
+      return;
+    }
+    const box = (bg, border, color, html) => {
+      el.innerHTML = `<div style="padding:10px 12px;background:${bg};border:1px solid ${border};border-radius:10px;font-size:0.85rem;color:${color};text-align:center;">${html}</div>`;
+    };
+    box('var(--bg-card)', 'var(--border)', 'var(--text2)', '☁️ Backing up…');
+    const idx = window._lastSessionIndex;
+    const r = await Backup.pushSession(idx);
+    if (r.ok) {
+      box('var(--green-bg)', 'var(--green)', 'var(--green)', '☁️ Backed up to GitHub ✓');
+    } else {
+      box('var(--amber-bg)', 'var(--amber)', 'var(--amber)',
+        `☁️ Not backed up — ${esc(r.error || 'unknown error')}<br>
+         <span style="color:var(--text2);font-size:0.78rem;">Your session is saved on the phone. It will retry automatically.</span><br>
+         <button class="btn btn-secondary" style="margin-top:8px;width:auto;padding:8px 14px;font-size:0.8rem;" onclick="Views.retryBackupNow()">Retry now</button>`);
+    }
+  }
+
+  async function retryBackupNow() {
+    const el = document.getElementById('backup-status');
+    if (el) el.innerHTML = `<div style="padding:10px 12px;text-align:center;font-size:0.85rem;color:var(--text2);">☁️ Retrying…</div>`;
+    await runSummaryBackup();
   }
 
   async function copyMarkdown() {
@@ -4774,6 +5152,8 @@ const Views = (function() {
           <span style="font-weight:600;font-size:0.95rem;">Bodyweight <span style="font-weight:400;color:var(--text3);">— scales ATG standards</span></span>
           <span style="font-size:0.95rem;color:var(--text2);font-variant-numeric:tabular-nums;white-space:nowrap;">${BODYWEIGHT_KG} kg <span style="color:var(--text3);">· ${Markdown.formatDate(BODYWEIGHT_DATE)}</span></span>
         </div>
+        ${renderBackupCard()}
+
         <div class="summary-section">
           <h3>Session History (${sessions.length} total)</h3>
           ${sessionRows}
@@ -5133,7 +5513,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
 })();
 
 // =====================================================
@@ -5197,7 +5577,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.18.0';
+const APP_VERSION = '1.19.0';
 
 // =====================================================
 // APP INIT
@@ -5354,6 +5734,27 @@ const APP_VERSION = '1.18.0';
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+
+  // Quiet catch-up sweep: anything GitHub hasn't confirmed gets re-pushed on app open. This is what
+  // turns "the gym wifi dropped" from a lost backup into a delayed one. Deliberately silent — the
+  // home banner already carries the visible truth, and a toast on every launch would train you to
+  // ignore it. Delayed so it never competes with first paint.
+  function sweepBackups() {
+    try {
+      if (!Backup.isConfigured()) return;
+      if (navigator.onLine === false) return;
+      if (Data.getUnbackedSessions().length === 0) return;
+      Backup.retryPending().then((r) => {
+        // Re-render only if we're sitting on a screen whose state just became stale.
+        if (r.done > 0 && (location.hash === '' || location.hash === '#/' || location.hash === '#/settings')) {
+          Router.go(location.hash === '#/settings' ? '/settings' : '/');
+        }
+      }).catch(() => {});
+    } catch (e) { /* backup must never break boot */ }
+  }
+  setTimeout(sweepBackups, 3000);
+  // Coming back online mid-session is the other moment a stuck backup can finally land.
+  window.addEventListener('online', () => setTimeout(sweepBackups, 1500));
 })();
 </script>
 </body>
