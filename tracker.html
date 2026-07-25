@@ -1490,8 +1490,9 @@ const Progression = (function() {
 
   function getPreFill(exerciseId, exercise, variantFilter) {
     const last = State.getLastEntry(exerciseId, variantFilter);
-    const result = { weight: '', weightL: '', weightR: '', bumped: false, from: null };
+    const result = { weight: '', weightL: '', weightR: '', bumped: false, from: null, lastSets: null };
     if (!last || !last.sets || last.sets.length === 0) return result;
+    result.lastSets = last.sets;   // per-set reps ghosting reads what you actually did last time
 
     // Prefill from the LAST set of the previous session (your top/working set on a ramp),
     // not the first — e.g. a cable squat you build up to. Straight-sets are unaffected.
@@ -3381,6 +3382,24 @@ const Views = (function() {
     if (entry && entry.completed) return true;
     return existing ? ((existing.touched === undefined) ? true : existing.touched) : false;
   }
+  // What number should ghost in a reps/steps box (v1.21.0)? One rule for the renderers, autosave
+  // AND the finish-sweep "Did it" — all three must agree or a ghost changes under you on re-render.
+  //   1. ex.prefillReps — fixed planned count (behaviour unchanged where it exists)
+  //   2. weight just auto-bumped → BOTTOM of the rep range (new weight resets the rep target)
+  //   3. what you actually did last session, same set index (clamped to its last set)
+  //   4. bottom of the rep range   5. nothing → the column label shows
+  function _ghostReps(ex, preFill, s, key) {
+    if (ex.prefillReps) return ex.prefillReps;
+    if (preFill && preFill.bumped && ex.repRange) return ex.repRange[0];
+    const ls = preFill && preFill.lastSets;
+    if (ls && ls.length) {
+      const src = ls[Math.min(s, ls.length - 1)];
+      const v = src ? src[key] : undefined;
+      if (v !== undefined && v !== null && v !== '') return v;
+    }
+    return ex.repRange ? ex.repRange[0] : '';
+  }
+
   // value = the computed prefill/logged number for this field; touched = is this SET touched.
   // Touched → render as a real value (today's behaviour). Untouched → blank value, and the would-be
   // number becomes the placeholder (falls back to the column label when there's nothing to ghost).
@@ -3398,7 +3417,7 @@ const Views = (function() {
       const existing = existingData?.sets?.[s];
       const touched = _setTouched(existing, existingData);
       const weight = existing?.weight ?? (preFill.weight || 0);
-      const reps = existing?.reps ?? (ex.prefillReps || '');
+      const reps = existing?.reps ?? _ghostReps(ex, preFill, s, 'reps');
       const w = _ghostField(weight, touched, wLabel);
       const r = _ghostField(reps, touched, rLabel);
       html += `
@@ -3424,7 +3443,7 @@ const Views = (function() {
       const existing = existingData?.sets?.[s];
       const touched = _setTouched(existing, existingData);
       const weight = existing?.weight ?? (preFill.weight || 0);
-      const reps = existing?.reps ?? (ex.prefillReps || '');
+      const reps = existing?.reps ?? _ghostReps(ex, preFill, s, 'reps');
       const repsAssisted = existing?.repsAssisted ?? '';
       const w = _ghostField(weight, touched, wLabel);
       const r = _ghostField(reps, touched, 'reps');
@@ -3448,7 +3467,7 @@ const Views = (function() {
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const touched = _setTouched(existing, existingData);
-      const reps = existing?.reps ?? (ex.prefillReps || '');
+      const reps = existing?.reps ?? _ghostReps(ex, preFill, s, 'reps');
       const r = _ghostField(reps, touched, rLabel);
       html += `
         <div class="set-row" style="grid-template-columns:50px 1fr;">
@@ -3459,14 +3478,14 @@ const Views = (function() {
     return html;
   }
 
-  function renderRepsOnlySplitSets(ex, existingData) {
+  function renderRepsOnlySplitSets(ex, existingData, preFill) {
     const rLabel = ex.repsLabel || 'reps';
     let html = `<div class="split-reps-header" style="grid-template-columns:50px 30px 1fr 30px 1fr;"><span></span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const touched = _setTouched(existing, existingData);
-      const rL = existing?.repsL ?? (ex.prefillReps || '');
-      const rR = existing?.repsR ?? (ex.prefillReps || '');
+      const rL = existing?.repsL ?? _ghostReps(ex, preFill, s, 'repsL');
+      const rR = existing?.repsR ?? _ghostReps(ex, preFill, s, 'repsR');
       const l = _ghostField(rL, touched, rLabel);
       const r = _ghostField(rR, touched, rLabel);
       html += `
@@ -3491,9 +3510,9 @@ const Views = (function() {
       const existing = existingData?.sets?.[s];
       const touched = _setTouched(existing, existingData);
       const wL = existing?.weightL ?? (preFill.weightL || 0);
-      const rL = existing?.repsL ?? (ex.prefillReps || '');
+      const rL = existing?.repsL ?? _ghostReps(ex, preFill, s, 'repsL');
       const wR = existing?.weightR ?? (preFill.weightR || 0);
-      const rR = existing?.repsR ?? (ex.prefillReps || '');
+      const rR = existing?.repsR ?? _ghostReps(ex, preFill, s, 'repsR');
       const wlG = _ghostField(wL, touched, wLabel);
       const rlG = _ghostField(rL, touched, rLabel);
       const wrG = _ghostField(wR, touched, wLabel);
@@ -3528,8 +3547,8 @@ const Views = (function() {
       const existing = existingData?.sets?.[s];
       const touched = _setTouched(existing, existingData);
       const weight = existing?.weight ?? fallbackWeight;
-      const rL = existing?.repsL ?? (ex.prefillReps || '');
-      const rR = existing?.repsR ?? (ex.prefillReps || '');
+      const rL = existing?.repsL ?? _ghostReps(ex, preFill, s, 'repsL');
+      const rR = existing?.repsR ?? _ghostReps(ex, preFill, s, 'repsR');
       const w = _ghostField(weight, touched, wLabel);
       const l = _ghostField(rL, touched, rLabel);
       const r = _ghostField(rR, touched, rLabel);
@@ -4031,7 +4050,7 @@ const Views = (function() {
       case 'weight_distance':
         inputsHtml = renderWeightDistanceSets(effEx, existingData, preFill); break;
       case 'reps_only':
-        if (effEx.unilateral === 'split_reps') inputsHtml = renderRepsOnlySplitSets(effEx, existingData);
+        if (effEx.unilateral === 'split_reps') inputsHtml = renderRepsOnlySplitSets(effEx, existingData, preFill);
         else inputsHtml = renderRepsOnlySets(effEx, existingData, preFill);
         break;
       case 'weight_reps': default:
@@ -4232,9 +4251,9 @@ const Views = (function() {
     const preFill = Progression.getPreFill(ex.id, effEx, variantFilter);
     // Blank + untouched → the ghosted prefill (matches what pre-ghost markup used to hold as `value`).
     // Blank + touched → the user genuinely cleared it, so it collects as empty/0 same as before ghosting.
-    const repVal = (input, s) => {
+    const repVal = (input, s, key) => {
       if (input && input.value !== '') return parseInt(input.value) || input.value;
-      return setTouched(s) ? '' : (ex.prefillReps || '');
+      return setTouched(s) ? '' : _ghostReps(effEx, preFill, s, key || 'reps');
     };
     const weightVal = (input, s, fallback) => {
       if (input && input.value !== '') return parseFloat(input.value) || 0;
@@ -4315,8 +4334,8 @@ const Views = (function() {
         if (effEx.unilateral === 'split_reps') {
           for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
-              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s),
-              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s),
+              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s, 'repsL'),
+              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s, 'repsR'),
             });
           }
         } else {
@@ -4345,9 +4364,9 @@ const Views = (function() {
           for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
               weightL: weightVal(document.querySelector(`.wl-input[data-set="${s}"]`), s, preFill.weightL),
-              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s),
+              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s, 'repsL'),
               weightR: weightVal(document.querySelector(`.wr-input[data-set="${s}"]`), s, preFill.weightR),
-              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s),
+              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s, 'repsR'),
             });
           }
         } else if (effEx.unilateral === 'split_reps') {
@@ -4355,8 +4374,8 @@ const Views = (function() {
           for (let s = 0; s < numSetsSave; s++) {
             data.sets.push({
               weight: weightVal(document.querySelector(`.sr-weight-input[data-set="${s}"]`), s, preFill.weight),
-              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s),
-              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s),
+              repsL: repVal(document.querySelector(`.rl-input[data-set="${s}"]`), s, 'repsL'),
+              repsR: repVal(document.querySelector(`.rr-input[data-set="${s}"]`), s, 'repsR'),
             });
           }
         } else {
@@ -4405,6 +4424,7 @@ const Views = (function() {
       }
     });
     if (ghosts.length === 0) { saveAndBack(workoutId, exIndex); return; }
+    autoSaveExercise(workoutId, exIndex);   // persist NOW — only the navigation waits for the animation
     if (btn) { btn.dataset.committing = '1'; btn.textContent = 'Saved ✓'; }
     ghosts.forEach(i => i.classList.add('ghost-commit'));
     setTimeout(() => saveAndBack(workoutId, exIndex), 700);
@@ -4618,20 +4638,22 @@ const Views = (function() {
       case 'sled':
       case 'weight_distance':
         break;   // no meaningful prefill for these — completed:true alone records the intent
-      case 'reps_only':
-        data.sets = Array.from({ length: numSets }, () => (
+      case 'reps_only': {
+        const preFill = Progression.getPreFill(ex.id, effEx, variantFilter);
+        data.sets = Array.from({ length: numSets }, (_, i) => (
           effEx.unilateral === 'split_reps'
-            ? { repsL: ex.prefillReps || '', repsR: ex.prefillReps || '', touched: false }
-            : { reps: ex.prefillReps || '', touched: false }
+            ? { repsL: _ghostReps(effEx, preFill, i, 'repsL'), repsR: _ghostReps(effEx, preFill, i, 'repsR'), touched: false }
+            : { reps: _ghostReps(effEx, preFill, i, 'reps'), touched: false }
         ));
         break;
+      }
       case 'weight_reps': default: {
         const preFill = Progression.getPreFill(ex.id, effEx, variantFilter);
-        data.sets = Array.from({ length: numSets }, () => {
-          if (effEx.assistedReps) return { weight: preFill.weight || 0, reps: ex.prefillReps || '', repsAssisted: '', touched: false };
-          if (effEx.unilateral === 'split_weight') return { weightL: preFill.weightL || 0, repsL: ex.prefillReps || '', weightR: preFill.weightR || 0, repsR: ex.prefillReps || '', touched: false };
-          if (effEx.unilateral === 'split_reps') return { weight: preFill.weight || 0, repsL: ex.prefillReps || '', repsR: ex.prefillReps || '', touched: false };
-          return { weight: preFill.weight || 0, reps: ex.prefillReps || '', touched: false };
+        data.sets = Array.from({ length: numSets }, (_, i) => {
+          if (effEx.assistedReps) return { weight: preFill.weight || 0, reps: _ghostReps(effEx, preFill, i, 'reps'), repsAssisted: '', touched: false };
+          if (effEx.unilateral === 'split_weight') return { weightL: preFill.weightL || 0, repsL: _ghostReps(effEx, preFill, i, 'repsL'), weightR: preFill.weightR || 0, repsR: _ghostReps(effEx, preFill, i, 'repsR'), touched: false };
+          if (effEx.unilateral === 'split_reps') return { weight: preFill.weight || 0, repsL: _ghostReps(effEx, preFill, i, 'repsL'), repsR: _ghostReps(effEx, preFill, i, 'repsR'), touched: false };
+          return { weight: preFill.weight || 0, reps: _ghostReps(effEx, preFill, i, 'reps'), touched: false };
         });
         break;
       }
@@ -5645,7 +5667,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.20.0';
+const APP_VERSION = '1.21.0';
 
 // =====================================================
 // APP INIT
