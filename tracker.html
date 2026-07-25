@@ -219,6 +219,12 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   min-height: 48px;
 }
 .set-input:focus { border-color: var(--accent); outline: none; }
+/* "Completed exercise ✓" fills the grey ghost numbers as real values — flash green, settle black */
+@keyframes ghostCommit {
+  0% { background: var(--green-bg); border-color: var(--green); }
+  100% { background: var(--bg-input); border-color: var(--border); }
+}
+.set-input.ghost-commit { animation: ghostCommit 0.7s ease; }
 .set-x { text-align: center; color: var(--text3); font-weight: 600; }
 .add-set-btn {
   width: 100%; margin-top: 4px; padding: 12px; min-height: 44px;
@@ -1084,6 +1090,15 @@ const State = (function() {
 
   function getWIP() { return wip; }
 
+  // Stamp the time of the last GENUINE interaction (typed input, timer tap, Completed ✓) — never a
+  // mere screen-open (the phantom-history invariant in temporal form). If the session is left open
+  // and only finished hours later, this is the honest end time finishSession falls back to.
+  function touchActivity() {
+    if (!wip) return;
+    wip.lastActivityAt = new Date().toISOString();
+    Data.saveWIP(wip);
+  }
+
   function hasWIP() { return wip !== null; }
 
   function logExercise(exIndex, data) {
@@ -1093,6 +1108,7 @@ const State = (function() {
   }
 
   function updateSessionNotes(overall, injuries, gym) {
+    if (wip) wip.lastActivityAt = new Date().toISOString();   // typing session notes is genuine activity
     if (!wip) return;
     wip.overall = overall;
     wip.injuries = injuries;
@@ -1249,7 +1265,21 @@ const State = (function() {
 
   function finishSession() {
     if (!wip) return null;
-    if (!wip.completedAt) wip.completedAt = new Date().toISOString();
+    let endAdjusted = false;
+    if (!wip.completedAt) {
+      // Forgot-to-end safety net: finishing long after the last real input (e.g. next morning)
+      // must not inflate the duration to "14h" — fall back to the last-activity stamp instead.
+      const now = new Date();
+      const last = wip.lastActivityAt ? new Date(wip.lastActivityAt) : null;
+      const STALE_MS = 3 * 60 * 60 * 1000;
+      if (last && (now - last > STALE_MS) && (!wip.startedAt || last > new Date(wip.startedAt))) {
+        wip.completedAt = wip.lastActivityAt;
+        endAdjusted = true;
+      } else {
+        wip.completedAt = now.toISOString();
+      }
+    }
+    delete wip.lastActivityAt;   // WIP-only bookkeeping — keep saved sessions/export clean
     // Drop ghost entries — exercise screens opened but never actually logged — so the saved session
     // matches exactly what history shows and what export writes. Uses the same genuine-data test.
     // Skip-stated entries (v1.18.0) are deliberately NOT genuine (no phantom history/datapoints) but
@@ -1271,6 +1301,7 @@ const State = (function() {
       return null;
     }
     const finished = { ...wip };
+    if (endAdjusted) finished.endAdjusted = true;   // summary-screen note only — never stored
     wip = null;
     Data.clearWIP();
     return finished;
@@ -1337,7 +1368,7 @@ const State = (function() {
     return results;
   }
 
-  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked, touchActivity };
 })();
 
 // =====================================================
@@ -2229,8 +2260,14 @@ const Backup = (function() {
   }
 
   // Strip characters that break git paths, URLs, or Obsidian wikilinks.
+  // Slashes become "-" rather than vanishing: deleting them turns the real workout names
+  // "Push/Pull + Biceps" and "Rhythm/KOT" into "PushPull" and "RhythmKOT". These filenames ARE
+  // the Obsidian UI, so they have to stay readable.
   function safeName(s) {
-    return String(s || '').replace(/[\/\\:*?"<>|#\[\]^]/g, '').replace(/\s+/g, ' ').trim();
+    return String(s || '')
+      .replace(/[\/\\]/g, '-')
+      .replace(/[:*?"<>|#\[\]^]/g, '')
+      .replace(/\s+/g, ' ').trim();
   }
 
   // One markdown file per workout: "sessions/2026-07-25 — W4 Posterior chain.md".
@@ -3337,7 +3374,11 @@ const Views = (function() {
   // Ghost prefills (v1.18.0): an UNTOUCHED set shows its would-be reps/weight as a grey placeholder,
   // never as a real value — a mere visit must never look logged (that's how a real session got lost).
   // Legacy sets (touched === undefined) are trusted as already-real, mirroring State.setIsGenuine.
-  function _setTouched(existing) {
+  function _setTouched(existing, entry) {
+    // An explicit "Completed exercise ✓" claims the shown numbers — render them as real (black),
+    // not as ghosts, so a committed exercise doesn't reopen looking unlogged. Display-only: the
+    // stored sets keep touched:false and genuineness still comes from entry.completed.
+    if (entry && entry.completed) return true;
     return existing ? ((existing.touched === undefined) ? true : existing.touched) : false;
   }
   // value = the computed prefill/logged number for this field; touched = is this SET touched.
@@ -3355,7 +3396,7 @@ const Views = (function() {
     let html = `<div class="sets-header"><span></span><span>${wLabel}</span><span></span><span>${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
-      const touched = _setTouched(existing);
+      const touched = _setTouched(existing, existingData);
       const weight = existing?.weight ?? (preFill.weight || 0);
       const reps = existing?.reps ?? (ex.prefillReps || '');
       const w = _ghostField(weight, touched, wLabel);
@@ -3381,7 +3422,7 @@ const Views = (function() {
     let html = `<div class="split-reps-header" style="font-size:0.62rem;"><span></span><span>${wLabel}</span><span></span><span>Reps no assist</span><span></span><span>Assisted reps</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
-      const touched = _setTouched(existing);
+      const touched = _setTouched(existing, existingData);
       const weight = existing?.weight ?? (preFill.weight || 0);
       const reps = existing?.reps ?? (ex.prefillReps || '');
       const repsAssisted = existing?.repsAssisted ?? '';
@@ -3406,7 +3447,7 @@ const Views = (function() {
     let html = `<div class="sets-header" style="grid-template-columns:50px 1fr;"><span></span><span>${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
-      const touched = _setTouched(existing);
+      const touched = _setTouched(existing, existingData);
       const reps = existing?.reps ?? (ex.prefillReps || '');
       const r = _ghostField(reps, touched, rLabel);
       html += `
@@ -3423,7 +3464,7 @@ const Views = (function() {
     let html = `<div class="split-reps-header" style="grid-template-columns:50px 30px 1fr 30px 1fr;"><span></span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
-      const touched = _setTouched(existing);
+      const touched = _setTouched(existing, existingData);
       const rL = existing?.repsL ?? (ex.prefillReps || '');
       const rR = existing?.repsR ?? (ex.prefillReps || '');
       const l = _ghostField(rL, touched, rLabel);
@@ -3448,7 +3489,7 @@ const Views = (function() {
     let html = `<div class="uni-side-row" style="margin-bottom:8px;"><span></span><span class="uni-col-label">${wLabel}</span><span></span><span class="uni-col-label">${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
-      const touched = _setTouched(existing);
+      const touched = _setTouched(existing, existingData);
       const wL = existing?.weightL ?? (preFill.weightL || 0);
       const rL = existing?.repsL ?? (ex.prefillReps || '');
       const wR = existing?.weightR ?? (preFill.weightR || 0);
@@ -3485,7 +3526,7 @@ const Views = (function() {
     let html = `<div class="split-reps-header"><span></span><span>${wLabel}</span><span></span><span>L ${rLabel}</span><span></span><span>R ${rLabel}</span></div>`;
     for (let s = 0, numSets = _numSets(ex, existingData); s < numSets; s++) {
       const existing = existingData?.sets?.[s];
-      const touched = _setTouched(existing);
+      const touched = _setTouched(existing, existingData);
       const weight = existing?.weight ?? fallbackWeight;
       const rL = existing?.repsL ?? (ex.prefillReps || '');
       const rR = existing?.repsR ?? (ex.prefillReps || '');
@@ -4028,7 +4069,7 @@ const Views = (function() {
       </div>
       <div class="save-bar">
         <span class="auto-saved" id="auto-save-status">Auto-saved</span>
-        <button class="done-btn" onclick="document.getElementById('ex-completed').value='true';Views.saveAndBack(${workoutId}, ${exIndex})">Completed exercise ✓</button>
+        <button class="done-btn" onclick="Views.completeExercise(${workoutId}, ${exIndex})">Completed exercise ✓</button>
       </div>`;
 
     // Add listeners for all inputs
@@ -4136,8 +4177,10 @@ const Views = (function() {
     renderExercise(ctx.workoutId, exIndex);             // re-render with the new row
   }
 
-  // Trigger auto-save using stored context
+  // Trigger auto-save using stored context. Only ever fired by a genuine interaction (typed input,
+  // timer tap, time edit) — never on screen-open — so it doubles as the last-activity stamp.
   function _triggerAutoSave() {
+    State.touchActivity();
     if (_currentRenderCtx) autoSaveExercise(_currentRenderCtx.workoutId, _currentRenderCtx.exIndex);
     // Starting to log the first exercise auto-starts the session clock if you forgot the Start button.
     const wip = State.getWIP();
@@ -4341,6 +4384,30 @@ const Views = (function() {
     Timer.finalize('w' + workoutId + 'e' + exIndex + '-');   // stop + capture THIS exercise's timers only
     autoSaveExercise(workoutId, exIndex);
     Router.go(`/w/${workoutId}`);
+  }
+
+  // "Completed exercise ✓": fill any still-grey ghost numbers into their boxes (grey → black with a
+  // brief green flash) so you SEE what gets saved, then save and go back. The values are the same
+  // ones autoSaveExercise would collect for untouched sets — this just makes the commit visible.
+  // Sets stay touched:false (genuineness comes from data.completed, same as the finish-sweep "Did it").
+  function completeExercise(workoutId, exIndex) {
+    const btn = document.querySelector('.done-btn');
+    if (btn && btn.dataset.committing) return;   // double-tap guard during the commit pause
+    const completedInput = document.getElementById('ex-completed');
+    if (completedInput) completedInput.value = 'true';
+    State.touchActivity();
+    const ghosts = [];
+    document.querySelectorAll('.set-input').forEach(input => {
+      // Only blank boxes whose placeholder is a would-be NUMBER (never the "kg"/"reps" column labels)
+      if (input.value === '' && input.placeholder !== '' && !isNaN(parseFloat(input.placeholder))) {
+        input.value = input.placeholder;
+        ghosts.push(input);
+      }
+    });
+    if (ghosts.length === 0) { saveAndBack(workoutId, exIndex); return; }
+    if (btn) { btn.dataset.committing = '1'; btn.textContent = 'Saved ✓'; }
+    ghosts.forEach(i => i.classList.add('ghost-commit'));
+    setTimeout(() => saveAndBack(workoutId, exIndex), 700);
   }
 
   function saveAndBack(workoutId, exIndex) {
@@ -4878,6 +4945,7 @@ const Views = (function() {
           <div style="font-size:1.1rem;font-weight:600;">W${session.workoutId} — ${workout.name}</div>
           <div style="color:var(--text2);margin-top:4px;">${Markdown.formatDate(session.date)}</div>
           ${session.startedAt && session.completedAt ? `<div style="color:var(--text2);margin-top:4px;font-size:0.85rem;">${Timer.formatTimeOfDay(session.startedAt)} → ${Timer.formatTimeOfDay(session.completedAt)} (${Timer.formatDuration(new Date(session.completedAt) - new Date(session.startedAt))})</div>` : ''}
+          ${session.endAdjusted ? `<div style="color:var(--amber);margin-top:6px;font-size:0.8rem;">⏱ Session was left open — end time set to ${Timer.formatTimeOfDay(session.completedAt)}, your last input.</div>` : ''}
         </div>
 
         ${session.gym ? `<div style="text-align:center;font-size:0.85rem;color:var(--text2);margin-bottom:12px;">📍 ${esc(session.gym)}</div>` : ''}
@@ -5513,7 +5581,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, completeExercise, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
 })();
 
 // =====================================================
@@ -5577,7 +5645,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.19.0';
+const APP_VERSION = '1.20.0';
 
 // =====================================================
 // APP INIT
