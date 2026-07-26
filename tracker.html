@@ -585,6 +585,28 @@ const VARIANTS = {
   ]
 };
 
+// Per-set equipment stamps (v1.23.0). rdl + pullover can MIX equipment inside one session
+// (DB warm-ups → barbell working sets): each set is stamped with the variant that was ACTIVE
+// when it was typed (switch the pill mid-exercise; no extra per-row control). The export marks
+// only sets that DIFFER from the entry's variant, as a suffix on the weight token
+// ("8 @40/bar") — uniform sessions keep today's byte format, so old logs stay byte-stable.
+const EQUIP_SUFFIX = {
+  'rdl':      { 'db': '/hand', 'barbell': '/bar' },
+  'pullover': { 'two-db': '/hand', 'single-db': '/1db' }
+};
+// The equipment a plain (unsuffixed) weight means on this entry: its stamped variant, else the default.
+function entryEquipBase(ex, data) {
+  if (data && data.variant) return data.variant;
+  if (ex && ex.variants) return (ex.variants.find(v => v.isDefault) || ex.variants[0]).id;
+  return null;
+}
+// Suffix for one set — '' unless the set was logged under the OTHER equipment than the entry's.
+function equipMark(ex, data, s) {
+  const map = ex && EQUIP_SUFFIX[ex.id];
+  if (!map || !s.equip) return '';
+  return s.equip === entryEquipBase(ex, data) ? '' : (map[s.equip] || '');
+}
+
 // Equipment tags — what to BRING for each exercise, keyed by exercise ID.
 // Shared across workouts: an ID that appears in W1+W3+W6 gets the same gear.
 // Rendered as amber badges on the workout list. One flat category: "equipment".
@@ -1415,11 +1437,18 @@ const Standards = (function() {
   // Turn the last set into a load comparable to the standard, plus the reps behind it.
   // Only GENUINE sets count (touched invariant): a saved entry can end in prefilled-but-untouched
   // rows, and comparing against one of those reads an empty/ghost set as "current".
-  function readLastSet(std, effEx, lastEntry) {
+  function readLastSet(std, effEx, lastEntry, exId) {
     const real = (lastEntry && lastEntry.sets) ? lastEntry.sets.filter(State.setIsGenuine) : [];
     if (!real.length) return { kg: null, reps: null };
     const s = real[real.length - 1];
-    const mode = std.loadFrom || (effEx.unilateral === 'split_weight' ? (std.perHand ? 'minSide' : 'sumSides') : 'value');
+    let mode = std.loadFrom || (effEx.unilateral === 'split_weight' ? (std.perHand ? 'minSide' : 'sumSides') : 'value');
+    // A per-set equipment stamp overrides the pill: the set is interpreted by the equipment it
+    // was actually logged under (e.g. a barbell top set inside a dumbbell-variant entry).
+    if (s.equip) {
+      const raw = ATG_STANDARDS[exId];
+      const setStd = raw && !raw.kind && raw[s.equip];
+      if (setStd) mode = setStd.loadFrom || 'value';
+    }
     let kg = null;
     if (mode === 'minSide') {
       const l = num(s.weightL), r = num(s.weightR);
@@ -1450,7 +1479,7 @@ const Standards = (function() {
     const out = { std, kind: std.kind, targetKg: targetKg(std), currentKg: null, currentReps: null, pct: null, weightMet: false, repsMet: false, met: false, hasHistory: false };
     if (std.kind === 'note') return out;
 
-    const last = readLastSet(std, effEx, lastEntry);
+    const last = readLastSet(std, effEx, lastEntry, ex.id);
     out.currentKg = last.kg;
     out.currentReps = last.reps;
     out.hasHistory = (last.kg !== null || last.reps !== null);
@@ -1803,12 +1832,14 @@ const Markdown = (function() {
       };
       const weights = validSets.map(s => parseFloat(s.weight) || 0);
       const allSameWeight = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
+      // A mixed-equipment entry always uses the per-set grammar — the suffix rides the weight token.
+      const anyEquipMark = validSets.some(s => equipMark(ex, data, s));
       let setsStr, weightStr;
-      if (allSameWeight) {
+      if (allSameWeight && !anyEquipMark) {
         setsStr = validSets.map(repCell).join(', ');
         weightStr = weights[0] ? ` @ ${weights[0]}${wLabel}` : ' @ BW';
       } else {
-        setsStr = validSets.map(s => `${repCell(s)} @${parseFloat(s.weight)||0}`).join(', ');
+        setsStr = validSets.map(s => `${repCell(s)} @${parseFloat(s.weight)||0}${equipMark(ex, data, s)}`).join(', ');
         weightStr = ` ${wLabel}`;
       }
 
@@ -2135,14 +2166,19 @@ const Markdown = (function() {
             return { reps: parseInt(tok) || tok };
           };
 
-          // 7a. Per-set weights: 3×(6 @41.3, 6 @40, 6 @38) kg — also 3×(4+2a @41.3, ...) assisted
+          // 7a. Per-set weights: 3×(6 @41.3, 6 @40, 6 @38) kg — also 3×(4+2a @41.3, ...) assisted,
+          //     and equipment-suffixed weights from mixed sessions: 3×(10 @10, 10 @6/hand, ...) kg
           if (!parsed) {
             const perSetMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*(\w+)?/);
             if (perSetMatch && perSetMatch[2].includes('@')) {
               const entries = perSetMatch[2].split(',').map(e => {
                 const parts = e.trim().split(/\s*@/);
                 const rc = parseRepCell(parts[0]);
-                return rc ? { ...rc, weight: parseFloat(parts[1]) || 0 } : null;
+                if (!rc) return null;
+                const wm = (parts[1] || '').match(/^([\d.]+)(\/(?:hand|bar|1db))?$/);
+                const set = { ...rc, weight: wm ? parseFloat(wm[1]) : parseFloat(parts[1]) || 0 };
+                if (wm && wm[2]) set._equipSuffix = wm[2];   // resolved to s.equip once the exercise is matched
+                return set;
               });
               if (entries.every(Boolean)) parsed = { sets: entries };
             }
@@ -2169,7 +2205,16 @@ const Markdown = (function() {
             const exIdx = workout.exercises.findIndex(e => e.id === matched_.id);
             if (exIdx >= 0) {
               parsed.notes = '';
-              if (parsed.sets) parsed.sets.forEach(s => { s.touched = true; });   // imported sets are genuine (v1.9 invariant)
+              if (parsed.sets) parsed.sets.forEach(s => {
+                s.touched = true;   // imported sets are genuine (v1.9 invariant)
+                // Equipment suffix → per-set variant stamp (mixed-equipment sessions)
+                if (s._equipSuffix) {
+                  const map = EQUIP_SUFFIX[matched_.id];
+                  const eq = map && Object.keys(map).find(k => map[k] === s._equipSuffix);
+                  if (eq) s.equip = eq;
+                  delete s._equipSuffix;
+                }
+              });
               // Variant from brackets OR from variant-label match
               if (variantId) parsed.variant = variantId;
               else if (matched_.variantId) parsed.variant = matched_.variantId;
@@ -3377,7 +3422,7 @@ const Views = (function() {
       } else if (s0.distance !== undefined) {
         detail = lastEntry.sets.map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(', ');
       } else {
-        detail = lastEntry.sets.map(s => { const w = parseFloat(s.weight) || 0; return w ? `${w}kg × ${esc(repDisplay(s))}` : `BW × ${esc(repDisplay(s))}`; }).join(', ');
+        detail = lastEntry.sets.map(s => { const w = parseFloat(s.weight) || 0; return w ? `${w}kg${equipMark(ex, lastEntry, s)} × ${esc(repDisplay(s))}` : `BW × ${esc(repDisplay(s))}`; }).join(', ');
       }
     }
     if (lastEntry.chopDirection) detail += ` <span style="color:var(--text3);">(${lastEntry.chopDirection === 'hi_lo' ? 'Hi→Lo' : 'Lo→Hi'})</span>`;
@@ -4404,13 +4449,23 @@ const Views = (function() {
           }
         } else {
           data.sets = [];
+          const equipMap = EQUIP_SUFFIX[ex.id];
           for (let s = 0; s < numSetsSave; s++) {
             const wInput = document.querySelector(`.weight-input[data-set="${s}"]`);
             const rInput = document.querySelector(`.reps-input[data-set="${s}"]`);
-            data.sets.push({
+            const set = {
               weight: weightVal(wInput, s, preFill.weight),
               reps: repVal(rInput, s)
-            });
+            };
+            if (equipMap && variant) {
+              // Rows typed since the last render stamp the ACTIVE pill; older rows keep their stamp.
+              // (Switching the pill re-renders and clears data-touched, so "typed this render" ≡
+              // "typed under this pill" — mixing equipment is just flipping the pill between sets.)
+              const editedNow = !!document.querySelector(`[data-set="${s}"][data-touched="1"]`);
+              const eq = editedNow ? variant.id : (prevSets && prevSets[s] && prevSets[s].equip);
+              if (eq) set.equip = eq;
+            }
+            data.sets.push(set);
           }
         }
         break;
@@ -4967,7 +5022,7 @@ const Views = (function() {
         } else if (s0.distance !== undefined) {
           setsStr = data.sets.filter(s => s.distance).map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(' | ');
         } else {
-          setsStr = data.sets.filter(s => s.reps !== '' && s.reps !== undefined).map(s => `${s.weight || 'BW'}kg × ${esc(s.reps)}`).join(' | ');
+          setsStr = data.sets.filter(s => s.reps !== '' && s.reps !== undefined).map(s => `${s.weight || 'BW'}kg${equipMark(ex, data, s)} × ${esc(s.reps)}`).join(' | ');
         }
       }
 
@@ -5406,10 +5461,11 @@ const Views = (function() {
     if (validSets.length === 0) return '—';
     const weights = validSets.map(s => parseFloat(s.weight) || 0);
     const allSame = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
-    if (allSame) {
+    const anyMark = validSets.some(s => equipMark(ex, data, s));
+    if (allSame && !anyMark) {
       return `${validSets.length}×[${validSets.map(s => esc(repDisplay(s))).join(', ')}] @ ${weights[0] ? weights[0] + wLabel : 'BW'}`;
     }
-    return `${validSets.length}×[${validSets.map(s => `${esc(repDisplay(s))}@${parseFloat(s.weight)||0}`).join(', ')}] ${wLabel}`;
+    return `${validSets.length}×[${validSets.map(s => `${esc(repDisplay(s))}@${parseFloat(s.weight)||0}${equipMark(ex, data, s)}`).join(', ')}] ${wLabel}`;
   }
 
   // ---- Format sets as readable HTML rows (not export format) ----
@@ -5465,7 +5521,7 @@ const Views = (function() {
     const validSets = data.sets.filter(s => (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) || hasAssistedR(s));
     if (validSets.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
     return `<div class="sd-sets">${validSets.map((s, i) =>
-      `<div class="sd-set"><span class="sd-num">${i+1}</span> ${parseFloat(s.weight)||0}${wLabel} × ${esc(repDisplay(s))}</div>`
+      `<div class="sd-set"><span class="sd-num">${i+1}</span> ${parseFloat(s.weight)||0}${wLabel}${equipMark(ex, data, s)} × ${esc(repDisplay(s))}</div>`
     ).join('')}</div>`;
   }
 
@@ -5691,7 +5747,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.22.0';
+const APP_VERSION = '1.23.0';
 
 // =====================================================
 // APP INIT
