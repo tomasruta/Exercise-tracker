@@ -571,6 +571,17 @@ const VARIANTS = {
     { id: 'nordic', label: 'Nordic curl (proper)', trackingType: 'weight_reps', isDefault: true },
     { id: 'ham-curl-seated', label: 'Ham curl (seated)', trackingType: 'weight_reps', isDefault: false, sets: 3, reps: '10-12', repRange: [10, 12], progressionType: 'compound' },
     { id: 'ham-curl-prone', label: 'Ham curl (prone)', trackingType: 'weight_reps', isDefault: false, sets: 3, reps: '10-12', repRange: [10, 12], progressionType: 'compound' }
+  ],
+  // Equipment switch, not a different movement — the variant exists because the logged NUMBER means
+  // something different per equipment (DB = kg per hand, barbell = total bar kg). Legacy untagged
+  // entries count as the default variant, so all pre-switch history stays attributed correctly.
+  rdl: [
+    { id: 'db', label: 'Dumbbells (kg/hand)', trackingType: 'weight_reps', isDefault: true },
+    { id: 'barbell', label: 'Barbell RDL', trackingType: 'weight_reps', isDefault: false }
+  ],
+  pullover: [
+    { id: 'single-db', label: 'One dumbbell', trackingType: 'weight_reps', isDefault: true },
+    { id: 'two-db', label: '2-DB pullover (kg/hand)', trackingType: 'weight_reps', isDefault: false }
   ]
 };
 
@@ -712,8 +723,12 @@ const ATG_STANDARDS = {
     'ham-curl-prone':  { kind: 'pct', pctBW: 85, reps: 8, label: '85% BW × 8' }
   },
   // --- Lower back + posterior chain ---
-  // RDL is done with a dumbbell in each hand, so both DBs count toward the 100% BW barbell standard.
-  'rdl':               { kind: 'pct', pctBW: 100, reps: 12, loadFrom: 'valueX2', label: '100% BW × 12', hint: 'full stretch — both dumbbells counted together' },
+  // DB variant logs kg PER HAND, so both DBs count toward the 100% BW barbell standard; the
+  // barbell variant logs total bar weight and compares directly.
+  'rdl': {
+    'db':      { kind: 'pct', pctBW: 100, reps: 12, loadFrom: 'valueX2', label: '100% BW × 12', hint: 'full stretch — both dumbbells counted together' },
+    'barbell': { kind: 'pct', pctBW: 100, reps: 12, label: '100% BW × 12', hint: 'full stretch — total bar weight' }
+  },
   'back-extension':  { '45deg': { kind: 'pct', pctBW: 25, reps: 20, label: '25% BW × 20' } },
   'ql-extension':      { kind: 'reps', reps: 20, label: '20 reps' },
   'reverse-squat': {
@@ -725,7 +740,10 @@ const ATG_STANDARDS = {
   // --- Push / pull ---
   'incline-press':     { kind: 'pct', pctBW: 37.5, reps: 8, perHand: true, label: '37.5% BW/hand × 8' },
   'shoulder-press':    { kind: 'pct', pctBW: 25, reps: 10, perHand: true, label: '25% BW/hand × 10' },
-  'pullover':          { kind: 'pct', pctBW: 25, reps: 12, label: '25% BW × 12' },
+  'pullover': {
+    'single-db': { kind: 'pct', pctBW: 25, reps: 12, label: '25% BW × 12' },
+    'two-db':    { kind: 'pct', pctBW: 25, reps: 12, loadFrom: 'valueX2', label: '25% BW × 12', hint: 'log kg per dumbbell — both counted together' }
+  },
   'powell-raise':      { kind: 'pct', pctBW: 10, reps: 12, label: '10% BW × 12' },
   'external-rotation': { kind: 'pct', pctBW: 10, reps: 12, label: '10% BW × 12' },
   'trap-3-raise':      { kind: 'pct', pctBW: 10, reps: 5, perHand: true, label: '10% BW/hand × 5', hint: '5s eccentric per rep' },
@@ -757,13 +775,13 @@ const PROGRAMME = [
       { id: 'internal-hip-db-lift', gymArea: 'U žen', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
       { id: 'loaded-butterfly', gymArea: 'U žen', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
       { id: 'pigeon-stretch', gymArea: 'U žen', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: 'Mar 25: Definitely a lot of improvement now that doing it more often.' },
-      { id: 'pullover', gymArea: 'U žen', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
+      { id: 'pullover', gymArea: 'U žen', name: 'Pullover', sets: 3, reps: '10', flow: 'SS', supersetWith: 'trap-3-raise', repRange: [10, 12], progressionType: 'atg', variants: VARIANTS.pullover, prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: 'Mar 25: 12.5kg. Bench was wobbly — do better setup next time.' },
       { id: 'trap-3-raise', gymArea: 'U žen', name: 'Trap-3 raise', sets: 3, reps: '8', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', prefillReps: 8, formCues: '', notes: '' },
       { id: 'reverse-squat', gymArea: 'U žen', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'Check that spine is NOT in imprint — should feel lower back muscles, not abs. If abs dominate, drop weight.', notes: 'Mar 17: Started 18kg too much, 15kg also hard, 13kg still good impulse. Accept weakness, build from scratch. Mar 28: Struggled again, had to go to 13kg. Be careful.' },
       { id: 'glute-bridge', gymArea: 'U žen', name: 'Glute bridge/hip thrust', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: '', notes: '', isNew: true },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SEQ', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Look in mirror to check back is straight. Feel activation in lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: 'Mar 17: Getting much better with neutral spine. Feeling light activation in lower back — good sign. Mar 28: Mirror really helps.' },
       { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot must be fully settled, not lifting. Torso drops below horizontal — must be pre-fence.', notes: 'Mar 25: Beautiful work. First round harder than second. Always check bottom foot. Mar 30: 8 reps maybe too much — moving lumbar. Try 7 next time.' },
-      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'always rinse with water after — #enamel' },
       { id: 'nordic-curl', name: 'Nordic curl', sets: 5, reps: '5', flow: 'SS', supersetWith: 'back-squat', repRange: [5, 5], progressionType: 'compound', prefillReps: 5, variants: VARIANTS.nordicCurl, formCues: 'Try actual nordics at Max Fitness Flora — look for anchor point. Ham curl fallback if no anchor.', notes: 'Mar 30: Ham curl sub — barely feeling impulse. Need to try actual nordics.' },
       { id: 'back-squat', name: 'Back squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'nordic-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Double progression: all sets at 8 reps → add 1-2.5kg → drop to 6.', notes: 'Mar 30: Only got to 50kg. Even empty bar (20kg) was feeling quads. Going careful — glad I put in the work.' },
       { id: 'farmers-carry', name: "Farmer's carry", sets: 3, reps: '40m', flow: 'SEQ', trackingType: 'weight_distance', repsLabel: 'meters', weightLabel: 'kg/hand', formCues: '', notes: '', isNew: true }
@@ -789,8 +807,8 @@ const PROGRAMME = [
         formCues: 'Straight leg = gastroc. Bent knee = soleus. 45s each position, each side.', notes: '' },
       { id: 'jefferson-curl', gymArea: 'U žen', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
       { id: 'cable-pancake', gymArea: 'U žen', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
-      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', variants: VARIANTS.rdl, formCues: '', notes: '' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'always rinse with water after — #enamel' },
       { id: 'atg-split-squat', name: 'ATG split squat (no walking)', sets: 5, reps: '6-8/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', formCues: 'Stationary — no walking. Same DBs both hands. Full set one leg, then switch. Double progression 6-8/side.', notes: '' },
       { id: 'pullup-overhand', name: 'Weighted pull-up (overhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Pronated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
       { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-overhand', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
@@ -812,7 +830,7 @@ const PROGRAMME = [
       { id: 'hack-squat', gymArea: 'U žen', name: 'Hack squat', sets: 3, reps: '15', flow: 'SEQ', progressionType: 'atg', prefillReps: 15, formCues: 'Barbell Hackenschmidt. Heels high on two thick plates / high slant — gets knees + glutes more.', notes: '' },
       { id: 'reverse-squat', gymArea: 'U žen', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SEQ', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings. Don\'t squeeze/overextend at top.', notes: '' },
-      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'always rinse with water after — #enamel' },
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
       { id: 'powell-raise', name: 'Powell raise', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'FORM RESET: 1-2kg, strict, 3s eccentric. Brief prone post-fence — pause malto sipping.', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'oh-tricep-ext', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
@@ -832,9 +850,9 @@ const PROGRAMME = [
       { id: 'internal-hip-db-lift', gymArea: 'U žen', name: 'Internal hip dumbbell lift', sets: 1, reps: '20/20', flow: 'SEQ', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
       { id: 'pigeon-stretch', gymArea: 'U žen', name: 'Pigeon/piriformis stretch', sets: 1, reps: '20/20', flow: 'SEQ', trackingType: 'reps_only', unilateral: 'split_reps', prefillReps: 20, formCues: '', notes: '' },
       { id: 'loaded-butterfly', gymArea: 'U žen', name: 'Loaded butterfly', sets: 1, reps: '20', flow: 'SEQ', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'pullover', gymArea: 'U žen', name: 'Pullover', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'ql-extension', repRange: [10, 12], progressionType: 'atg', prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: '' },
+      { id: 'pullover', gymArea: 'U žen', name: 'Pullover', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'ql-extension', repRange: [10, 12], progressionType: 'atg', variants: VARIANTS.pullover, prefillReps: 10, formCues: 'Put plates under bench for more range.', notes: '' },
       { id: 'ql-extension', name: 'QL extension', sets: 3, reps: '10/10', flow: 'SS', supersetWith: 'pullover', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 10, formCues: 'Bottom foot fully settled. Torso drops below horizontal.', notes: '' },
-      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'always rinse with water after — #enamel' },
       { id: 'front-squat', name: 'Front squat', sets: 5, reps: '6-8', flow: 'SS', supersetWith: 'ham-curl', repRange: [6, 8], progressionType: 'compound', formCues: 'Wrist CARs during rest! Figure out foot positioning if using Smith machine. Try without Smith next time.', notes: '' },
       { id: 'ham-curl', name: 'Ham curl (seated)', sets: 5, reps: '8-10', flow: 'SS', supersetWith: 'front-squat', repRange: [8, 10], progressionType: 'compound', variants: VARIANTS.hamCurl, formCues: '', notes: '' },
       { id: 'chinup-underhand', name: 'Weighted chin-up (underhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: 'Supinated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
@@ -862,8 +880,8 @@ const PROGRAMME = [
         formCues: 'Straight leg = gastroc. Bent knee = soleus. 45s each position, each side.', notes: '' },
       { id: 'jefferson-curl', gymArea: 'U žen', name: 'Jefferson curl', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: 'Use slant! Not first thing AM.', notes: '' },
       { id: 'cable-pancake', gymArea: 'U žen', name: 'Cable pancake', sets: 1, reps: '20', flow: 'SEQ', progressionType: 'atg', prefillReps: 20, formCues: '', notes: '' },
-      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', formCues: '', notes: '' },
-      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'rdl', name: 'RDL', sets: 5, reps: '8-10', flow: 'SEQ', repRange: [8, 10], progressionType: 'compound', variants: VARIANTS.rdl, formCues: '', notes: '' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'always rinse with water after — #enamel' },
       { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6-8 steps/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', repsLabel: 'steps', formCues: 'Walking. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. All sets at 8/side → add weight.', notes: '' },
       { id: 'full-range-row', name: 'Full range row', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'incline-press', repRange: [8, 12], progressionType: 'isolation', formCues: 'Form is tricky — back curls up. May need different version. Brief prone — pause malto.', notes: '' },
       { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'full-range-row', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence.', notes: '' },
@@ -883,7 +901,7 @@ const PROGRAMME = [
       { id: 'kot-sissy-squat', name: 'KOT/Sissy squat', sets: 3, reps: '10', flow: 'SEQ', trackingType: 'reps_only', progressionType: 'atg', prefillReps: 10, formCues: 'Watch form video first! Bodyweight — track depth (cm from ground) in notes.', notes: '' },
       { id: 'back-extension', name: 'Back extension', sets: 3, reps: '12', flow: 'SS', supersetWith: 'reverse-squat', progressionType: 'atg', prefillReps: 12, variants: VARIANTS.backExtension, formCues: 'Keep spine neutral. Mirror to check. Feel lower back, not just hamstrings.', notes: '' },
       { id: 'reverse-squat', name: 'Reverse squat (cable)', sets: 3, reps: '20', flow: 'SS', supersetWith: 'back-extension', progressionType: 'atg', prefillReps: 20, variants: VARIANTS.reverseSquat, formCues: 'NOT in imprint. Lower back muscles, not abs. If abs dominate → drop weight.', notes: '' },
-      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'Nothing prone/supine/inverted below this line' },
+      { id: 'malto-fence', name: 'MALTO FENCE', isFence: true, fenceNote: 'always rinse with water after — #enamel' },
       { id: 'shoulder-press', name: 'Shoulder press', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: 'Double progression 8-12.', notes: '' },
       { id: 'band-pull-apart', name: 'Band pull-apart', sets: 3, reps: '12', flow: 'SS', supersetWith: 'external-rotation', trackingType: 'reps_only', prefillReps: 12, formCues: '', notes: '' },
       { id: 'external-rotation', name: 'External rotation', sets: 3, reps: '10-12', flow: 'SS', supersetWith: 'band-pull-apart', repRange: [10, 12], progressionType: 'isolation', formCues: '', notes: '' },
@@ -1395,9 +1413,12 @@ const Standards = (function() {
   function num(v) { const n = parseFloat(v); return isNaN(n) ? null : n; }
 
   // Turn the last set into a load comparable to the standard, plus the reps behind it.
+  // Only GENUINE sets count (touched invariant): a saved entry can end in prefilled-but-untouched
+  // rows, and comparing against one of those reads an empty/ghost set as "current".
   function readLastSet(std, effEx, lastEntry) {
-    if (!lastEntry || !lastEntry.sets || !lastEntry.sets.length) return { kg: null, reps: null };
-    const s = lastEntry.sets[lastEntry.sets.length - 1];
+    const real = (lastEntry && lastEntry.sets) ? lastEntry.sets.filter(State.setIsGenuine) : [];
+    if (!real.length) return { kg: null, reps: null };
+    const s = real[real.length - 1];
     const mode = std.loadFrom || (effEx.unilateral === 'split_weight' ? (std.perHand ? 'minSide' : 'sumSides') : 'value');
     let kg = null;
     if (mode === 'minSide') {
@@ -1673,12 +1694,14 @@ const Markdown = (function() {
       if (!data.sets || data.sets.length === 0) continue;
       const s0 = data.sets[0];
 
-      // Sled
+      // Sled — per-set lengthM (recorded at save time) wins over the current setting, so history
+      // logged at a different gym/track length re-exports with the length it was actually done at.
       if (s0.lengths !== undefined) {
         const sledLength = Data.getSledLength();
         for (const s of data.sets) {
-          const dist = s.lengths * sledLength;
-          md += `- **${displayName}** — 1×(${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}) @ ${s.weight||0}kg (length = ${sledLength}m, total ~${Math.round(dist)}m)\n`;
+          const len = s.lengthM || sledLength;
+          const dist = s.lengths * len;
+          md += `- **${displayName}** — 1×(${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}) @ ${s.weight||0}kg (length = ${len}m, total ~${Math.round(dist)}m)\n`;
         }
         md += formatNotes(data.notes);
         md += '\n';
@@ -2025,7 +2048,7 @@ const Markdown = (function() {
             if (sledMatch) {
               const timeParts = sledMatch[2].split(':');
               const timeSeconds = parseInt(timeParts[0]) * 60 + parseInt(timeParts[1]);
-              parsed = { sets: [{ weight: parseFloat(sledMatch[3]), lengths: parseInt(sledMatch[1]), timeSeconds }] };
+              parsed = { sets: [{ weight: parseFloat(sledMatch[3]), lengths: parseInt(sledMatch[1]), timeSeconds, lengthM: parseFloat(sledMatch[4]) }] };
             }
           }
 
@@ -3350,7 +3373,7 @@ const Views = (function() {
           detail = `${lastEntry.weight||0}kg — ` + lastEntry.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
         }
       } else if (s0.lengths !== undefined) {
-        detail = lastEntry.sets.map(s => `${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}`).join(', ');
+        detail = lastEntry.sets.map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
       } else if (s0.distance !== undefined) {
         detail = lastEntry.sets.map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(', ');
       } else {
@@ -4312,7 +4335,8 @@ const Views = (function() {
           data.sets.push({
             weight: w ? parseFloat(w.value) || 0 : 0,
             lengths: l ? parseInt(l.value) || 0 : 0,
-            timeSeconds
+            timeSeconds,
+            lengthM: Data.getSledLength()   // freeze the length this was done at — the setting can change later
           });
         }
         break;
@@ -4939,7 +4963,7 @@ const Views = (function() {
         } else if (s0.repsL !== undefined) {
           setsStr = `${data.weight||0}kg — ` + data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L${s.repsL}/R${s.repsR}`).join(' | ');
         } else if (s0.lengths !== undefined) {
-          setsStr = data.sets.map(s => `${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}`).join(' | ');
+          setsStr = data.sets.map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ');
         } else if (s0.distance !== undefined) {
           setsStr = data.sets.filter(s => s.distance).map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(' | ');
         } else {
@@ -5356,7 +5380,7 @@ const Views = (function() {
     const s0 = data.sets[0];
     const wLabel = ex?.weightLabel || 'kg';
     if (s0.lengths !== undefined) {
-      return data.sets.map(s => `${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}`).join(', ');
+      return data.sets.map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
     }
     if (s0.distance !== undefined) {
       return data.sets.map(s => `${s.weight||0}${wLabel}/h × ${s.distance}m`).join(', ');
@@ -5410,7 +5434,7 @@ const Views = (function() {
     if (s0.lengths !== undefined) {
       const sledLength = Data.getSledLength();
       return `<div class="sd-sets">${data.sets.map((s, i) => {
-        const dist = s.lengths * sledLength;
+        const dist = s.lengths * (s.lengthM || sledLength);
         return `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.weight||0}${wLabel} · ${s.lengths}L · ${Timer.formatTime(s.timeSeconds||0)}${dist ? ` (~${Math.round(dist)}m)` : ''}</div>`;
       }).join('')}</div>`;
     }
@@ -5667,7 +5691,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.21.0';
+const APP_VERSION = '1.22.0';
 
 // =====================================================
 // APP INIT
