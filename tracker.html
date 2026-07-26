@@ -1254,6 +1254,15 @@ const State = (function() {
   function setIsGenuine(s) {
     return ((s.touched === undefined) ? true : s.touched) && setHasRealValue(s);
   }
+  // Per-row gate for every surface that PRINTS an entry's set rows (export, summary, session
+  // detail, exercise history): the v1.20.0 ghost-commit rule layered onto setIsGenuine. A
+  // "Completed exercise ✓" tap (data.completed) claims the entry's untouched prefilled rows as
+  // real sets; without it an untouched row is a ghost and must never print as data (a half-done
+  // exercise used to export its ghost rows as real "8 @0" sets). Route through THIS — never
+  // re-check `touched` by hand.
+  function setIsClaimed(data, s) {
+    return !!(data && data.completed) || setIsGenuine(s);
+  }
   function entryHasGenuineData(data) {
     if (!data) return false;
     if (data.completed) return true;                                   // explicit "Completed exercise" tap
@@ -1408,7 +1417,7 @@ const State = (function() {
     return results;
   }
 
-  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked, touchActivity };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, setIsClaimed, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked, touchActivity };
 })();
 
 // =====================================================
@@ -1758,7 +1767,8 @@ const Markdown = (function() {
 
       // Unilateral split_weight
       if (s0.weightL !== undefined) {
-        const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
+        const validSets = data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== ''));
+        if (validSets.length === 0) continue;
         const known = w => w !== '' && w !== undefined && w !== null;
         const anyKnown = validSets.some(s => known(s.weightL) || known(s.weightR));
         // cable-chop records which cable-anchor direction it was done in (alternates hi→lo / lo→hi each W6)
@@ -1788,7 +1798,8 @@ const Markdown = (function() {
 
       // Unilateral split_reps
       if (s0.repsL !== undefined) {
-        const validSets = data.sets.filter(s => s.repsL !== '' || s.repsR !== '');
+        const validSets = data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== ''));
+        if (validSets.length === 0) continue;
         if (s0.weight !== undefined) {
           // New format: per-set weight
           const weights = validSets.map(s => parseFloat(s.weight) || 0);
@@ -1820,7 +1831,7 @@ const Markdown = (function() {
       // Assisted reps (assist-machine pull-ups/dips, v1.17.0): a set is real if it carries an
       // assisted count too, even with unassisted 0/blank (a fully-assisted rep is still a rep).
       const stdHasAssisted = s => s.repsAssisted !== null && s.repsAssisted !== undefined && s.repsAssisted !== '';
-      const validSets = data.sets.filter(s => stdHasReps(s) || stdWeightOnly(s) || stdHasAssisted(s));
+      const validSets = data.sets.filter(s => State.setIsClaimed(data, s) && (stdHasReps(s) || stdWeightOnly(s) || stdHasAssisted(s)));
       if (validSets.length === 0) continue;
 
       // '?' = value left blank (round-trips to ''). Assisted sets append '+Na' — unassisted 0 is
@@ -5014,15 +5025,15 @@ const Views = (function() {
       } else if (data.sets && data.sets.length > 0) {
         const s0 = data.sets[0];
         if (s0.weightL !== undefined) {
-          setsStr = data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(' | ');
+          setsStr = data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== '')).map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(' | ');
         } else if (s0.repsL !== undefined) {
-          setsStr = `${data.weight||0}kg — ` + data.sets.filter(s => s.repsL !== '' || s.repsR !== '').map(s => `L${s.repsL}/R${s.repsR}`).join(' | ');
+          setsStr = `${data.weight||0}kg — ` + data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== '')).map(s => `L${s.repsL}/R${s.repsR}`).join(' | ');
         } else if (s0.lengths !== undefined) {
           setsStr = data.sets.map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ');
         } else if (s0.distance !== undefined) {
           setsStr = data.sets.filter(s => s.distance).map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(' | ');
         } else {
-          setsStr = data.sets.filter(s => s.reps !== '' && s.reps !== undefined).map(s => `${s.weight || 'BW'}kg${equipMark(ex, data, s)} × ${esc(s.reps)}`).join(' | ');
+          setsStr = data.sets.filter(s => State.setIsClaimed(data, s) && s.reps !== '' && s.reps !== undefined).map(s => `${s.weight || 'BW'}kg${equipMark(ex, data, s)} × ${esc(s.reps)}`).join(' | ');
         }
       }
 
@@ -5441,23 +5452,27 @@ const Views = (function() {
       return data.sets.map(s => `${s.weight||0}${wLabel}/h × ${s.distance}m`).join(', ');
     }
     if (s0.weightL !== undefined) {
-      return data.sets.map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(', ');
+      const shown = data.sets.filter(s => State.setIsClaimed(data, s));
+      if (shown.length === 0) return '—';
+      return shown.map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(', ');
     }
     if (s0.repsL !== undefined) {
+      const shown = data.sets.filter(s => State.setIsClaimed(data, s));
+      if (shown.length === 0) return '—';
       // New format: per-set weight; old format: shared data.weight
       if (s0.weight !== undefined) {
-        const weights = data.sets.map(s => parseFloat(s.weight) || 0);
+        const weights = shown.map(s => parseFloat(s.weight) || 0);
         const allSameW = weights.every(w => Math.abs(w - weights[0]) < 0.01);
         if (allSameW) {
-          return `${weights[0]}${wLabel} — ` + data.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+          return `${weights[0]}${wLabel} — ` + shown.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
         }
-        return data.sets.map(s => `${s.weight||0}${wLabel} L${s.repsL}/R${s.repsR}`).join(', ');
+        return shown.map(s => `${s.weight||0}${wLabel} L${s.repsL}/R${s.repsR}`).join(', ');
       }
-      return `${data.weight||0}${wLabel} — ` + data.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
+      return `${data.weight||0}${wLabel} — ` + shown.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
     }
     // Standard weight×reps
     const hasAssisted = s => s.repsAssisted !== null && s.repsAssisted !== undefined && s.repsAssisted !== '';
-    const validSets = data.sets.filter(s => (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) || hasAssisted(s));
+    const validSets = data.sets.filter(s => State.setIsClaimed(data, s) && ((s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) || hasAssisted(s)));
     if (validSets.length === 0) return '—';
     const weights = validSets.map(s => parseFloat(s.weight) || 0);
     const allSame = weights.length > 0 && weights.every(w => Math.abs(w - weights[0]) < 0.01);
@@ -5500,25 +5515,29 @@ const Views = (function() {
       ).join('')}</div>`;
     }
     if (s0.weightL !== undefined) {
-      return `<div class="sd-sets">${data.sets.map((s, i) =>
+      const shown = data.sets.filter(s => State.setIsClaimed(data, s));
+      if (shown.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
+      return `<div class="sd-sets">${shown.map((s, i) =>
         `<div class="sd-set"><span class="sd-num">${i+1}</span> L: ${s.weightL||0}${wLabel}×${s.repsL||0} · R: ${s.weightR||0}${wLabel}×${s.repsR||0}</div>`
       ).join('')}</div>`;
     }
     if (s0.repsL !== undefined) {
+      const shown = data.sets.filter(s => State.setIsClaimed(data, s));
+      if (shown.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
       // New format: per-set weight; old format: shared data.weight
       if (s0.weight !== undefined) {
-        return `<div class="sd-sets">${data.sets.map((s, i) =>
+        return `<div class="sd-sets">${shown.map((s, i) =>
           `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.weight||0}${wLabel} · L: ${s.repsL} · R: ${s.repsR}</div>`
         ).join('')}</div>`;
       }
       const w = data.weight || 0;
-      return `<div class="sd-sets"><div class="sd-set" style="margin-bottom:4px;">${w}${wLabel}</div>${data.sets.map((s, i) =>
+      return `<div class="sd-sets"><div class="sd-set" style="margin-bottom:4px;">${w}${wLabel}</div>${shown.map((s, i) =>
         `<div class="sd-set"><span class="sd-num">${i+1}</span> L: ${s.repsL} · R: ${s.repsR}</div>`
       ).join('')}</div>`;
     }
     // Standard weight×reps
     const hasAssistedR = s => s.repsAssisted !== null && s.repsAssisted !== undefined && s.repsAssisted !== '';
-    const validSets = data.sets.filter(s => (s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) || hasAssistedR(s));
+    const validSets = data.sets.filter(s => State.setIsClaimed(data, s) && ((s.reps !== null && s.reps !== undefined && s.reps !== '' && parseInt(s.reps) !== 0) || hasAssistedR(s)));
     if (validSets.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
     return `<div class="sd-sets">${validSets.map((s, i) =>
       `<div class="sd-set"><span class="sd-num">${i+1}</span> ${parseFloat(s.weight)||0}${wLabel}${equipMark(ex, data, s)} × ${esc(repDisplay(s))}</div>`
@@ -5747,7 +5766,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.23.0';
+const APP_VERSION = '1.23.1';
 
 // =====================================================
 // APP INIT
