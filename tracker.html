@@ -1034,6 +1034,26 @@ const Data = (function() {
     return getSessions().filter(s => !s.backedUp);
   }
 
+  // ---- Event log (v1.24.0) — usage instrumentation, NOT session data ----
+  // Purpose: settle empirically what an exercise's real start signal is. Screen-open is known-bad
+  // (Tomáš browses future exercises mid-session — the phantom-history invariant in temporal form,
+  // locked 19 Jul), so we log BOTH the open and the first genuine input and decide later from data.
+  // Compact keys keep the ring buffer small: t=ISO time, e=event, x=exercise id, w=workout id.
+  // Never read by any logging/export path — a corrupt or missing log can never affect session data.
+  const EVENT_LOG_KEY = 'gym-event-log';
+  const EVENT_LOG_MAX = 3000;
+  function getEventLog() {
+    try { const l = JSON.parse(localStorage.getItem(EVENT_LOG_KEY)); return Array.isArray(l) ? l : []; } catch { return []; }
+  }
+  function logEvent(type, detail) {
+    try {
+      const log = getEventLog();
+      log.push({ t: new Date().toISOString(), e: type, ...(detail || {}) });
+      if (log.length > EVENT_LOG_MAX) log.splice(0, log.length - EVENT_LOG_MAX);
+      localStorage.setItem(EVENT_LOG_KEY, JSON.stringify(log));
+    } catch (e) { /* quota or private mode — instrumentation must never break the app */ }
+  }
+
   // Sled length distance (meters per length, persists across sessions)
   function getSledLength() {
     return parseFloat(localStorage.getItem(SLED_LENGTH_KEY)) || 15;
@@ -1085,7 +1105,7 @@ const Data = (function() {
     else localStorage.removeItem(`gym-cues-${exerciseId}`);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, markBackedUp, getUnbackedSessions, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym };
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, markBackedUp, getUnbackedSessions, logEvent, getEventLog, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym };
 })();
 
 // =====================================================
@@ -1113,6 +1133,7 @@ const State = (function() {
       gym: Data.getLastGym(),
     };
     Data.saveWIP(wip);
+    Data.logEvent('session-start', { w: workoutId });
     return wip;
   }
 
@@ -1120,12 +1141,14 @@ const State = (function() {
     if (!wip || wip.startedAt) return;
     wip.startedAt = new Date().toISOString();
     Data.saveWIP(wip);
+    Data.logEvent('clock-start');
   }
 
   function endTimer() {
     if (!wip || wip.completedAt) return;
     wip.completedAt = new Date().toISOString();
     Data.saveWIP(wip);
+    Data.logEvent('clock-end');
   }
 
   function getWIP() { return wip; }
@@ -1143,8 +1166,34 @@ const State = (function() {
 
   function logExercise(exIndex, data) {
     if (!wip) return;
+    // autoSaveExercise rebuilds `data` from the DOM each time, so carry the timing stamps forward
+    // or they'd be wiped on the next keystroke. Internal fields — never exported.
+    const prev = wip.exercises[exIndex];
+    if (prev) {
+      if (prev.firstInputAt && !data.firstInputAt) data.firstInputAt = prev.firstInputAt;
+      if (prev.completedAtTime && !data.completedAtTime) data.completedAtTime = prev.completedAtTime;
+    }
     wip.exercises[exIndex] = data;
     Data.saveWIP(wip);
+  }
+
+  // Per-exercise timing stamps (v1.24.0). firstInputAt = first genuine input (typed value / timer
+  // tap) — NEVER screen-open, which browsing would fake. completedAtTime = the "Completed ✓" tap.
+  // Together they bracket the exercise; the gap from the previous ✓ is transition/setup time.
+  function stampExerciseFirstInput(exIndex) {
+    if (!wip) return;
+    const e = wip.exercises[exIndex] || (wip.exercises[exIndex] = {});
+    if (e.firstInputAt) return;
+    e.firstInputAt = new Date().toISOString();
+    Data.saveWIP(wip);
+    Data.logEvent('ex-first-input', { i: Number(exIndex), x: e.exId });
+  }
+  function stampExerciseCompleted(exIndex) {
+    if (!wip) return;
+    const e = wip.exercises[exIndex] || (wip.exercises[exIndex] = {});
+    e.completedAtTime = new Date().toISOString();
+    Data.saveWIP(wip);
+    Data.logEvent('ex-completed', { i: Number(exIndex), x: e.exId });
   }
 
   function updateSessionNotes(overall, injuries, gym) {
@@ -1263,6 +1312,12 @@ const State = (function() {
   function setIsClaimed(data, s) {
     return !!(data && data.completed) || setIsGenuine(s);
   }
+  // A sled row that PRINTS: claimed by the v1.20.0 ghost rule AND carrying at least one non-zero
+  // value. An added-but-untouched sled row collects as {weight:0, lengths:0, timeSeconds:0} — a
+  // "Completed exercise ✓" tap would otherwise claim it and export "0 lengths, 0:00 @ 0kg".
+  function sledRowIsReal(data, s) {
+    return setIsClaimed(data, s) && !!(s.lengths || s.timeSeconds || s.weight);
+  }
   function entryHasGenuineData(data) {
     if (!data) return false;
     if (data.completed) return true;                                   // explicit "Completed exercise" tap
@@ -1328,7 +1383,8 @@ const State = (function() {
         wip.completedAt = now.toISOString();
       }
     }
-    delete wip.lastActivityAt;   // WIP-only bookkeeping — keep saved sessions/export clean
+    // Keep lastActivityAt on the SAVED session (v1.24.0) — zero-cost forensics for "what was the
+    // real end time?". Internal only: never exported (exportSession reads startedAt/completedAt).
     // Drop ghost entries — exercise screens opened but never actually logged — so the saved session
     // matches exactly what history shows and what export writes. Uses the same genuine-data test.
     // Skip-stated entries (v1.18.0) are deliberately NOT genuine (no phantom history/datapoints) but
@@ -1351,6 +1407,7 @@ const State = (function() {
     }
     const finished = { ...wip };
     if (endAdjusted) finished.endAdjusted = true;   // summary-screen note only — never stored
+    Data.logEvent('session-finish', { w: wip.workoutId, adj: endAdjusted || undefined });
     wip = null;
     Data.clearWIP();
     return finished;
@@ -1417,7 +1474,7 @@ const State = (function() {
     return results;
   }
 
-  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, setIsClaimed, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked, touchActivity };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, setIsClaimed, sledRowIsReal, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked, touchActivity, stampExerciseFirstInput, stampExerciseCompleted };
 })();
 
 // =====================================================
@@ -1734,12 +1791,25 @@ const Markdown = (function() {
 
       // Sled — per-set lengthM (recorded at save time) wins over the current setting, so history
       // logged at a different gym/track length re-exports with the length it was actually done at.
+      // v1.24.0: ghost rows are dropped (sledRowIsReal), and 2+ real rows emit ONE line with
+      // per-set tokens — separate lines per set would collide on import (one exercise slot).
+      // lengthM is emitted once, from the first real row: the app stamps every row with the same
+      // setting at save time, so mixed values can only come from hand-editing — that case
+      // normalizes on the first round-trip (md1→md2 only; md2===md3 holds).
       if (s0.lengths !== undefined) {
         const sledLength = Data.getSledLength();
-        for (const s of data.sets) {
+        const rows = data.sets.filter(s => State.sledRowIsReal(data, s));
+        if (rows.length === 0) continue;   // all-ghost → no line (matches the standard branch)
+        if (rows.length === 1) {
+          const s = rows[0];
           const len = s.lengthM || sledLength;
           const dist = s.lengths * len;
           md += `- **${displayName}** — 1×(${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}) @ ${s.weight||0}kg (length = ${len}m, total ~${Math.round(dist)}m)\n`;
+        } else {
+          const len = rows[0].lengthM || sledLength;
+          const total = Math.round(rows.reduce((n, s) => n + (s.lengths || 0), 0) * len);
+          const body = rows.map(s => `${s.lengths || 0} length${(s.lengths || 0) === 1 ? '' : 's'} ${Timer.formatTime(s.timeSeconds||0)} @${s.weight||0}kg`).join(', ');
+          md += `- **${displayName}** — ${rows.length}×(${body}) (length = ${len}m, total ~${total}m)\n`;
         }
         md += formatNotes(data.notes);
         md += '\n';
@@ -2094,6 +2164,23 @@ const Markdown = (function() {
             }
           }
 
+          // 3b. Sled, multi-set (v1.24.0): 3×(1 length 0:52 @70kg, 2 lengths 1:44 @65kg) (length = 50m, total ~200m)
+          // Every token must parse AND the token count must match the N× prefix — otherwise the
+          // whole line falls through to skippedLines (nothing-silent), never a partial import.
+          if (!parsed) {
+            const msSled = rest.match(/^(\d+)×\((.+)\)\s*\(length\s*=\s*([\d.]+)m/);
+            if (msSled && /\blengths?\b/.test(msSled[2])) {
+              const lengthM = parseFloat(msSled[3]);
+              const rows = msSled[2].split(', ').map(p => {
+                const t = p.trim().match(/^(\d+)\s+lengths?\s+(\d+:\d{2})\s*@\s*([\d.]+)kg$/);
+                if (!t) return null;
+                const tp = t[2].split(':');
+                return { weight: parseFloat(t[3]), lengths: parseInt(t[1]), timeSeconds: parseInt(tp[0]) * 60 + parseInt(tp[1]), lengthM };
+              });
+              if (rows.every(Boolean) && rows.length === parseInt(msSled[1])) parsed = { sets: rows };
+            }
+          }
+
           // 4. Weight/distance: 3×(40m,35m,30m) @ 22kg/hand
           if (!parsed) {
             const wdMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*@\s*([\d.]+)kg/);
@@ -2179,9 +2266,11 @@ const Markdown = (function() {
 
           // 7a. Per-set weights: 3×(6 @41.3, 6 @40, 6 @38) kg — also 3×(4+2a @41.3, ...) assisted,
           //     and equipment-suffixed weights from mixed sessions: 3×(10 @10, 10 @6/hand, ...) kg
+          //     `lengths` guard: a MALFORMED multi-set sled line would otherwise parse here as
+          //     weight×reps ("1 length 0:5" → 1 rep @ 70kg) — it must fall to skippedLines instead.
           if (!parsed) {
             const perSetMatch = rest.match(/^(\d+)×[\[(]([^\])]+)[\])]\s*(\w+)?/);
-            if (perSetMatch && perSetMatch[2].includes('@')) {
+            if (perSetMatch && perSetMatch[2].includes('@') && !/\blengths?\b/.test(perSetMatch[2])) {
               const entries = perSetMatch[2].split(',').map(e => {
                 const parts = e.trim().split(/\s*@/);
                 const rc = parseRepCell(parts[0]);
@@ -2439,6 +2528,32 @@ const Backup = (function() {
     }
   }
 
+  // Push the usage event log (v1.24.0) to a single rolling file. Best-effort and fire-and-forget:
+  // it is instrumentation, never durability — a failure must never affect session backup status.
+  // Lives OUTSIDE sessions/ so the Mac-side pull script's session parsing is untouched.
+  async function pushEventLog() {
+    if (!isConfigured()) return { ok: false };
+    try {
+      const log = Data.getEventLog();
+      if (!log.length) return { ok: true, skipped: true };
+      const content = JSON.stringify(log, null, 0);
+      const path = 'diagnostics/event-log.json';
+      let sha = null;
+      const head = await fetch(contentsUrl(path), { headers: headers() });
+      if (head.status === 200) {
+        const existing = await head.json().catch(() => null);
+        if (existing) {
+          sha = existing.sha;
+          if (existing.content && b64decode(existing.content) === content) return { ok: true, skipped: true };
+        }
+      }
+      const body = { message: `event log — ${log.length} events`, content: b64encode(content) };
+      if (sha) body.sha = sha;
+      const res = await fetch(contentsUrl(path), { method: 'PUT', headers: headers({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
+      return { ok: res.status === 200 || res.status === 201 };
+    } catch (e) { return { ok: false }; }
+  }
+
   // Indices of sessions GitHub has not confirmed. Index space is Data.getSessions() (sorted on read).
   function pendingIndices() {
     return Data.getSessions().map((s, i) => (s.backedUp ? -1 : i)).filter(i => i >= 0);
@@ -2485,7 +2600,7 @@ const Backup = (function() {
   }
 
   return { getToken, setToken, getRepo, setRepo, DEFAULT_REPO, isConfigured, maskedToken,
-           pathFor, pushSession, pendingIndices, retryPending, test };
+           pathFor, pushSession, pushEventLog, pendingIndices, retryPending, test };
 })();
 
 // =====================================================
@@ -2571,12 +2686,50 @@ const Timer = (function() {
     try { const a = ensureBeepAudio(); if (a) { a.currentTime = 0; a.play().catch(() => {}); } } catch (e) {}
   }
 
+  // Celebration chime (v1.24.0) — a short ascending C-major arpeggio (C6→E6→G6 + soft C7 doubling
+  // the last note), clearly distinct from the alarm bell. Same <audio>-element path as the beep:
+  // that's the ONE route proven audible on the real iPhone.
+  let chimeAudio = null;
+  function _chimeWavUri() {
+    const sr = 16000, secs = 0.7, n = Math.floor(sr * secs);
+    const buf = new ArrayBuffer(44 + n * 2), view = new DataView(buf);
+    const ws = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, sr, true); view.setUint32(28, sr * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    ws(36, 'data'); view.setUint32(40, n * 2, true);
+    const notes = [[1046.5, 0], [1318.5, 0.11], [1568, 0.22], [2093, 0.22]];
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      let s = 0;
+      for (const [f, at] of notes) {
+        const dt = t - at;
+        if (dt >= 0) s += Math.exp(-dt * 7) * Math.sin(2 * Math.PI * f * dt) * (f === 2093 ? 0.25 : 0.6);
+      }
+      s = Math.max(-1, Math.min(1, s));
+      view.setInt16(44 + i * 2, s * 0.7 * 32767, true);
+    }
+    let bin = ''; const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return 'data:audio/wav;base64,' + btoa(bin);
+  }
+  function ensureChimeAudio() {
+    if (chimeAudio) return chimeAudio;
+    try { chimeAudio = new Audio(_chimeWavUri()); chimeAudio.preload = 'auto'; } catch (e) {}
+    return chimeAudio;
+  }
+  function playChime() {
+    claimPlaybackSession();
+    try { const a = ensureChimeAudio(); if (a) { a.currentTime = 0; a.play().catch(() => {}); } } catch (e) {}
+  }
+
   // iOS only unlocks audio inside a user gesture. Prime BOTH the Web-Audio context and the <audio>
   // element on the very first tap anywhere, so later timer alarms / Test-sound can actually make noise.
   // (Note: neither can override the hardware ring/silent switch — that's a native-only capability.)
   function _primeAudioOnce() {
     ensureAudio();
     try { const a = ensureBeepAudio(); if (a) { a.muted = true; a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; }); } } catch (e) {}
+    try { const c = ensureChimeAudio(); if (c) { c.muted = true; c.play().then(() => { c.pause(); c.currentTime = 0; c.muted = false; }).catch(() => { c.muted = false; }); } } catch (e) {}
     document.removeEventListener('touchend', _primeAudioOnce);
     document.removeEventListener('click', _primeAudioOnce);
   }
@@ -2748,26 +2901,32 @@ const Timer = (function() {
   // Stopwatch for sled time tracking
   const stopwatches = {};
 
+  // Stop one stopwatch AND write its elapsed time into its input (dispatching `input` so
+  // autosave + touched-stamping run). Every stop path must go through this — a blind
+  // clearInterval used to silently lose a still-running stopwatch's time on "Completed ✓".
+  function _stopStopwatch(id) {
+    const sw = stopwatches[id];
+    if (!sw) return;
+    const elapsed = Math.round((Date.now() - sw.start) / 1000);
+    clearInterval(sw.interval);
+    delete stopwatches[id];
+    const btn = document.getElementById(id);
+    if (btn) { btn.textContent = '⏱️ Start timer'; btn.classList.remove('running'); }
+    const timeInput = document.getElementById(sw.timeInputId);
+    if (timeInput) { timeInput.value = formatTime(elapsed); timeInput.dispatchEvent(new Event('input', { bubbles: true })); }
+    if (!hasActiveTimer()) releaseWakeLock();
+  }
+
   function toggleStopwatch(id, timeInputId) {
     ensureAudio();
     const btn = document.getElementById(id);
     if (!btn) return;
 
     if (stopwatches[id]) {
-      // Stop
-      const elapsed = Math.round((Date.now() - stopwatches[id].start) / 1000);
-      clearInterval(stopwatches[id].interval);
-      delete stopwatches[id];
-      btn.textContent = '⏱️ Start timer';
-      btn.classList.remove('running');
-      // Fill the time input
-      const timeInput = document.getElementById(timeInputId);
-      if (timeInput) timeInput.value = formatTime(elapsed);
-      // Trigger autosave
-      timeInput?.dispatchEvent(new Event('input', { bubbles: true }));
-      if (!hasActiveTimer()) releaseWakeLock();
+      _stopStopwatch(id);
     } else {
-      // Start
+      // Only one sled set runs at a time — starting a stopwatch stops (and records) any other.
+      Object.keys(stopwatches).forEach(_stopStopwatch);
       requestWakeLock();
       State.startTimer();   // starting the sled stopwatch also starts the session clock
       const start = Date.now();
@@ -2775,6 +2934,7 @@ const Timer = (function() {
       btn.classList.add('running');
       stopwatches[id] = {
         start,
+        timeInputId,
         interval: setInterval(() => {
           const elapsed = Math.round((Date.now() - start) / 1000);
           btn.textContent = formatTime(elapsed);
@@ -2900,9 +3060,10 @@ const Timer = (function() {
   // never survive nav, so clear those wholesale as before.
   function finalize(prefix) {
     Object.values(timers).forEach(t => clearInterval(t.interval));
-    Object.values(stopwatches).forEach(s => clearInterval(s.interval));
     Object.keys(timers).forEach(k => delete timers[k]);
-    Object.keys(stopwatches).forEach(k => delete stopwatches[k]);
+    // Stop-and-WRITE running stopwatches (the DOM is still up here) — a blind clear used to
+    // silently lose a still-running sled time when "Completed exercise ✓" was tapped mid-run.
+    Object.keys(stopwatches).forEach(_stopStopwatch);
     Object.keys(holdTimers).forEach(id => {
       if (!id.startsWith(prefix)) return;
       const elapsed = stopHoldTimer(id);
@@ -2975,7 +3136,91 @@ const Timer = (function() {
     return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, pauseHoldTimer, resumeHoldTimer, isHoldPaused, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, finalize, detachOnNav, snapshotLiveTimers, reattach, ensureAudio, alarm, audioState };
+  return { startCountdown, togglePause, isRunning, isActive, toggleStopwatch, startHoldTimer, stopHoldTimer, pauseHoldTimer, resumeHoldTimer, isHoldPaused, getHoldElapsed, isHoldActive, formatTime, formatDuration, formatTimeOfDay, cleanup, finalize, detachOnNav, snapshotLiveTimers, reattach, ensureAudio, alarm, audioState, playChime };
+})();
+
+// =====================================================
+// CELEBRATE MODULE — confetti + chime on completion (v1.24.0)
+// =====================================================
+// Canvas confetti with zero dependencies. The canvas lives on <body> (Router only rewrites
+// #app.innerHTML) so a burst's tail survives navigation back to the workout list. pointer-events:
+// none — every tap passes through; fixed positioning keeps it out of layout entirely.
+const Celebrate = (function() {
+  let canvas = null, raf = null;
+  const REDUCED = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function _teardown() {
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    if (canvas) { canvas.remove(); canvas = null; }
+  }
+
+  function _colors() {
+    const cs = getComputedStyle(document.documentElement);
+    return ['--green', '--amber', '--accent', '--red']
+      .map(v => cs.getPropertyValue(v).trim()).filter(Boolean);
+  }
+
+  function _burst(volleys, durationMs) {
+    _teardown();   // a double-tap or a finish-over-exercise overlap never leaks two rAF loops
+    canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9500;';
+    canvas.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(canvas);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const colors = _colors();
+    const parts = [];
+    const spawn = (count) => {
+      for (let i = 0; i < count; i++) {
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;   // upward fan
+        const speed = 17 + Math.random() * 12;   // measured: peaks ~2/3 up a 667px phone screen (drag damps it well below the ballistic estimate)
+        parts.push({
+          x: innerWidth / 2 + (Math.random() - 0.5) * 80, y: innerHeight + 10,
+          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          w: 5 + Math.random() * 5, h: 3 + Math.random() * 4,
+          rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+          color: colors[i % colors.length] || '#2e7d32'
+        });
+      }
+    };
+    volleys.forEach(([count, delay]) => delay ? setTimeout(() => parts.length && spawn(count), delay) : spawn(count));
+    const t0 = performance.now();
+    const tick = (t) => {
+      if (!canvas) return;
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      let alive = false;
+      for (const p of parts) {
+        p.vy += 0.35; p.vx *= 0.99; p.vy *= 0.99;
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        if (p.y < innerHeight + 20) alive = true;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = p.color; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+      if (alive && t - t0 < durationMs) raf = requestAnimationFrame(tick);
+      else _teardown();
+    };
+    raf = requestAnimationFrame(tick);
+  }
+
+  // Per-exercise ✓ — short burst, cheerful chime, tiny buzz. Called synchronously inside the tap
+  // handler: iOS only unlocks audio close to a user gesture.
+  function exercise() {
+    Timer.playChime();
+    if (navigator.vibrate) navigator.vibrate(60);
+    if (!REDUCED()) _burst([[60, 0]], 1600);
+  }
+  // Whole-workout finish — denser two-volley burst, same chime (ONE audio asset to verify
+  // on-device — iOS audio is the subsystem with a history of silent-on-phone surprises), richer buzz.
+  function session() {
+    Timer.playChime();
+    if (navigator.vibrate) navigator.vibrate([60, 80, 60]);
+    if (!REDUCED()) _burst([[80, 0], [50, 350]], 2600);
+  }
+
+  return { exercise, session };
 })();
 
 // =====================================================
@@ -3019,7 +3264,21 @@ const Views = (function() {
     let wipBanner = '';
     if (wip) {
       const w = PROGRAMME.find(p => p.id === wip.workoutId);
-      wipBanner = `
+      // Stale session (v1.24.0): no genuine input for 3h+ means you almost certainly finished and
+      // forgot to close it. Nudge to finish rather than letting the clock run for days — finishing
+      // applies the same 3h safety net that back-dates the end to your last real input.
+      const lastAct = wip.lastActivityAt ? new Date(wip.lastActivityAt) : null;
+      const isStale = lastAct && (Date.now() - lastAct > 3 * 60 * 60 * 1000);
+      wipBanner = isStale ? `
+        <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:10px;padding:12px;margin-bottom:16px;">
+          <div style="font-weight:600;color:var(--amber);">Session left open</div>
+          <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">W${wip.workoutId} — ${w ? w.name : ''} (${Markdown.formatDate(wip.date)})</div>
+          <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">Last input ${Timer.formatTimeOfDay(wip.lastActivityAt)} — looks like you finished. Closing it now sets that as the end time.</div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-amber" style="flex:1;font-size:0.85rem;padding:10px;" onclick="Views.finishWorkout(${wip.workoutId})">Finish it</button>
+            <button class="btn btn-secondary" style="flex:1;font-size:0.85rem;padding:10px;" onclick="Router.go('/w/${wip.workoutId}')">Resume</button>
+          </div>
+        </div>` : `
         <div style="background:var(--amber-bg);border:1px solid var(--amber);border-radius:10px;padding:12px;margin-bottom:16px;">
           <div style="font-weight:600;color:var(--amber);">Session in progress</div>
           <div style="font-size:0.85rem;color:var(--text2);margin-top:4px;">W${wip.workoutId} — ${w ? w.name : ''} (${Markdown.formatDate(wip.date)})</div>
@@ -3429,7 +3688,7 @@ const Views = (function() {
           detail = `${lastEntry.weight||0}kg — ` + lastEntry.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
         }
       } else if (s0.lengths !== undefined) {
-        detail = lastEntry.sets.map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
+        detail = lastEntry.sets.filter(s => State.sledRowIsReal(lastEntry, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
       } else if (s0.distance !== undefined) {
         detail = lastEntry.sets.map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(', ');
       } else {
@@ -3910,17 +4169,37 @@ const Views = (function() {
     _triggerAutoSave();
   }
 
+  // Derived sled readouts — km/h is Tomáš's chosen display unit (28 Jul), always computed from
+  // distance ÷ time, never typed. Guard zero time (a real log row has 0:00) → no speed, never NaN.
+  function _sledKmh(lengths, lengthM, seconds) {
+    const d = (parseFloat(lengths) || 0) * (lengthM || 0);
+    return (d > 0 && seconds > 0) ? ((d / seconds) * 3.6).toFixed(1) : '';
+  }
+  function _sledDerivedText(lengths, lengthM, seconds) {
+    const l = parseFloat(lengths) || 0;
+    if (!l || !lengthM) return '';
+    const kmh = _sledKmh(l, lengthM, seconds);
+    return `= ${Math.round(l * lengthM)}m` + (kmh ? ` · ${kmh} km/h` : '');
+  }
+  function _sledTotalText(rows, lengthM) {
+    const real = rows.filter(r => (parseFloat(r.lengths) || 0) > 0);
+    if (real.length < 2) return '';
+    const totalLen = real.reduce((n, r) => n + (parseFloat(r.lengths) || 0), 0);
+    const totalSec = real.reduce((n, r) => n + (r.timeSeconds || 0), 0);
+    const kmh = _sledKmh(totalLen, lengthM, totalSec);
+    return `Total ${Math.round(totalLen * lengthM)}m · ${Timer.formatTime(totalSec)}` + (kmh ? ` · ${kmh} km/h` : '');
+  }
   function renderSledSets(ex, existingData, lastEntry) {
     const sledLength = Data.getSledLength();
     let html = `
       <div class="sled-persistent">
         <label>Length distance:</label>
         <input type="number" class="set-input sled-length-input" inputmode="decimal" step="0.5" value="${sledLength}" style="display:inline;width:80px;"
-          oninput="Data.setSledLength(parseFloat(this.value)||15); Views._updateSledDerived();">
+          oninput="Data.setSledLength(parseFloat(this.value)||15); Views._updateSledDerived(); Views._triggerAutoSave();">
         <span style="color:var(--text2);">m</span>
       </div>`;
-    // Sled typically has 1 set but support multiple
-    const numSets = ex.sets || 1;
+    // Sled defaults to 1 set; "+ Add set" grows the WIP sets array (PROGRAMME stays sets:1)
+    const numSets = _numSets(ex, existingData);
     html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr;"><span></span><span>kg</span><span>lengths</span><span>time</span></div>`;
     for (let s = 0; s < numSets; s++) {
       const existing = existingData?.sets?.[s];
@@ -3932,13 +4211,13 @@ const Views = (function() {
         <div class="sled-set-row">
           <span class="set-label">Set ${s + 1}</span>
           <input type="number" class="set-input sled-weight" inputmode="decimal" step="0.5" placeholder="kg" value="${weight}" data-set="${s}">
-          <input type="number" class="set-input sled-lengths" inputmode="numeric" step="1" placeholder="len" value="${lengths}" data-set="${s}"
-            oninput="Views._updateSledDerived();">
+          <input type="number" class="set-input sled-lengths" inputmode="numeric" step="1" placeholder="len" value="${lengths}" data-set="${s}">
           <input type="text" class="set-input sled-time" inputmode="text" placeholder="m:ss" value="${timeStr}" data-set="${s}" id="sled-time-${s}">
         </div>
         <button class="stopwatch-btn" id="sw-${s}" onclick="Timer.toggleStopwatch('sw-${s}', 'sled-time-${s}')">⏱️ Start timer</button>
-        <div class="sled-derived" id="sled-derived-${s}">${lengths && sledLength ? `= ${Math.round(lengths * sledLength)}m` : ''}</div>`;
+        <div class="sled-derived" id="sled-derived-${s}">${_sledDerivedText(lengths, sledLength, existing?.timeSeconds)}</div>`;
     }
+    html += `<div class="sled-derived" id="sled-total">${_sledTotalText((existingData?.sets || []), sledLength)}</div>`;
     return html;
   }
 
@@ -4038,6 +4317,8 @@ const Views = (function() {
 
     const ns = 'w' + workoutId + 'e' + exIndex + '-';   // namespace for this exercise's timer ids
     _currentRenderCtx = { workoutId, exIndex };
+    // Logged for USAGE ANALYSIS only — an open is browsing, not a start (see stampExerciseFirstInput).
+    if (State.hasWIP()) Data.logEvent('ex-open', { i: exIndex, x: ex.id });
     // Keep hold timers running across navigation (so they survive a peek and keep beeping); only
     // clear the unused countdowns + sled stopwatches.
     Timer.detachOnNav();
@@ -4158,7 +4439,7 @@ const Views = (function() {
         ${cuesHtml}
         ${formatLastEntry(lastEntry, ex)}
         ${inputsHtml}
-        ${['weight_reps','reps_only','weight_distance'].includes(trackingType) ? `<button class="add-set-btn" onclick="Views.addSet(${exIndex})">+ Add set</button>` : ''}
+        ${['weight_reps','reps_only','weight_distance','sled'].includes(trackingType) ? `<button class="add-set-btn" onclick="Views.addSet(${exIndex})">+ Add set</button>` : ''}
         <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
           oninput="Views._triggerAutoSave()">${esc(existingNotes)}</textarea>
         <input type="hidden" id="ex-completed" value="${existingData?.completed ? 'true' : ''}">
@@ -4175,6 +4456,7 @@ const Views = (function() {
       input.addEventListener('input', () => {
         input.dataset.touched = '1';   // distinguishes a set you actually entered from prefilled defaults
         Views._triggerAutoSave();
+        if (trackingType === 'sled') Views._updateSledDerived();   // distance/speed react to lengths, time AND kg edits
         Views.updateBanner(ex);
       });
       // Select all on focus so tapping a pre-filled "0" lets you type immediately
@@ -4279,6 +4561,10 @@ const Views = (function() {
   // timer tap, time edit) — never on screen-open — so it doubles as the last-activity stamp.
   function _triggerAutoSave() {
     State.touchActivity();
+    // First genuine input on this exercise (v1.24.0) — the honest "started working" marker.
+    // Screen-open is deliberately NOT used (browsing future exercises would fake it), so this
+    // and the ✓ stamp bracket the exercise; the gap to the previous ✓ is transition time.
+    if (_currentRenderCtx) State.stampExerciseFirstInput(_currentRenderCtx.exIndex);
     if (_currentRenderCtx) autoSaveExercise(_currentRenderCtx.workoutId, _currentRenderCtx.exIndex);
     // Starting to log the first exercise auto-starts the session clock if you forgot the Start button.
     const wip = State.getWIP();
@@ -4287,15 +4573,23 @@ const Views = (function() {
     if (el) { el.textContent = 'Saved ✓'; clearTimeout(el._t); el._t = setTimeout(() => el.textContent = 'Auto-saved', 1500); }
   }
 
+  // Pure DOM readout — saving is the generic input listener's job (calling _triggerAutoSave here
+  // too used to double-save every lengths edit). Reads time as well, so speed updates live.
   function _updateSledDerived() {
     const sledLength = Data.getSledLength();
+    const rows = [];
     document.querySelectorAll('.sled-lengths').forEach(input => {
       const s = input.dataset.set;
       const lengths = parseFloat(input.value) || 0;
+      const timeStr = document.getElementById(`sled-time-${s}`)?.value || '';
+      const parts = timeStr.split(':');
+      const timeSeconds = parts.length === 2 ? (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0) : parseInt(timeStr) || 0;
+      rows.push({ lengths, timeSeconds });
       const el = document.getElementById(`sled-derived-${s}`);
-      if (el) el.textContent = lengths && sledLength ? `= ${Math.round(lengths * sledLength)}m` : '';
+      if (el) el.textContent = _sledDerivedText(lengths, sledLength, timeSeconds);
     });
-    _triggerAutoSave();
+    const totalEl = document.getElementById('sled-total');
+    if (totalEl) totalEl.textContent = _sledTotalText(rows, sledLength);
   }
 
   // ---- Auto-save: collect data from DOM based on tracking type ----
@@ -4381,7 +4675,7 @@ const Views = (function() {
       }
       case 'sled': {
         data.sets = [];
-        for (let s = 0; s < (effEx.sets || 1); s++) {
+        for (let s = 0; s < numSetsSave; s++) {
           const w = document.querySelector(`.sled-weight[data-set="${s}"]`);
           const l = document.querySelector(`.sled-lengths[data-set="${s}"]`);
           const t = document.querySelector(`.sled-time[data-set="${s}"]`);
@@ -4502,9 +4796,11 @@ const Views = (function() {
   function completeExercise(workoutId, exIndex) {
     const btn = document.querySelector('.done-btn');
     if (btn && btn.dataset.committing) return;   // double-tap guard during the commit pause
+    Celebrate.exercise();   // FIRST — audio must fire synchronously inside the tap gesture (iOS)
     const completedInput = document.getElementById('ex-completed');
     if (completedInput) completedInput.value = 'true';
     State.touchActivity();
+    State.stampExerciseCompleted(exIndex);   // permanent per-exercise finish time (+ pacing data)
     const ghosts = [];
     document.querySelectorAll('.set-input').forEach(input => {
       // Only blank boxes whose placeholder is a would-be NUMBER (never the "kg"/"reps" column labels)
@@ -4513,7 +4809,8 @@ const Views = (function() {
         ghosts.push(input);
       }
     });
-    if (ghosts.length === 0) { saveAndBack(workoutId, exIndex); return; }
+    // Both branches wait 700ms (the ghost-commit animation length) — the no-ghost path used to
+    // navigate instantly, which would cut the celebration off before it was visible.
     autoSaveExercise(workoutId, exIndex);   // persist NOW — only the navigation waits for the animation
     if (btn) { btn.dataset.committing = '1'; btn.textContent = 'Saved ✓'; }
     ghosts.forEach(i => i.classList.add('ghost-commit'));
@@ -5029,7 +5326,7 @@ const Views = (function() {
         } else if (s0.repsL !== undefined) {
           setsStr = `${data.weight||0}kg — ` + data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== '')).map(s => `L${s.repsL}/R${s.repsR}`).join(' | ');
         } else if (s0.lengths !== undefined) {
-          setsStr = data.sets.map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ');
+          setsStr = data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ') || '—';
         } else if (s0.distance !== undefined) {
           setsStr = data.sets.filter(s => s.distance).map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(' | ');
         } else {
@@ -5084,6 +5381,9 @@ const Views = (function() {
     // Zero-tap cloud backup. Fires automatically, reports honestly, and never blocks the summary
     // screen — a failed push leaves the session flagged pending for the next sweep.
     runSummaryBackup();
+
+    // Finish celebration — after the summary has painted, so the burst lands on the 💪 screen.
+    requestAnimationFrame(() => Celebrate.session());
   }
 
   // Renders into #backup-status on the summary screen. Silent only when backup isn't set up
@@ -5102,6 +5402,7 @@ const Views = (function() {
     box('var(--bg-card)', 'var(--border)', 'var(--text2)', '☁️ Backing up…');
     const idx = window._lastSessionIndex;
     const r = await Backup.pushSession(idx);
+    Backup.pushEventLog();   // fire-and-forget instrumentation — never gates the session backup status
     if (r.ok) {
       box('var(--green-bg)', 'var(--green)', 'var(--green)', '☁️ Backed up to GitHub ✓');
     } else {
@@ -5446,7 +5747,7 @@ const Views = (function() {
     const s0 = data.sets[0];
     const wLabel = ex?.weightLabel || 'kg';
     if (s0.lengths !== undefined) {
-      return data.sets.map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
+      return data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ') || '—';
     }
     if (s0.distance !== undefined) {
       return data.sets.map(s => `${s.weight||0}${wLabel}/h × ${s.distance}m`).join(', ');
@@ -5504,10 +5805,10 @@ const Views = (function() {
 
     if (s0.lengths !== undefined) {
       const sledLength = Data.getSledLength();
-      return `<div class="sd-sets">${data.sets.map((s, i) => {
+      return `<div class="sd-sets">${data.sets.filter(s => State.sledRowIsReal(data, s)).map((s, i) => {
         const dist = s.lengths * (s.lengthM || sledLength);
         return `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.weight||0}${wLabel} · ${s.lengths}L · ${Timer.formatTime(s.timeSeconds||0)}${dist ? ` (~${Math.round(dist)}m)` : ''}</div>`;
-      }).join('')}</div>`;
+      }).join('') || '—'}</div>`;
     }
     if (s0.distance !== undefined) {
       return `<div class="sd-sets">${data.sets.map((s, i) =>
@@ -5766,7 +6067,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.23.1';
+const APP_VERSION = '1.24.0';
 
 // =====================================================
 // APP INIT
