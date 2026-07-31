@@ -597,6 +597,14 @@ const VARIANTS = {
   pullover: [
     { id: 'single-db', label: 'One dumbbell', trackingType: 'weight_reps', isDefault: true },
     { id: 'two-db', label: '2-DB pullover (kg/hand)', trackingType: 'weight_reps', isDefault: false }
+  ],
+  // Two genuinely different sled sessions (Tomáš, 31 Jul). Conditioning is the historical shape and
+  // stays the DEFAULT, so every logged sled session keeps exporting under "Sled (push + pull)" and
+  // all history matches unchanged. Plyometrics prep is short timed efforts: metres per set, a timer
+  // each, and NO lengths — the lengths×length arithmetic doesn't describe it.
+  sled: [
+    { id: 'conditioning', label: 'Conditioning', trackingType: 'sled', isDefault: true },
+    { id: 'plyo', label: 'Plyometrics prep', trackingType: 'sled_metres', isDefault: false, sets: 3 }
   ]
 };
 
@@ -805,7 +813,7 @@ const PROGRAMME = [
     subtitle: "~115 min",
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', variants: VARIANTS.sled, formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'seated-calf-raise', gymArea: 'U žen', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent). Fixed: W1+W4 seated, W3+W6 SL standing (gastrocnemius).', notes: 'Mar 25: standing on squat machine didn\'t work well, couldn\'t get right impulse. Only 25kg. Go harder.' },
       { id: 'couch-stretch', gymArea: 'U žen', name: 'Couch stretch', sets: 1, reps: '60/60s', flow: 'SEQ', trackingType: 'duration', unilateral: 'split_weight', timerSeconds: 60, formCues: 'Start the L then R timer — beeps at 60s.', notes: '' },
@@ -830,7 +838,7 @@ const PROGRAMME = [
     subtitle: "~105 min",
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', variants: VARIANTS.sled, formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', gymArea: 'U žen', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'patrick-step-up', gymArea: 'U žen', name: 'Patrick step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '', notes: '' },
       { id: 'big-toe-stretch', gymArea: 'U žen', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'duration', timerSeconds: 45, formCues: 'Start the timer — beeps at 45s.', notes: '' },
@@ -858,7 +866,7 @@ const PROGRAMME = [
     subtitle: "~100 min",
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', variants: VARIANTS.sled, formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', gymArea: 'U žen', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'sl-calf-raise', gymArea: 'U žen', name: 'Single leg calf raise', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 12, formCues: 'Standing = targets gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
       { id: 'petersen-step-up', gymArea: 'U žen', name: 'Petersen step-up', sets: 4, reps: '15/15', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 15, formCues: 'Optimise for stability. Improve ROM. Assisted OK at first.', notes: '' },
@@ -880,7 +888,7 @@ const PROGRAMME = [
     subtitle: "~107 min",
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', variants: VARIANTS.sled, formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'seated-calf-raise', name: 'Seated calf raise', sets: 1, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', formCues: 'Seated = targets soleus (knee bent).', notes: '' },
       { id: 'reverse-nordics', name: 'Reverse nordics', sets: 3, reps: '10', flow: 'SEQ', trackingType: 'reps_only', prefillReps: 10, formCues: 'Kneeling on mat. Tips of feet up. Bodyweight only — no loading.', notes: '' },
@@ -903,7 +911,7 @@ const PROGRAMME = [
     subtitle: "~105 min",
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', variants: VARIANTS.sled, formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', gymArea: 'U žen', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'poliquin-step-up', gymArea: 'U žen', name: 'Poliquin step-up', sets: 2, reps: '20/20', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 20, formCues: '3 plates height. Put leg further away. Go down with bum to feel it around knee.', notes: '' },
       { id: 'big-toe-stretch', gymArea: 'U žen', name: 'Big toe stretch', sets: 1, reps: '45s', flow: 'SEQ', trackingType: 'duration', timerSeconds: 45, formCues: 'Start the timer — beeps at 45s.', notes: '' },
@@ -931,7 +939,7 @@ const PROGRAMME = [
     subtitle: "~108 min",
     exercises: [
       { id: 'backward-treadmill', name: 'Backward treadmill', sets: 1, reps: '2 min', flow: 'SEQ', trackingType: 'duration', timerSeconds: 120, formCues: 'Slow, controlled. Focus on knee tracking over toes.', notes: '' },
-      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
+      { id: 'sled', name: 'Sled (push + pull)', sets: 1, reps: '—', flow: 'SEQ', trackingType: 'sled', variants: VARIANTS.sled, formCues: 'Stay low on pull. Knees forward. VMO = bent-knee throughout. Push: drive through balls of feet.', notes: '' },
       { id: 'tibialis-raise', name: 'Tibialis raise', sets: 2, reps: '15-20', flow: 'SEQ', repRange: [15, 20], progressionType: 'atg', variants: VARIANTS.tibialis, formCues: '', notes: '' },
       { id: 'sl-calf-raise', name: 'SL calf raise (standing)', sets: 1, reps: '12/12', flow: 'SEQ', progressionType: 'atg', unilateral: 'split_weight', prefillReps: 12, formCues: 'Gastrocnemius (knee straight). Fixed: W3+W6 SL standing.', notes: '' },
       { id: 'rhythm-squat', name: 'Rhythm squat', sets: 4, reps: '50', flow: 'SEQ', progressionType: 'atg', prefillReps: 50, formCues: '35kg sweet spot. 40kg = trouble getting bar up/down.', notes: '' },
@@ -1330,8 +1338,9 @@ const State = (function() {
   // A sled row that PRINTS: claimed by the v1.20.0 ghost rule AND carrying at least one non-zero
   // value. An added-but-untouched sled row collects as {weight:0, lengths:0, timeSeconds:0} — a
   // "Completed exercise ✓" tap would otherwise claim it and export "0 lengths, 0:00 @ 0kg".
+  // `metres` covers the Plyometrics-prep variant (v1.26.0), which has no lengths at all.
   function sledRowIsReal(data, s) {
-    return setIsClaimed(data, s) && !!(s.lengths || s.timeSeconds || s.weight);
+    return setIsClaimed(data, s) && !!(s.lengths || s.metres || s.timeSeconds || s.weight);
   }
   function entryHasGenuineData(data) {
     if (!data) return false;
@@ -1847,6 +1856,22 @@ const Markdown = (function() {
         continue;
       }
 
+      // Sled — Plyometrics prep (v1.26.0): metres typed per set, one timer each, no lengths.
+      // Distinct key (`metres`, not `distance`) so it can never collide with farmer's carry below.
+      if (s0.metres !== undefined) {
+        const rows = data.sets.filter(s => State.sledRowIsReal(data, s));
+        if (rows.length === 0) continue;   // all-ghost → no line
+        const total = Math.round(rows.reduce((n, s) => n + (parseFloat(s.metres) || 0), 0));
+        const body = rows.map(s => {
+          const tag = (s.mode === 'push' || s.mode === 'pull') ? `${s.mode} ` : '';
+          return `${tag}${s.metres || 0}m ${Timer.formatTime(s.timeSeconds||0)} @${s.weight||0}kg`;
+        }).join(', ');
+        md += `- **${displayName}** — ${rows.length}×(${body}) (total ~${total}m)\n`;
+        md += formatNotes(data.notes);
+        md += '\n';
+        continue;
+      }
+
       // Weight/distance (farmer's carry)
       if (s0.distance !== undefined) {
         const validSets = data.sets.filter(s => s.distance);
@@ -2229,6 +2254,24 @@ const Markdown = (function() {
                 return row;
               });
               if (rows.every(Boolean) && rows.length === parseInt(psSled[1])) parsed = { sets: rows };
+            }
+          }
+
+          // 3d. Sled — Plyometrics prep (v1.26.0): 3×(push 20m 0:22 @50kg, pull 20m 0:25 @50kg) (total ~40m)
+          // No `lengths` token at all — that word is what separates this from 3c above. Same
+          // all-or-nothing contract: any unparseable token sends the whole line to skippedLines.
+          if (!parsed) {
+            const plyo = rest.match(/^(\d+)×\((.+)\)\s*\(total\s*~[\d.]+m\)$/);
+            if (plyo && !/\blengths?\b/.test(plyo[2])) {
+              const rows = plyo[2].split(', ').map(p => {
+                const t = p.trim().match(/^(?:(push|pull)\s+)?([\d.]+)m\s+(\d+:\d{2})\s*@\s*([\d.]+)kg$/);
+                if (!t) return null;
+                const tp = t[3].split(':');
+                const row = { weight: parseFloat(t[4]), metres: parseFloat(t[2]), timeSeconds: parseInt(tp[0]) * 60 + parseInt(tp[1]) };
+                if (t[1]) row.mode = t[1];
+                return row;
+              });
+              if (rows.every(Boolean) && rows.length === parseInt(plyo[1])) parsed = { sets: rows };
             }
           }
 
@@ -3739,7 +3782,7 @@ const Views = (function() {
           detail = `${lastEntry.weight||0}kg — ` + lastEntry.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
         }
       } else if (s0.lengths !== undefined) {
-        detail = lastEntry.sets.filter(s => State.sledRowIsReal(lastEntry, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.mode ? s.mode + ' ' : ''}${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
+        detail = lastEntry.sets.filter(s => State.sledRowIsReal(lastEntry, s)).map(s => { const tag = s.mode ? s.mode + ' ' : ''; if (s.metres !== undefined) return `${tag}${s.weight||0}kg × ${s.metres}m ${Timer.formatTime(s.timeSeconds||0)}`; const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${tag}${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
       } else if (s0.distance !== undefined) {
         detail = lastEntry.sets.map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(', ');
       } else {
@@ -4289,6 +4332,71 @@ const Views = (function() {
     return html;
   }
 
+  // Plyometrics prep (v1.26.0): metres + a timer per set, NO lengths. Same push/pull tag and the
+  // same derived "= Nm · X km/h" line, but the distance is typed directly instead of being derived
+  // from lengths × a route length — short timed efforts don't repeat a fixed lap.
+  function renderSledMetresSets(ex, existingData, lastEntry) {
+    const numSets = _numSets(ex, existingData);
+    let html = `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr;"><span></span><span>kg</span><span>metres</span><span>time</span></div>`;
+    let prevM = null;   // a new set inherits the distance of the set above it
+    for (let s = 0; s < numSets; s++) {
+      const existing = existingData?.sets?.[s];
+      const lastSet = lastEntry?.sets?.[s];
+      const weight = existing?.weight ?? (lastSet?.weight ?? '');
+      const metres = existing?.metres ?? (prevM ?? (lastSet?.metres ?? ''));
+      prevM = metres;
+      const timeStr = existing?.timeSeconds ? Timer.formatTime(existing.timeSeconds) : '';
+      const mode = existing?.mode ?? (lastSet?.mode ?? '');
+      html += `
+        <div class="sled-set-row">
+          <span class="set-label">Set ${s + 1}</span>
+          <input type="number" class="set-input slm-weight" inputmode="decimal" step="0.5" placeholder="kg" value="${weight}" data-set="${s}">
+          <input type="number" class="set-input slm-metres" inputmode="decimal" step="0.5" placeholder="m" value="${metres}" data-set="${s}">
+          <input type="text" class="set-input slm-time" inputmode="text" placeholder="m:ss" value="${timeStr}" data-set="${s}" id="slm-time-${s}">
+        </div>
+        <div class="sled-set-row2">
+          <button class="sled-mode-btn ${mode === 'push' ? 'active' : ''}" data-set="${s}" data-mode="push"
+            onclick="Views.setSledMode(${s}, 'push')">Push</button>
+          <button class="sled-mode-btn ${mode === 'pull' ? 'active' : ''}" data-set="${s}" data-mode="pull"
+            onclick="Views.setSledMode(${s}, 'pull')">Pull</button>
+        </div>
+        <button class="stopwatch-btn" id="sw-${s}" onclick="Timer.toggleStopwatch('sw-${s}', 'slm-time-${s}')">⏱️ Start timer</button>
+        <div class="sled-derived" id="slm-derived-${s}">${_slmDerivedText(metres, existing?.timeSeconds)}</div>`;
+    }
+    html += `<div class="sled-derived" id="slm-total">${_slmTotalText(existingData?.sets || [])}</div>`;
+    return html;
+  }
+
+  function _slmDerivedText(metres, seconds) {
+    const m = parseFloat(metres) || 0;
+    if (!m) return '';
+    const kmh = (seconds > 0) ? ((m / seconds) * 3.6).toFixed(1) : '';
+    return `= ${Math.round(m)}m` + (kmh ? ` · ${kmh} km/h` : '');
+  }
+  function _slmTotalText(rows) {
+    const real = rows.filter(r => (parseFloat(r.metres) || 0) > 0);
+    if (real.length < 2) return '';
+    const totalM = real.reduce((n, r) => n + (parseFloat(r.metres) || 0), 0);
+    const totalSec = real.reduce((n, r) => n + (r.timeSeconds || 0), 0);
+    const kmh = (totalM > 0 && totalSec > 0) ? ((totalM / totalSec) * 3.6).toFixed(1) : '';
+    return `Total ${Math.round(totalM)}m · ${Timer.formatTime(totalSec)}` + (kmh ? ` · ${kmh} km/h` : '');
+  }
+  function _updateSlmDerived() {
+    const rows = [];
+    document.querySelectorAll('.slm-metres').forEach(input => {
+      const s = input.dataset.set;
+      const metres = parseFloat(input.value) || 0;
+      const timeStr = document.getElementById(`slm-time-${s}`)?.value || '';
+      const parts = timeStr.split(':');
+      const timeSeconds = parts.length === 2 ? (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0) : parseInt(timeStr) || 0;
+      rows.push({ metres, timeSeconds });
+      const el = document.getElementById(`slm-derived-${s}`);
+      if (el) el.textContent = _slmDerivedText(metres, timeSeconds);
+    });
+    const totalEl = document.getElementById('slm-total');
+    if (totalEl) totalEl.textContent = _slmTotalText(rows);
+  }
+
   // Push/pull is a 3-state tap: tapping the active one clears it (an untagged set is legitimate —
   // the old continuous push+pull block had no single answer). Writes through to the WIP immediately.
   function setSledMode(setIdx, mode) {
@@ -4484,6 +4592,8 @@ const Views = (function() {
         inputsHtml = renderMultiTimerExercise(effEx, existingData, ns); break;
       case 'sled':
         inputsHtml = renderSledSets(effEx, existingData, lastEntry); break;
+      case 'sled_metres':
+        inputsHtml = renderSledMetresSets(effEx, existingData, lastEntry); break;
       case 'weight_distance':
         inputsHtml = renderWeightDistanceSets(effEx, existingData, preFill); break;
       case 'reps_only':
@@ -4529,11 +4639,12 @@ const Views = (function() {
       </div>`;
 
     // Add listeners for all inputs
-    document.querySelectorAll('.weight-input, .reps-input, .repsA-input, .wl-input, .wr-input, .rl-input, .rr-input, .sr-weight-input, .sled-weight, .sled-lengths, .sled-time, .sled-len, .wd-weight, .wd-distance').forEach(input => {
+    document.querySelectorAll('.weight-input, .reps-input, .repsA-input, .wl-input, .wr-input, .rl-input, .rr-input, .sr-weight-input, .sled-weight, .sled-lengths, .sled-time, .sled-len, .slm-weight, .slm-metres, .slm-time, .wd-weight, .wd-distance').forEach(input => {
       input.addEventListener('input', () => {
         input.dataset.touched = '1';   // distinguishes a set you actually entered from prefilled defaults
         Views._triggerAutoSave();
         if (trackingType === 'sled') Views._updateSledDerived();   // distance/speed react to lengths, time AND kg edits
+        if (trackingType === 'sled_metres') Views._updateSlmDerived();
         Views.updateBanner(ex);
       });
       // Select all on focus so tapping a pre-filled "0" lets you type immediately
@@ -4770,6 +4881,26 @@ const Views = (function() {
             // Freeze the length THIS set was done at — per-set since v1.25.0, so changing the route
             // mid-session (or the default later) can never retro-rewrite a logged distance.
             lengthM: lenEl ? (parseFloat(lenEl.value) || Data.getSledLength()) : Data.getSledLength()
+          };
+          if (modeEl) row.mode = modeEl.dataset.mode;
+          data.sets.push(row);
+        }
+        break;
+      }
+      case 'sled_metres': {
+        data.sets = [];
+        for (let s = 0; s < numSetsSave; s++) {
+          const w = document.querySelector(`.slm-weight[data-set="${s}"]`);
+          const m = document.querySelector(`.slm-metres[data-set="${s}"]`);
+          const t = document.querySelector(`.slm-time[data-set="${s}"]`);
+          const modeEl = document.querySelector(`.sled-mode-btn[data-set="${s}"].active`);
+          const timeStr = t?.value || '';
+          const parts = timeStr.split(':');
+          const timeSeconds = parts.length === 2 ? (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0) : parseInt(timeStr) || 0;
+          const row = {
+            weight: w ? parseFloat(w.value) || 0 : 0,
+            metres: m ? parseFloat(m.value) || 0 : 0,
+            timeSeconds
           };
           if (modeEl) row.mode = modeEl.dataset.mode;
           data.sets.push(row);
@@ -5411,7 +5542,7 @@ const Views = (function() {
         } else if (s0.repsL !== undefined) {
           setsStr = `${data.weight||0}kg — ` + data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== '')).map(s => `L${s.repsL}/R${s.repsR}`).join(' | ');
         } else if (s0.lengths !== undefined) {
-          setsStr = data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.mode ? s.mode + ' ' : ''}${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ') || '—';
+          setsStr = data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const tag = s.mode ? s.mode + ' ' : ''; if (s.metres !== undefined) return `${tag}${s.weight||0}kg × ${s.metres}m @ ${Timer.formatTime(s.timeSeconds||0)}`; const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${tag}${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ') || '—';
         } else if (s0.distance !== undefined) {
           setsStr = data.sets.filter(s => s.distance).map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(' | ');
         } else {
@@ -5832,7 +5963,7 @@ const Views = (function() {
     const s0 = data.sets[0];
     const wLabel = ex?.weightLabel || 'kg';
     if (s0.lengths !== undefined) {
-      return data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.mode ? s.mode + ' ' : ''}${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ') || '—';
+      return data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const tag = s.mode ? s.mode + ' ' : ''; if (s.metres !== undefined) return `${tag}${s.weight||0}${wLabel} × ${s.metres}m ${Timer.formatTime(s.timeSeconds||0)}`; const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${tag}${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ') || '—';
     }
     if (s0.distance !== undefined) {
       return data.sets.map(s => `${s.weight||0}${wLabel}/h × ${s.distance}m`).join(', ');
@@ -5888,6 +6019,11 @@ const Views = (function() {
     if (!data.sets || data.sets.length === 0) return '<div class="sd-sets"><div class="sd-set">—</div></div>';
     const s0 = data.sets[0];
 
+    if (s0.metres !== undefined) {
+      return `<div class="sd-sets">${data.sets.filter(s => State.sledRowIsReal(data, s)).map((s, i) =>
+        `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.mode ? s.mode + ' · ' : ''}${s.weight||0}${wLabel} · ${s.metres}m · ${Timer.formatTime(s.timeSeconds||0)}</div>`
+      ).join('') || '—'}</div>`;
+    }
     if (s0.lengths !== undefined) {
       const sledLength = Data.getSledLength();
       return `<div class="sd-sets">${data.sets.filter(s => State.sledRowIsReal(data, s)).map((s, i) => {
@@ -6088,7 +6224,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, completeExercise, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, setSledMode, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, completeExercise, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _updateSlmDerived, setSledMode, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
 })();
 
 // =====================================================
@@ -6152,7 +6288,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.25.0';
+const APP_VERSION = '1.26.0';
 
 // =====================================================
 // APP INIT
