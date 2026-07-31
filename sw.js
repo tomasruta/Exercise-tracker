@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gym-tracker-v1.29.0';
+const CACHE_NAME = 'gym-tracker-v1.30.0';
 const ASSETS = ['tracker.html', 'apple-touch-icon.png'];
 
 // Install: pre-cache tracker.html
