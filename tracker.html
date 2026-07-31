@@ -3615,23 +3615,33 @@ const Views = (function() {
   }
 
   function renderExRow(ex, index, num, workoutId) {
-    const completion = State.getExerciseCompletionStatus(index, ex.sets);
+    // v1.28.0: this row is now fully variant-aware. It used to read the BASE exercise for the
+    // last-weight hint, the sets×reps label and the completion count, while only trackingType
+    // was variant-resolved — so picking a variant could show another variant's last weight, and
+    // a variant with its own set count (sled Plyometrics prep = 3, Conditioning = 1) rendered
+    // and counted against the wrong number. Same resolution the detail screen already used.
+    const effEx = getEffectiveExercise(ex);
+    const completion = State.getExerciseCompletionStatus(index, effEx.sets);
     const statusIcon = completion.status === 'complete' ? '✅'
       : completion.status === 'partial' ? `<span class="partial-status">${completion.filled}/${completion.total}</span>`
       : (completion.status === 'skipped' || completion.status === 'not-logged') ? `<span class="skip-status">⊘</span>`
       : '';
-    const lastEntry = State.getLastEntry(ex.id);
+    const activeVar = ex.variants ? getActiveVariant(ex) : null;
+    const variantFilter = (activeVar && ex.variants)
+      ? { variantId: activeVar.id, defaultVariantId: (ex.variants.find(v => v.isDefault) || ex.variants[0]).id }
+      : null;
+    const lastEntry = State.getLastEntry(ex.id, variantFilter);
     const trackingType = getEffectiveTrackingType(ex);
 
     let metaStr = '';
     if (trackingType === 'duration' || trackingType === 'completion' || trackingType === 'multi_timer') {
-      metaStr = ex.reps;
-    } else if (trackingType === 'sled') {
+      metaStr = effEx.reps;
+    } else if (trackingType === 'sled' || trackingType === 'sled_metres') {
       metaStr = 'Sled';
     } else if (trackingType === 'weight_distance') {
-      metaStr = `${ex.sets}×${ex.reps}`;
+      metaStr = `${effEx.sets}×${effEx.reps}`;
     } else {
-      metaStr = `${ex.sets}×${ex.reps}`;
+      metaStr = `${effEx.sets}×${effEx.reps}`;
     }
 
     let lastStr = '';
@@ -3693,6 +3703,13 @@ const Views = (function() {
       reps: variant.reps !== undefined ? variant.reps : ex.reps,
       repRange: variant.repRange || ex.repRange,
       progressionType: variant.progressionType || ex.progressionType,
+      // v1.28.0: a variant that declares its OWN rep range must NOT inherit the base's fixed
+      // prefillReps — `prefillReps` outranks every other ghosting rule, so nordic curl's fixed 5
+      // was ghosting into its ham-curl variants, which work in 10–12. Dropping it lets the normal
+      // rules apply (auto-bump → what you did last session → bottom of the variant's range).
+      // A variant may still pin its own prefillReps explicitly.
+      prefillReps: variant.prefillReps !== undefined ? variant.prefillReps
+                 : (variant.repRange ? undefined : ex.prefillReps),
     };
   }
 
@@ -6321,7 +6338,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.27.0';
+const APP_VERSION = '1.28.0';
 
 // =====================================================
 // APP INIT
