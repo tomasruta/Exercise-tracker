@@ -3807,6 +3807,8 @@ const Views = (function() {
         } else {
           detail = `${lastEntry.weight||0}kg — ` + lastEntry.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
         }
+      } else if (s0.metres !== undefined) {
+        detail = lastEntry.sets.filter(s => State.sledRowIsReal(lastEntry, s)).map(s => `${s.mode ? s.mode + ' ' : ''}${s.weight||0}kg × ${s.metres}m ${Timer.formatTime(s.timeSeconds||0)}`).join(', ');
       } else if (s0.lengths !== undefined) {
         detail = lastEntry.sets.filter(s => State.sledRowIsReal(lastEntry, s)).map(s => { const tag = s.mode ? s.mode + ' ' : ''; if (s.metres !== undefined) return `${tag}${s.weight||0}kg × ${s.metres}m ${Timer.formatTime(s.timeSeconds||0)}`; const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${tag}${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
       } else if (s0.distance !== undefined) {
@@ -4323,12 +4325,19 @@ const Views = (function() {
     // Sled defaults to 1 set; "+ Add set" grows the WIP sets array (PROGRAMME stays sets:1)
     const numSets = _numSets(ex, existingData);
     html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr;"><span></span><span>kg</span><span>lengths</span><span>time</span></div>`;
-    let prevLenM = null;   // a new set inherits the length of the set above it — same route, one timer each
+    // A new set inherits kg / lengths / route-length from the set ABOVE it (v1.29.0) — you load the
+    // sled once and run the same lap, so retyping 60kg and 4 lengths per set was pure friction.
+    // Resolution order for each: this set's own saved value → the set above → last session's
+    // same-index set → blank. Push/pull is deliberately NOT carried down: it usually alternates,
+    // so last session's same-index tag is the better guess than repeating the set above.
+    let prevLenM = null, prevWeight = null, prevLengths = null;
     for (let s = 0; s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const lastSet = lastEntry?.sets?.[s];
-      const weight = existing?.weight ?? (lastSet?.weight ?? '');
-      const lengths = existing?.lengths ?? (lastSet?.lengths ?? '');
+      const weight = existing?.weight ?? (prevWeight ?? (lastSet?.weight ?? ''));
+      prevWeight = weight;
+      const lengths = existing?.lengths ?? (prevLengths ?? (lastSet?.lengths ?? ''));
+      prevLengths = lengths;
       const timeStr = existing?.timeSeconds ? Timer.formatTime(existing.timeSeconds) : '';
       // Per-set length (v1.25.0): the route can change between sets. Resolution order — this set's
       // own saved value, then the set above it (adding sets on the same route shouldn't mean
@@ -4364,11 +4373,13 @@ const Views = (function() {
   function renderSledMetresSets(ex, existingData, lastEntry) {
     const numSets = _numSets(ex, existingData);
     let html = `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr;"><span></span><span>kg</span><span>metres</span><span>time</span></div>`;
-    let prevM = null;   // a new set inherits the distance of the set above it
+    // A new set inherits distance AND kg from the set above it (v1.29.0) — see renderSledSets.
+    let prevM = null, prevWeight = null;
     for (let s = 0; s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const lastSet = lastEntry?.sets?.[s];
-      const weight = existing?.weight ?? (lastSet?.weight ?? '');
+      const weight = existing?.weight ?? (prevWeight ?? (lastSet?.weight ?? ''));
+      prevWeight = weight;
       const metres = existing?.metres ?? (prevM ?? (lastSet?.metres ?? ''));
       prevM = metres;
       const timeStr = existing?.timeSeconds ? Timer.formatTime(existing.timeSeconds) : '';
@@ -4652,7 +4663,7 @@ const Views = (function() {
         ${cuesHtml}
         ${formatLastEntry(lastEntry, ex)}
         ${inputsHtml}
-        ${['weight_reps','reps_only','weight_distance','sled'].includes(trackingType) ? `<button class="add-set-btn" onclick="Views.addSet(${exIndex})">+ Add set</button>` : ''}
+        ${['weight_reps','reps_only','weight_distance','sled','sled_metres'].includes(trackingType) ? `<button class="add-set-btn" onclick="Views.addSet(${exIndex})">+ Add set</button>` : ''}
         <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
           oninput="Views._triggerAutoSave()">${esc(existingNotes)}</textarea>
         <input type="hidden" id="ex-completed" value="${existingData?.completed ? 'true' : ''}">
@@ -5567,6 +5578,8 @@ const Views = (function() {
           setsStr = data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== '')).map(s => `L:${s.weightL||0}×${s.repsL||0} R:${s.weightR||0}×${s.repsR||0}`).join(' | ');
         } else if (s0.repsL !== undefined) {
           setsStr = `${data.weight||0}kg — ` + data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== '')).map(s => `L${s.repsL}/R${s.repsR}`).join(' | ');
+        } else if (s0.metres !== undefined) {
+          setsStr = data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => `${s.mode ? s.mode + ' ' : ''}${s.weight||0}kg × ${s.metres}m @ ${Timer.formatTime(s.timeSeconds||0)}`).join(' | ') || '—';
         } else if (s0.lengths !== undefined) {
           setsStr = data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const tag = s.mode ? s.mode + ' ' : ''; if (s.metres !== undefined) return `${tag}${s.weight||0}kg × ${s.metres}m @ ${Timer.formatTime(s.timeSeconds||0)}`; const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${tag}${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ') || '—';
         } else if (s0.distance !== undefined) {
@@ -5988,6 +6001,13 @@ const Views = (function() {
     if (!data.sets || data.sets.length === 0) return '—';
     const s0 = data.sets[0];
     const wLabel = ex?.weightLabel || 'kg';
+    // Plyometrics-prep sled: metres typed per set, NO lengths. Must be tested BEFORE the `lengths`
+    // branch — a pure-metres entry has no `lengths` key at all, so it never entered that branch and
+    // fell through to the weight×reps default, which found no reps and printed "—". Mirrors the
+    // order `formatSetsReadable` and the Markdown exporter already use.
+    if (s0.metres !== undefined) {
+      return data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => `${s.mode ? s.mode + ' ' : ''}${s.weight||0}${wLabel} × ${s.metres}m ${Timer.formatTime(s.timeSeconds||0)}`).join(', ') || '—';
+    }
     if (s0.lengths !== undefined) {
       return data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const tag = s.mode ? s.mode + ' ' : ''; if (s.metres !== undefined) return `${tag}${s.weight||0}${wLabel} × ${s.metres}m ${Timer.formatTime(s.timeSeconds||0)}`; const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${tag}${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ') || '—';
     }
@@ -6338,7 +6358,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.28.0';
+const APP_VERSION = '1.29.0';
 
 // =====================================================
 // APP INIT
