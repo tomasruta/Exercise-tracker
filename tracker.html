@@ -466,6 +466,21 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   display: grid; grid-template-columns: 50px 1fr 1fr 1fr; gap: 6px;
   align-items: center; margin-bottom: 6px;
 }
+/* Second line of a sled set: push/pull + this set's own length. Kept off the 4-col grid above —
+   six controls on one 375px row would each fall under the 44px tap minimum. */
+.sled-set-row2 {
+  display: flex; gap: 6px; align-items: center;
+  margin: 0 0 6px 54px; flex-wrap: wrap;
+}
+.sled-mode-btn {
+  flex: 1 1 0; min-width: 64px; min-height: 44px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-card); color: var(--text2);
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+}
+.sled-mode-btn.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+.sled-set-row2 .sled-len { width: 72px; min-height: 44px; }
+.sled-set-row2 .sled-len-unit { font-size: 0.85rem; color: var(--text2); }
 .sled-derived { font-size: 0.8rem; color: var(--text3); padding-left: 54px; margin-top: -2px; margin-bottom: 10px; }
 /* Prominent, full-width sled stopwatch — the one thing you're staring at while pushing the sled. */
 .stopwatch-btn {
@@ -1800,16 +1815,32 @@ const Markdown = (function() {
         const sledLength = Data.getSledLength();
         const rows = data.sets.filter(s => State.sledRowIsReal(data, s));
         if (rows.length === 0) continue;   // all-ghost → no line (matches the standard branch)
-        if (rows.length === 1) {
+        // v1.25.0 made length per-set and added push/pull. The format is ADDITIVE: when every row
+        // shares one length and nothing is tagged push/pull — i.e. every session logged before
+        // v1.25.0 — the two legacy lines below are emitted byte-for-byte unchanged, so the whole
+        // historical log re-exports identically. Only a mixed-length or tagged session earns the
+        // richer per-set grammar (which carries its own ×Nm and therefore drops `length = X`).
+        const rowLen = s => s.lengthM || sledLength;
+        const uniformLen = rows.every(s => rowLen(s) === rowLen(rows[0]));
+        const anyMode = rows.some(s => s.mode === 'push' || s.mode === 'pull');
+        if (uniformLen && !anyMode && rows.length === 1) {
           const s = rows[0];
-          const len = s.lengthM || sledLength;
+          const len = rowLen(s);
           const dist = s.lengths * len;
           md += `- **${displayName}** — 1×(${s.lengths} lengths, ${Timer.formatTime(s.timeSeconds||0)}) @ ${s.weight||0}kg (length = ${len}m, total ~${Math.round(dist)}m)\n`;
-        } else {
-          const len = rows[0].lengthM || sledLength;
+        } else if (uniformLen && !anyMode) {
+          const len = rowLen(rows[0]);
           const total = Math.round(rows.reduce((n, s) => n + (s.lengths || 0), 0) * len);
           const body = rows.map(s => `${s.lengths || 0} length${(s.lengths || 0) === 1 ? '' : 's'} ${Timer.formatTime(s.timeSeconds||0)} @${s.weight||0}kg`).join(', ');
           md += `- **${displayName}** — ${rows.length}×(${body}) (length = ${len}m, total ~${total}m)\n`;
+        } else {
+          const total = Math.round(rows.reduce((n, s) => n + (s.lengths || 0) * rowLen(s), 0));
+          const body = rows.map(s => {
+            const n = s.lengths || 0;
+            const tag = (s.mode === 'push' || s.mode === 'pull') ? `${s.mode} ` : '';
+            return `${tag}${n} length${n === 1 ? '' : 's'} ×${rowLen(s)}m ${Timer.formatTime(s.timeSeconds||0)} @${s.weight||0}kg`;
+          }).join(', ');
+          md += `- **${displayName}** — ${rows.length}×(${body}) (total ~${total}m)\n`;
         }
         md += formatNotes(data.notes);
         md += '\n';
@@ -2178,6 +2209,26 @@ const Markdown = (function() {
                 return { weight: parseFloat(t[3]), lengths: parseInt(t[1]), timeSeconds: parseInt(tp[0]) * 60 + parseInt(tp[1]), lengthM };
               });
               if (rows.every(Boolean) && rows.length === parseInt(msSled[1])) parsed = { sets: rows };
+            }
+          }
+
+          // 3c. Sled, per-set length + push/pull (v1.25.0):
+          //     2×(push 1 length ×20m 0:52 @70kg, pull 2 lengths ×20m 1:44 @65kg) (total ~60m)
+          // Each token carries its OWN ×Nm, so there is no trailing `length = X` to lean on.
+          // Same all-or-nothing contract as 3b: every token must parse AND the count must match the
+          // N× prefix, else the line falls through to skippedLines — never a partial import.
+          if (!parsed) {
+            const psSled = rest.match(/^(\d+)×\((.+)\)\s*\(total\s*~[\d.]+m\)$/);
+            if (psSled && /\blengths?\b/.test(psSled[2])) {
+              const rows = psSled[2].split(', ').map(p => {
+                const t = p.trim().match(/^(?:(push|pull)\s+)?(\d+)\s+lengths?\s+×([\d.]+)m\s+(\d+:\d{2})\s*@\s*([\d.]+)kg$/);
+                if (!t) return null;
+                const tp = t[4].split(':');
+                const row = { weight: parseFloat(t[5]), lengths: parseInt(t[2]), timeSeconds: parseInt(tp[0]) * 60 + parseInt(tp[1]), lengthM: parseFloat(t[3]) };
+                if (t[1]) row.mode = t[1];
+                return row;
+              });
+              if (rows.every(Boolean) && rows.length === parseInt(psSled[1])) parsed = { sets: rows };
             }
           }
 
@@ -3688,7 +3739,7 @@ const Views = (function() {
           detail = `${lastEntry.weight||0}kg — ` + lastEntry.sets.map(s => `L${s.repsL}/R${s.repsR}`).join(', ');
         }
       } else if (s0.lengths !== undefined) {
-        detail = lastEntry.sets.filter(s => State.sledRowIsReal(lastEntry, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
+        detail = lastEntry.sets.filter(s => State.sledRowIsReal(lastEntry, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.mode ? s.mode + ' ' : ''}${s.weight||0}kg × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ');
       } else if (s0.distance !== undefined) {
         detail = lastEntry.sets.map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(', ');
       } else {
@@ -4181,32 +4232,41 @@ const Views = (function() {
     const kmh = _sledKmh(l, lengthM, seconds);
     return `= ${Math.round(l * lengthM)}m` + (kmh ? ` · ${kmh} km/h` : '');
   }
-  function _sledTotalText(rows, lengthM) {
+  // Totals sum each row at ITS OWN length (v1.25.0) — a mixed 20m/50m session has no single
+  // length to multiply by, so distance is accumulated per row and speed derived from the sum.
+  function _sledTotalText(rows) {
     const real = rows.filter(r => (parseFloat(r.lengths) || 0) > 0);
     if (real.length < 2) return '';
-    const totalLen = real.reduce((n, r) => n + (parseFloat(r.lengths) || 0), 0);
+    const totalM = real.reduce((n, r) => n + (parseFloat(r.lengths) || 0) * (parseFloat(r.lengthM) || 0), 0);
     const totalSec = real.reduce((n, r) => n + (r.timeSeconds || 0), 0);
-    const kmh = _sledKmh(totalLen, lengthM, totalSec);
-    return `Total ${Math.round(totalLen * lengthM)}m · ${Timer.formatTime(totalSec)}` + (kmh ? ` · ${kmh} km/h` : '');
+    const kmh = (totalM > 0 && totalSec > 0) ? ((totalM / totalSec) * 3.6).toFixed(1) : '';
+    return `Total ${Math.round(totalM)}m · ${Timer.formatTime(totalSec)}` + (kmh ? ` · ${kmh} km/h` : '');
   }
   function renderSledSets(ex, existingData, lastEntry) {
     const sledLength = Data.getSledLength();
     let html = `
       <div class="sled-persistent">
-        <label>Length distance:</label>
+        <label>Default length for new sets:</label>
         <input type="number" class="set-input sled-length-input" inputmode="decimal" step="0.5" value="${sledLength}" style="display:inline;width:80px;"
-          oninput="Data.setSledLength(parseFloat(this.value)||15); Views._updateSledDerived(); Views._triggerAutoSave();">
+          oninput="Data.setSledLength(parseFloat(this.value)||15); Views._triggerAutoSave();">
         <span style="color:var(--text2);">m</span>
       </div>`;
     // Sled defaults to 1 set; "+ Add set" grows the WIP sets array (PROGRAMME stays sets:1)
     const numSets = _numSets(ex, existingData);
     html += `<div class="sets-header" style="grid-template-columns:50px 1fr 1fr 1fr;"><span></span><span>kg</span><span>lengths</span><span>time</span></div>`;
+    let prevLenM = null;   // a new set inherits the length of the set above it — same route, one timer each
     for (let s = 0; s < numSets; s++) {
       const existing = existingData?.sets?.[s];
       const lastSet = lastEntry?.sets?.[s];
       const weight = existing?.weight ?? (lastSet?.weight ?? '');
       const lengths = existing?.lengths ?? (lastSet?.lengths ?? '');
       const timeStr = existing?.timeSeconds ? Timer.formatTime(existing.timeSeconds) : '';
+      // Per-set length (v1.25.0): the route can change between sets. Resolution order — this set's
+      // own saved value, then the set above it (adding sets on the same route shouldn't mean
+      // retyping the distance), then last session's same-index stamp, then the persistent default.
+      const lenM = existing?.lengthM ?? (prevLenM ?? (lastSet?.lengthM ?? sledLength));
+      prevLenM = lenM;
+      const mode = existing?.mode ?? (lastSet?.mode ?? '');
       html += `
         <div class="sled-set-row">
           <span class="set-label">Set ${s + 1}</span>
@@ -4214,11 +4274,28 @@ const Views = (function() {
           <input type="number" class="set-input sled-lengths" inputmode="numeric" step="1" placeholder="len" value="${lengths}" data-set="${s}">
           <input type="text" class="set-input sled-time" inputmode="text" placeholder="m:ss" value="${timeStr}" data-set="${s}" id="sled-time-${s}">
         </div>
+        <div class="sled-set-row2">
+          <button class="sled-mode-btn ${mode === 'push' ? 'active' : ''}" data-set="${s}" data-mode="push"
+            onclick="Views.setSledMode(${s}, 'push')">Push</button>
+          <button class="sled-mode-btn ${mode === 'pull' ? 'active' : ''}" data-set="${s}" data-mode="pull"
+            onclick="Views.setSledMode(${s}, 'pull')">Pull</button>
+          <input type="number" class="set-input sled-len" inputmode="decimal" step="0.5" placeholder="m" value="${lenM}" data-set="${s}">
+          <span class="sled-len-unit">m / length</span>
+        </div>
         <button class="stopwatch-btn" id="sw-${s}" onclick="Timer.toggleStopwatch('sw-${s}', 'sled-time-${s}')">⏱️ Start timer</button>
-        <div class="sled-derived" id="sled-derived-${s}">${_sledDerivedText(lengths, sledLength, existing?.timeSeconds)}</div>`;
+        <div class="sled-derived" id="sled-derived-${s}">${_sledDerivedText(lengths, lenM, existing?.timeSeconds)}</div>`;
     }
-    html += `<div class="sled-derived" id="sled-total">${_sledTotalText((existingData?.sets || []), sledLength)}</div>`;
+    html += `<div class="sled-derived" id="sled-total">${_sledTotalText(existingData?.sets || [])}</div>`;
     return html;
+  }
+
+  // Push/pull is a 3-state tap: tapping the active one clears it (an untagged set is legitimate —
+  // the old continuous push+pull block had no single answer). Writes through to the WIP immediately.
+  function setSledMode(setIdx, mode) {
+    const btns = document.querySelectorAll(`.sled-mode-btn[data-set="${setIdx}"]`);
+    const wasActive = [...btns].some(b => b.dataset.mode === mode && b.classList.contains('active'));
+    btns.forEach(b => b.classList.toggle('active', !wasActive && b.dataset.mode === mode));
+    _triggerAutoSave();
   }
 
   function renderWeightDistanceSets(ex, existingData, preFill) {
@@ -4452,7 +4529,7 @@ const Views = (function() {
       </div>`;
 
     // Add listeners for all inputs
-    document.querySelectorAll('.weight-input, .reps-input, .repsA-input, .wl-input, .wr-input, .rl-input, .rr-input, .sr-weight-input, .sled-weight, .sled-lengths, .sled-time, .wd-weight, .wd-distance').forEach(input => {
+    document.querySelectorAll('.weight-input, .reps-input, .repsA-input, .wl-input, .wr-input, .rl-input, .rr-input, .sr-weight-input, .sled-weight, .sled-lengths, .sled-time, .sled-len, .wd-weight, .wd-distance').forEach(input => {
       input.addEventListener('input', () => {
         input.dataset.touched = '1';   // distinguishes a set you actually entered from prefilled defaults
         Views._triggerAutoSave();
@@ -4584,12 +4661,14 @@ const Views = (function() {
       const timeStr = document.getElementById(`sled-time-${s}`)?.value || '';
       const parts = timeStr.split(':');
       const timeSeconds = parts.length === 2 ? (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0) : parseInt(timeStr) || 0;
-      rows.push({ lengths, timeSeconds });
+      const lenEl = document.querySelector(`.sled-len[data-set="${s}"]`);
+      const lengthM = lenEl ? (parseFloat(lenEl.value) || 0) : sledLength;
+      rows.push({ lengths, timeSeconds, lengthM });
       const el = document.getElementById(`sled-derived-${s}`);
-      if (el) el.textContent = _sledDerivedText(lengths, sledLength, timeSeconds);
+      if (el) el.textContent = _sledDerivedText(lengths, lengthM, timeSeconds);
     });
     const totalEl = document.getElementById('sled-total');
-    if (totalEl) totalEl.textContent = _sledTotalText(rows, sledLength);
+    if (totalEl) totalEl.textContent = _sledTotalText(rows);
   }
 
   // ---- Auto-save: collect data from DOM based on tracking type ----
@@ -4679,15 +4758,21 @@ const Views = (function() {
           const w = document.querySelector(`.sled-weight[data-set="${s}"]`);
           const l = document.querySelector(`.sled-lengths[data-set="${s}"]`);
           const t = document.querySelector(`.sled-time[data-set="${s}"]`);
+          const lenEl = document.querySelector(`.sled-len[data-set="${s}"]`);
+          const modeEl = document.querySelector(`.sled-mode-btn[data-set="${s}"].active`);
           const timeStr = t?.value || '';
           const parts = timeStr.split(':');
           const timeSeconds = parts.length === 2 ? (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0) : parseInt(timeStr) || 0;
-          data.sets.push({
+          const row = {
             weight: w ? parseFloat(w.value) || 0 : 0,
             lengths: l ? parseInt(l.value) || 0 : 0,
             timeSeconds,
-            lengthM: Data.getSledLength()   // freeze the length this was done at — the setting can change later
-          });
+            // Freeze the length THIS set was done at — per-set since v1.25.0, so changing the route
+            // mid-session (or the default later) can never retro-rewrite a logged distance.
+            lengthM: lenEl ? (parseFloat(lenEl.value) || Data.getSledLength()) : Data.getSledLength()
+          };
+          if (modeEl) row.mode = modeEl.dataset.mode;
+          data.sets.push(row);
         }
         break;
       }
@@ -5326,7 +5411,7 @@ const Views = (function() {
         } else if (s0.repsL !== undefined) {
           setsStr = `${data.weight||0}kg — ` + data.sets.filter(s => State.setIsClaimed(data, s) && (s.repsL !== '' || s.repsR !== '')).map(s => `L${s.repsL}/R${s.repsR}`).join(' | ');
         } else if (s0.lengths !== undefined) {
-          setsStr = data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ') || '—';
+          setsStr = data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.mode ? s.mode + ' ' : ''}${s.weight||0}kg × ${s.lengths}L @ ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(' | ') || '—';
         } else if (s0.distance !== undefined) {
           setsStr = data.sets.filter(s => s.distance).map(s => `${s.weight||0}kg/h × ${s.distance}m`).join(' | ');
         } else {
@@ -5747,7 +5832,7 @@ const Views = (function() {
     const s0 = data.sets[0];
     const wLabel = ex?.weightLabel || 'kg';
     if (s0.lengths !== undefined) {
-      return data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ') || '—';
+      return data.sets.filter(s => State.sledRowIsReal(data, s)).map(s => { const m = s.lengths * (s.lengthM || Data.getSledLength()); return `${s.mode ? s.mode + ' ' : ''}${s.weight||0}${wLabel} × ${s.lengths}L ${Timer.formatTime(s.timeSeconds||0)}${m ? ` (~${Math.round(m)}m)` : ''}`; }).join(', ') || '—';
     }
     if (s0.distance !== undefined) {
       return data.sets.map(s => `${s.weight||0}${wLabel}/h × ${s.distance}m`).join(', ');
@@ -5807,7 +5892,7 @@ const Views = (function() {
       const sledLength = Data.getSledLength();
       return `<div class="sd-sets">${data.sets.filter(s => State.sledRowIsReal(data, s)).map((s, i) => {
         const dist = s.lengths * (s.lengthM || sledLength);
-        return `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.weight||0}${wLabel} · ${s.lengths}L · ${Timer.formatTime(s.timeSeconds||0)}${dist ? ` (~${Math.round(dist)}m)` : ''}</div>`;
+        return `<div class="sd-set"><span class="sd-num">${i+1}</span> ${s.mode ? s.mode + ' · ' : ''}${s.weight||0}${wLabel} · ${s.lengths}L · ${Timer.formatTime(s.timeSeconds||0)}${dist ? ` (~${Math.round(dist)}m)` : ''}</div>`;
       }).join('') || '—'}</div>`;
     }
     if (s0.distance !== undefined) {
@@ -6003,7 +6088,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, completeExercise, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, completeExercise, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, setSledMode, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
 })();
 
 // =====================================================
@@ -6067,7 +6152,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.24.0';
+const APP_VERSION = '1.25.0';
 
 // =====================================================
 // APP INIT
