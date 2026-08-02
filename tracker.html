@@ -611,8 +611,8 @@ const VARIANTS = {
     { id: 'prone', label: 'Prone (lying)', trackingType: 'weight_reps', isDefault: false }
   ],
   scottCurl: [
-    { id: 'preacher', label: 'Preacher bench', trackingType: 'weight_reps', isDefault: true },
-    { id: 'spider', label: 'Spider curl', trackingType: 'weight_reps', isDefault: false }
+    { id: 'preacher', label: 'Scott curl (90-degree bench) + Zottman rotation', trackingType: 'weight_reps', isDefault: true },
+    { id: 'spider', label: 'Spider curl (incline bench) + Zottman rotation', trackingType: 'weight_reps', isDefault: false }
   ],
   nordicCurl: [
     { id: 'nordic', label: 'Nordic curl (proper)', trackingType: 'weight_reps', isDefault: true },
@@ -890,7 +890,7 @@ const PROGRAMME = [
       { id: 'atg-split-squat', name: 'ATG split squat (no walking)', sets: 5, reps: '6-8/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', formCues: 'Stationary — no walking. Same DBs both hands. Full set one leg, then switch. Double progression 6-8/side.', notes: '' },
       { id: 'pullup-overhand', name: 'Weighted pull-up (overhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'weighted-dips', repRange: [6, 8], progressionType: 'compound', formCues: 'Pronated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
       { id: 'weighted-dips', name: 'Weighted dips', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'pullup-overhand', repRange: [6, 8], progressionType: 'compound', formCues: 'BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
-      { id: 'scott-curl', name: 'Scott curl (Zottman)', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', variants: VARIANTS.scottCurl, formCues: '', notes: '', isNew: true }
+      { id: 'scott-curl', name: 'Biceps curl (Zottman)', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', variants: VARIANTS.scottCurl, formCues: '', notes: '', isNew: true }
     ]
   },
   {
@@ -935,7 +935,7 @@ const PROGRAMME = [
       { id: 'ham-curl', name: 'Ham curl (seated)', sets: 5, reps: '8-10', flow: 'SS', supersetWith: 'front-squat', repRange: [8, 10], progressionType: 'compound', variants: VARIANTS.hamCurl, formCues: '', notes: '' },
       { id: 'chinup-underhand', name: 'Weighted chin-up (underhand)', sets: 3, reps: '6-8', flow: 'SS', supersetWith: 'incline-press', repRange: [6, 8], progressionType: 'compound', formCues: 'Supinated grip. BW until 3×8 clean → add 2.5kg → drop to 3×6.', notes: '', assistedReps: true },
       { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'chinup-underhand', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence. Rest back properly on bench for stable push.', notes: '' },
-      { id: 'hammer-curls', name: 'Incline hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
+      { id: 'hammer-curls', name: 'Incline dumbbell curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
   },
   {
@@ -963,7 +963,7 @@ const PROGRAMME = [
       { id: 'atg-lunge', name: 'ATG lunge (walking)', sets: 5, reps: '6-8 steps/side', flow: 'SEQ', repRange: [6, 8], progressionType: 'compound', unilateral: 'split_reps', repsLabel: 'steps', formCues: 'Walking. Same DBs both hands. 6-8 steps per leg = 12-16 alternating steps per set. All sets at 8/side → add weight.', notes: '' },
       { id: 'full-range-row', name: 'Full range row', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'incline-press', repRange: [8, 12], progressionType: 'isolation', formCues: 'Form is tricky — back curls up. May need different version. Brief prone — pause malto.', notes: '' },
       { id: 'incline-press', name: 'Incline DB press', sets: 3, reps: '8-12', flow: 'SS', supersetWith: 'full-range-row', repRange: [8, 12], progressionType: 'isolation', formCues: 'Inclined not flat — OK post-fence.', notes: '' },
-      { id: 'hammer-curls', name: 'Incline hammer curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
+      { id: 'hammer-curls', name: 'Incline dumbbell curls', sets: 3, reps: '8-12', flow: 'SEQ', repRange: [8, 12], progressionType: 'isolation', formCues: '', notes: '', isNew: true }
     ]
   },
   {
@@ -2075,6 +2075,8 @@ const Markdown = (function() {
       'slcalfraise': 'sl-calf-raise',
       'slcalfraisestanding': 'sl-calf-raise',
       'hamcurlactivation': 'ham-curl',   // historical one-off label (W4, 15 Apr) → the W4 ham-curl slot
+      'scottcurlzottman': 'scott-curl',      // renamed 2 Aug 2026 → Biceps curl (Zottman)
+      'inclinehammercurls': 'hammer-curls',  // renamed 2 Aug 2026 → Incline dumbbell curls
     };
     for (const [norm, id] of Object.entries(oldNames)) {
       if (!map[norm]) {
@@ -6450,7 +6452,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.30.2';
+const APP_VERSION = '1.31.0';
 
 // =====================================================
 // APP INIT
