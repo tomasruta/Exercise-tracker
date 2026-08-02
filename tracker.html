@@ -3818,7 +3818,9 @@ const Views = (function() {
     </div>`;
   }
 
-  function formatLastEntry(lastEntry, ex) {
+  // `vi` (optional): variant info when the entry is a cross-variant fallback — renders the same
+  // tag pill the history page uses, so a Scott-curl entry shown on the Spider screen is labelled.
+  function formatLastEntry(lastEntry, ex, vi) {
     if (!lastEntry) return '';
     let detail = '';
     if (lastEntry.done || lastEntry.doneL !== undefined) {
@@ -3846,7 +3848,7 @@ const Views = (function() {
     if (lastEntry.chopDirection) detail += ` <span style="color:var(--text3);">(${lastEntry.chopDirection === 'hi_lo' ? 'Hi→Lo' : 'Lo→Hi'})</span>`;
     return `
       <div class="last-session" style="cursor:pointer;" onclick="Router.go('/exercise/${ex.id}')">
-        <div class="last-session-title">Last session (${Markdown.formatDate(lastEntry.date)}, W${lastEntry.workoutId}) <span style="color:var(--accent);font-weight:600;float:right;">History →</span></div>
+        <div class="last-session-title">Last session (${Markdown.formatDate(lastEntry.date)}, W${lastEntry.workoutId})${vi ? `<span class="history-variant-tag">${esc(vi.label)}</span>` : ''} <span style="color:var(--accent);font-weight:600;float:right;">History →</span></div>
         <div>${detail}</div>
         ${lastEntry.notes ? `<div style="margin-top:4px;font-style:italic;color:var(--text3);white-space:pre-wrap;">${lastEntry.notes}</div>` : ''}
       </div>`;
@@ -4632,6 +4634,12 @@ const Views = (function() {
       ? { variantId: activeVar.id, defaultVariantId: (ex.variants.find(v => v.isDefault) || ex.variants[0]).id }
       : null;
     const lastEntry = State.getLastEntry(ex.id, variantFilter);
+    // v1.32.0: the Last-session box must never vanish just because the SELECTED variant has no
+    // history yet — that read as "my history is wiped" (2 Aug spider-curl report). DISPLAY falls
+    // back to the most recent entry across ALL variants, tagged with its variant label; prefill,
+    // standards and sled ghosts keep the strict filter (nordic numbers must never prefill a ham curl).
+    const lastEntryAnyVariant = (!lastEntry && variantFilter) ? State.getLastEntry(ex.id, null) : null;
+    const lastEntryDisplayVi = lastEntryAnyVariant ? variantInfoFor(ex, lastEntryAnyVariant, activeVar) : null;
     const existingData = State.getExerciseData(exIndex);
     const preFill = Progression.getPreFill(ex.id, effEx, variantFilter);
 
@@ -4642,8 +4650,16 @@ const Views = (function() {
     const hasAnyCues = userCues || structuredCues || ex.formCues || ex.notes;
 
     // Last session notes from history (not from current session) — variant-filtered to match.
-    const historyForNotes = filterHistoryByVariant(State.getExerciseHistory(ex.id), ex, activeVar);
-    const lastHistoryNotes = historyForNotes.length > 0 && historyForNotes[0].data.notes ? historyForNotes[0] : null;
+    // Same v1.32.0 fallback as the Last-session box: no notes under the selected variant → show
+    // the latest all-variant note, labelled with its variant so it can't be misread.
+    const allHistory = State.getExerciseHistory(ex.id);
+    const historyForNotes = filterHistoryByVariant(allHistory, ex, activeVar);
+    let lastHistoryNotes = historyForNotes.length > 0 && historyForNotes[0].data.notes ? historyForNotes[0] : null;
+    let lastHistoryNotesVi = null;
+    if (!lastHistoryNotes && activeVar && allHistory.length > 0 && allHistory[0].data.notes) {
+      lastHistoryNotes = allHistory[0];
+      lastHistoryNotesVi = variantInfoFor(ex, allHistory[0].data, activeVar);
+    }
 
     if (hasAnyCues || lastHistoryNotes) {
       let cueContent = '';
@@ -4657,7 +4673,7 @@ const Views = (function() {
 
       const lastNotesHtml = lastHistoryNotes
         ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
-            <div style="font-size:0.75rem;font-weight:600;color:var(--text3);margin-bottom:4px;">Last session notes (${Markdown.formatDate(lastHistoryNotes.date)})</div>
+            <div style="font-size:0.75rem;font-weight:600;color:var(--text3);margin-bottom:4px;">Last session notes (${Markdown.formatDate(lastHistoryNotes.date)})${lastHistoryNotesVi ? `<span class="history-variant-tag">${esc(lastHistoryNotesVi.label)}</span>` : ''}</div>
             <div style="font-size:0.8rem;color:var(--text3);font-style:italic;white-space:pre-wrap;">${esc(lastHistoryNotes.data.notes)}</div>
           </div>`
         : '';
@@ -4736,7 +4752,7 @@ const Views = (function() {
         ${variantHtml}
         ${chopHtml}
         ${cuesHtml}
-        ${formatLastEntry(lastEntry, ex)}
+        ${formatLastEntry(lastEntry || lastEntryAnyVariant, ex, lastEntryDisplayVi)}
         ${inputsHtml}
         ${['weight_reps','reps_only','weight_distance','sled','sled_metres'].includes(trackingType) ? `<button class="add-set-btn" onclick="Views.addSet(${exIndex})">+ Add set</button>` : ''}
         <textarea class="notes-field" id="ex-notes" placeholder="Speak or type notes..."
@@ -6452,7 +6468,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.31.0';
+const APP_VERSION = '1.32.0';
 
 // =====================================================
 // APP INIT
