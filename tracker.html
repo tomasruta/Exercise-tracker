@@ -1130,14 +1130,18 @@ const Data = (function() {
 
   const GYM_LIST_KEY = 'gym-gym-list';
   const GYM_LAST_KEY = 'gym-last-gym';
-  const DEFAULT_GYM = 'Max Fitness Flora Praha';
+  // Baked-in gyms are always offered, merged with the stored list — a stored list only grows
+  // via "+ Add new gym", so a newly baked-in gym would otherwise never appear on an existing phone.
+  const DEFAULT_GYMS = ['Max Fitness Flora Praha', "aGym Berlin F'hain"];
+  const DEFAULT_GYM = DEFAULT_GYMS[0];
 
   function getGymList() {
+    let stored = [];
     try {
       const list = JSON.parse(localStorage.getItem(GYM_LIST_KEY));
-      if (Array.isArray(list) && list.length > 0) return list;
+      if (Array.isArray(list)) stored = list;
     } catch {}
-    return [DEFAULT_GYM];
+    return [...DEFAULT_GYMS, ...stored.filter(g => !DEFAULT_GYMS.includes(g))];
   }
   function saveGymList(list) { localStorage.setItem(GYM_LIST_KEY, JSON.stringify(list)); }
   function getLastGym() { return localStorage.getItem(GYM_LAST_KEY) || getGymList()[0]; }
@@ -1147,6 +1151,9 @@ const Data = (function() {
     if (!list.includes(name)) { list.push(name); saveGymList(list); }
     setLastGym(name);
   }
+  // gymArea pills ("U žen", …) name THIS gym's floor areas — meaningless anywhere else.
+  // aGym areas get remapped on the first session there (roadmap), never invented in advance.
+  function gymHasAreas(name) { return name === DEFAULT_GYM; }
 
   const CHOP_KEY = 'gym-chop-direction';
   function getChopDirection() { return localStorage.getItem(CHOP_KEY) || 'hi_lo'; }
@@ -1161,7 +1168,7 @@ const Data = (function() {
     else localStorage.removeItem(`gym-cues-${exerciseId}`);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, markBackedUp, getUnbackedSessions, logEvent, getEventLog, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym };
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, markBackedUp, getUnbackedSessions, logEvent, getEventLog, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym, gymHasAreas };
 })();
 
 // =====================================================
@@ -1253,11 +1260,14 @@ const State = (function() {
   }
 
   function updateSessionNotes(overall, injuries, gym) {
+    // Gym choice sticks even with no session running (browsing/peeking) — it prefills the next
+    // session and drives which gym's area pills show, so "set aGym before I leave" must hold.
+    if (gym !== undefined) Data.setLastGym(gym);
     if (wip) wip.lastActivityAt = new Date().toISOString();   // typing session notes is genuine activity
     if (!wip) return;
     wip.overall = overall;
     wip.injuries = injuries;
-    if (gym !== undefined) { wip.gym = gym; Data.setLastGym(gym); }
+    if (gym !== undefined) wip.gym = gym;
     Data.saveWIP(wip);
   }
 
@@ -3572,7 +3582,7 @@ const Views = (function() {
           <label>Gym</label>
           <div style="display:flex;gap:8px;">
             <select class="notes-field" id="gym-select" style="min-height:48px;padding:10px;flex:1;"
-              onchange="if(this.value==='__add_new__'){Views._addNewGym();}else{Views._syncSessionNotes();}">
+              onchange="if(this.value==='__add_new__'){Views._addNewGym();}else{Views._syncSessionNotes();Views.renderWorkout(${workoutId});}">
               ${Data.getGymList().map(g => `<option value="${esc(g)}" ${g === (wipData?.gym || Data.getLastGym()) ? 'selected' : ''}>${esc(g)}</option>`).join('')}
               <option value="__add_new__">+ Add new gym…</option>
             </select>
@@ -3679,11 +3689,13 @@ const Views = (function() {
       else if (lastEntry.weight) lastStr = `Last: ${lastEntry.weight}kg`;
     }
 
+    const showArea = ex.gymArea && Data.gymHasAreas(State.getWIP()?.gym || Data.getLastGym());
+
     return `
       <div class="ex-row" onclick="Views.openExercise(${workoutId}, ${index})">
         <span class="ex-num">${num}</span>
         <div class="ex-info">
-          <span class="ex-name">${ex.name}${ex.gymArea ? ' <span class="badge badge-location">' + ex.gymArea + '</span>' : ''}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
+          <span class="ex-name">${ex.name}${showArea ? ' <span class="badge badge-location">' + ex.gymArea + '</span>' : ''}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
           <span class="ex-meta">${metaStr}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${workoutMembershipBadges(ex.id, workoutId)}${lastStr ? ' · ' + lastStr : ''}</span>
         </div>
         <span class="ex-status">${statusIcon}</span>
@@ -6468,7 +6480,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.32.0';
+const APP_VERSION = '1.33.0';
 
 // =====================================================
 // APP INIT
