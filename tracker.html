@@ -1066,6 +1066,18 @@ const Data = (function() {
     return getSessions().filter(s => !s.exported);
   }
 
+  // Sessions with NO durable copy anywhere — the only ones worth nagging about.
+  // A session that GitHub has confirmed needs no manual export: since 12 Aug 2026 a Mac agent
+  // mirrors that repo into the Obsidian vault by itself, so a backed-up session is already
+  // where a manual export would have put it. Reminding about it is noise, and noise is what
+  // makes a real warning get ignored.
+  // Direction matters and only this direction is safe: a confirmed remote backup may suppress
+  // the manual-export nag, because it is strictly stronger evidence. The reverse must NEVER be
+  // done — a manual share must not suppress the backup nag (see markBackedUp below).
+  function getUnsavedSessions() {
+    return getSessions().filter(s => !s.exported && !s.backedUp);
+  }
+
   // Cloud-backup flag — set ONLY after GitHub confirms the write (see the Backup module).
   // Deliberately SEPARATE from `exported`: that one means "I manually shared this somewhere",
   // this one means "a copy provably exists off this phone". Conflating them would let a manual
@@ -1168,7 +1180,7 @@ const Data = (function() {
     else localStorage.removeItem(`gym-cues-${exerciseId}`);
   }
 
-  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, markBackedUp, getUnbackedSessions, logEvent, getEventLog, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym, gymHasAreas };
+  return { getSessions, saveSessions, addSession, getWIP, saveWIP, clearWIP, markExported, getUnexportedSessions, getUnsavedSessions, markBackedUp, getUnbackedSessions, logEvent, getEventLog, getSledLength, setSledLength, getVariant, setVariant, getChopDirection, setChopDirection, flipChopDirection, getUserCues, saveUserCues, getGymList, getLastGym, setLastGym, addGym, gymHasAreas };
 })();
 
 // =====================================================
@@ -3443,8 +3455,9 @@ const Views = (function() {
       }
     }
 
-    // Check for unexported sessions
-    const unexported = Data.getUnexportedSessions();
+    // Nag only about sessions with no durable copy at all — anything GitHub has confirmed
+    // reaches the vault on its own now, so asking for a manual export would be busywork.
+    const unexported = Data.getUnsavedSessions();
     let unexportedBanner = '';
     if (unexported.length > 0 && !wip) {
       unexportedBanner = `
