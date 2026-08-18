@@ -5993,14 +5993,23 @@ const Views = (function() {
         const workout = PROGRAMME.find(w => w.id === s.workoutId);
         const wName = workout ? workout.name : `Workout ${s.workoutId}`;
         const exCount = Object.keys(s.exercises).length;
-        const exported = s.exported ? '✅' : '⚠️';
+        // "Saved" = a durable copy exists somewhere: a GitHub-confirmed backup OR a manual export.
+        // Backup counts on its own — since 12 Aug 2026 GitHub → vault is automatic, so a backed-up
+        // session must not be labelled "Not exported" (same rule as the home banner /
+        // Data.getUnsavedSessions; the 12-Aug fix covered the banner but missed these rows).
+        const saved = s.exported || s.backedUp;
+        const savedIcon = saved ? '✅' : '⚠️';
+        const savedLabel = s.backedUp && s.exported ? ' · Backed up · Exported'
+                         : s.backedUp ? ' · Backed up'
+                         : s.exported ? ' · Exported'
+                         : ' · Not exported';
         const kgLine = sessionKgSummary(s, workout);
 
         sessionRows += `
           <div class="summary-item" style="display:flex;align-items:center;gap:8px;">
             <div style="flex:1;cursor:pointer;" onclick="Router.go('/session/${i}')">
-              <div class="summary-name">${exported} W${s.workoutId} — ${Markdown.formatDate(s.date)}</div>
-              <div class="summary-sets">${wName} · ${exCount} exercises${s.exported ? ' · Exported' : ' · Not exported'}</div>
+              <div class="summary-name">${savedIcon} W${s.workoutId} — ${Markdown.formatDate(s.date)}</div>
+              <div class="summary-sets">${wName} · ${exCount} exercises${savedLabel}</div>
               ${kgLine ? `<div class="summary-sets" style="color:var(--text3);margin-top:2px;">${kgLine}</div>` : ''}
             </div>
             <button class="btn btn-secondary" style="flex:none;padding:8px 12px;font-size:0.8rem;width:auto;" onclick="Views.exportSingleSession(${i})">Export</button>
@@ -6089,7 +6098,8 @@ const Views = (function() {
   function deleteSession(sessionIndex) {
     const sessions = Data.getSessions();
     const session = sessions[sessionIndex];
-    const exportWarning = session && !session.exported ? '\n\nThis session has NOT been exported yet!' : '';
+    // Warn only when NO durable copy exists (neither exported nor GitHub-confirmed).
+    const exportWarning = session && !session.exported && !session.backedUp ? '\n\nThis session has NOT been exported or backed up yet!' : '';
     if (!confirm(`Delete this session? This cannot be undone.${exportWarning}`)) return;
     sessions.splice(sessionIndex, 1);
     try {
@@ -6107,9 +6117,9 @@ const Views = (function() {
   function clearAllHistory() {
     const sessions = Data.getSessions();
     if (sessions.length === 0) { alert('No history to clear — it\'s already empty.'); return; }
-    const unexported = sessions.filter(s => !s.exported).length;
+    const unexported = sessions.filter(s => !s.exported && !s.backedUp).length;
     const warn = unexported > 0
-      ? `\n\n⚠️ ${unexported} of these have NOT been exported from this app. Only wipe if your data is safely backed up elsewhere (e.g. your Documents log).`
+      ? `\n\n⚠️ ${unexported} of these have NOT been exported or backed up from this app. Only wipe if your data is safely backed up elsewhere (e.g. your Documents log).`
       : '';
     if (!confirm(`Delete ALL ${sessions.length} session(s)? This cannot be undone.${warn}`)) return;
     try {
@@ -6493,7 +6503,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.33.0';
+const APP_VERSION = '1.33.1';
 
 // =====================================================
 // APP INIT
