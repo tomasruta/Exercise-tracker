@@ -140,6 +140,25 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .badge-equip { background: var(--equip-badge); color: #fff; }
 .badge-workouts { background: var(--workouts-badge); color: #64748b; font-size: 0.6rem; padding: 1px 4px; letter-spacing: 0.02em; }
 .badge-location { background: var(--location-badge); color: #fff; }
+/* Ad-hoc exercise (v1.34.0): inserted into this session only, not part of the programme */
+.badge-adhoc { background: var(--amber); color: #fff; }
+.ex-row.adhoc { border-left: 3px solid var(--amber); }
+.adhoc-remove {
+  min-width: 44px; min-height: 44px; margin: -8px -8px -8px 0;
+  background: transparent; border: none; color: var(--text3); font-size: 1.1rem; cursor: pointer;
+}
+.adhoc-add { margin: 10px 0 4px; }
+.adhoc-toggle {
+  width: 100%; min-height: 44px; padding: 10px 12px; font-size: 0.9rem; font-weight: 600;
+  background: var(--bg-card); color: var(--text2); border: 1px dashed var(--border); border-radius: 10px; cursor: pointer;
+}
+.adhoc-panel {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px;
+}
+.adhoc-panel label { font-size: 0.75rem; font-weight: 600; color: var(--text3); }
+.adhoc-panel select { width: 100%; min-height: 44px; padding: 8px 10px; font-size: 0.95rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input); color: var(--text); }
+.adhoc-panel .btn { min-height: 44px; }
 
 /* ===== MALTO FENCE ===== */
 .malto-fence {
@@ -660,6 +679,84 @@ function equipMark(ex, data, s) {
   const map = ex && EQUIP_SUFFIX[ex.id];
   if (!map || !s.equip) return '';
   return s.equip === entryEquipBase(ex, data) ? '' : (map[s.equip] || '');
+}
+
+// ---- Linked variants (v1.34.0) ----
+// The SAME movement lives under two exercise ids: W1's nordic-curl has "Ham curl (seated/prone)"
+// fallback variants, and W4 has a standalone ham-curl exercise with seated/prone variants. History
+// is keyed by exercise id, so the W1 fallback only ever showed ham curls logged as a nordic
+// substitute — never the W4 ones (19 Aug report). Declared once here; State resolves both
+// directions. Each pair is (exercise id, variant id) ↔ (exercise id, variant id).
+const LINKED_VARIANTS = [
+  [{ ex: 'nordic-curl', variant: 'ham-curl-seated' }, { ex: 'ham-curl', variant: 'seated' }],
+  [{ ex: 'nordic-curl', variant: 'ham-curl-prone'  }, { ex: 'ham-curl', variant: 'prone'  }]
+];
+// Twins of (exId, variantId): the other side of every pair that names this exact exercise+variant.
+function linkedTwins(exId, variantId) {
+  const out = [];
+  for (const [a, b] of LINKED_VARIANTS) {
+    if (a.ex === exId && a.variant === variantId) out.push(b);
+    if (b.ex === exId && b.variant === variantId) out.push(a);
+  }
+  return out;
+}
+
+// ---- Ad-hoc exercises (v1.34.0) ----
+// A session may carry exercises that are NOT in its workout's programme — e.g. ham curls swapped in
+// for RDLs on an injury day. They live in the session's `exercises` map like any other entry, but
+// under slot keys >= ADHOC_BASE so they can never collide with a programme index (no workout has
+// 100 exercises), even if the programme is later re-ordered. The entry's stamped `exId` is the
+// identity (resolved across the WHOLE programme, not just this workout) and `adhocAfter` is the
+// programme index it was inserted after (-1 = before everything), which is display order only.
+const ADHOC_BASE = 100;
+function isAdhocSlot(idx) {
+  return parseInt(idx) >= ADHOC_BASE;
+}
+// First definition of an exercise id anywhere in the programme (ids are the cross-workout contract).
+function findExerciseDef(exId) {
+  for (const w of PROGRAMME) {
+    const found = w.exercises.find(e => e.id === exId);
+    if (found) return found;
+  }
+  return null;
+}
+// The definition an ad-hoc slot renders with: the programme's exercise, minus the things that only
+// make sense in its home workout (superset pairing, gym-area route tag).
+function adhocExerciseDef(exId) {
+  const def = findExerciseDef(exId);
+  if (!def) return null;
+  const copy = { ...def, flow: 'SEQ', isAdhoc: true };
+  delete copy.supersetWith;
+  delete copy.gymArea;
+  return copy;
+}
+// Resolve the exercise definition behind one session slot. Programme slots: the stamped exId within
+// THIS workout, else the index (legacy unstamped data). Ad-hoc slots: the stamped exId anywhere.
+function exerciseForSlot(workout, idx, data) {
+  if (isAdhocSlot(idx)) return data && data.exId ? adhocExerciseDef(data.exId) : null;
+  return (data && data.exId && workout.exercises.find(e => e.id === data.exId)) || workout.exercises[parseInt(idx)];
+}
+// The session's slots in DISPLAY/EXPORT order: programme slots ascending, each ad-hoc slot right
+// after the last present programme slot <= its `adhocAfter` (at the very start when none). Ad-hoc
+// slots among themselves keep slot order (= insertion order). Returns [[idx, data], ...].
+function sessionSlots(session) {
+  const entries = Object.entries((session && session.exercises) || {});
+  const prog = entries.filter(([k]) => !isAdhocSlot(k)).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+  const adhoc = entries.filter(([k]) => isAdhocSlot(k)).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+  if (adhoc.length === 0) return prog;
+  const anchorOf = ([, data]) => {
+    const after = (data && typeof data.adhocAfter === 'number') ? data.adhocAfter : Infinity;
+    let anchor = -1;
+    for (const [k] of prog) { if (parseInt(k) <= after) anchor = parseInt(k); else break; }
+    return anchor;
+  };
+  const out = [];
+  for (const a of adhoc) if (anchorOf(a) === -1) out.push(a);
+  for (const p of prog) {
+    out.push(p);
+    for (const a of adhoc) if (anchorOf(a) === parseInt(p[0])) out.push(a);
+  }
+  return out;
 }
 
 // Equipment tags — what to BRING for each exercise, keyed by exercise ID.
@@ -1247,8 +1344,30 @@ const State = (function() {
     if (prev) {
       if (prev.firstInputAt && !data.firstInputAt) data.firstInputAt = prev.firstInputAt;
       if (prev.completedAtTime && !data.completedAtTime) data.completedAtTime = prev.completedAtTime;
+      // Ad-hoc placement (v1.34.0) lives on the entry too — carry it across the DOM rebuild.
+      if (typeof prev.adhocAfter === 'number' && data.adhocAfter === undefined) data.adhocAfter = prev.adhocAfter;
     }
     wip.exercises[exIndex] = data;
+    Data.saveWIP(wip);
+  }
+
+  // ---- Ad-hoc exercises (v1.34.0) ----
+  // Insert an exercise from elsewhere in the programme into THIS session, after programme index
+  // `afterIdx` (-1 = first). Gets the next free slot >= ADHOC_BASE; the placeholder entry is not
+  // genuine, so if it's never logged the finish-time prune drops it like any other ghost.
+  function addAdhocExercise(exId, afterIdx) {
+    if (!wip || !findExerciseDef(exId)) return null;
+    const used = Object.keys(wip.exercises).map(k => parseInt(k)).filter(k => k >= ADHOC_BASE);
+    const slot = used.length ? Math.max(...used) + 1 : ADHOC_BASE;
+    wip.exercises[slot] = { exId, adhocAfter: afterIdx, notes: '' };
+    Data.saveWIP(wip);
+    Data.logEvent('adhoc-add', { i: slot, x: exId, after: afterIdx });
+    return slot;
+  }
+  function removeAdhocExercise(slot) {
+    if (!wip || !isAdhocSlot(slot) || !wip.exercises[slot]) return;
+    Data.logEvent('adhoc-remove', { i: Number(slot), x: wip.exercises[slot].exId });
+    delete wip.exercises[slot];
     Data.saveWIP(wip);
   }
 
@@ -1512,8 +1631,39 @@ const State = (function() {
     return data.variant === vf.variantId || (vf.variantId === vf.defaultVariantId && !data.variant);
   }
 
+  // Which variant an entry was logged as, in ITS OWN exercise's namespace (untagged = that
+  // exercise's default — the same rule the exporter and Views.filterHistoryByVariant use).
+  function entryVariantId(exDef, data) {
+    if (data.variant) return data.variant;
+    if (exDef && exDef.variants) return (exDef.variants.find(v => v.isDefault) || exDef.variants[0]).id;
+    return null;
+  }
+  // Linked-variant twins (v1.34.0, see LINKED_VARIANTS): entries of OTHER exercise ids that count as
+  // history for targetId. With a variant filter → twins of that one variant; without → twins of every
+  // variant. `asVariant` expresses the twin in targetId's own variant namespace, so the history page
+  // can tag a W4 ham-curl entry with nordic-curl's "Ham curl (seated)" pill — and so the per-variant
+  // filter stays strict: a seated twin never surfaces under the prone pill, let alone under nordic.
+  function twinMatchers(targetId, variantFilter) {
+    const def = findExerciseDef(targetId);
+    if (!def || !def.variants) return [];
+    const vids = variantFilter ? [variantFilter.variantId] : def.variants.map(v => v.id);
+    const out = [];
+    for (const vid of vids) for (const t of linkedTwins(targetId, vid)) out.push({ ...t, asVariant: vid });
+    return out;
+  }
+  // Does a stored entry (logged under exercise id exResolved) count as history for targetId?
+  // null = no · { asVariant: null } = a direct hit · { asVariant } = a linked twin.
+  function historyMatch(exResolved, data, targetId, variantFilter, twins) {
+    if (exResolved === targetId) return matchesVariantFilter(data, variantFilter) ? { asVariant: null } : null;
+    for (const t of twins) {
+      if (t.ex === exResolved && entryVariantId(findExerciseDef(t.ex), data) === t.variant) return { asVariant: t.asVariant };
+    }
+    return null;
+  }
+
   function getLastEntry(exerciseId, variantFilter) {
     const targetId = resolveId(exerciseId);
+    const twins = twinMatchers(targetId, variantFilter);
     const sessions = Data.getSessions();
     for (let i = sessions.length - 1; i >= 0; i--) {
       const s = sessions[i];
@@ -1524,8 +1674,11 @@ const State = (function() {
         // Prefer the stored exercise ID; fall back to array index for legacy unstamped data
         const exResolved = resolveId(data.exId || (ex && ex.id));
         if (!exResolved) continue;
-        if (exResolved === targetId && matchesVariantFilter(data, variantFilter) && entryHasGenuineData(data)) {
-          return { date: s.date, workoutId: s.workoutId, ...data };
+        const m = historyMatch(exResolved, data, targetId, variantFilter, twins);
+        if (m && entryHasGenuineData(data)) {
+          const entry = { date: s.date, workoutId: s.workoutId, ...data };
+          if (m.asVariant) { entry.linkedVariant = m.asVariant; entry.linkedFromId = exResolved; }
+          return entry;
         }
       }
     }
@@ -1534,6 +1687,7 @@ const State = (function() {
 
   function getExerciseHistory(exerciseId) {
     const targetId = resolveId(exerciseId);
+    const twins = twinMatchers(targetId, null);
     const sessions = Data.getSessions();
     const results = [];
     for (let i = sessions.length - 1; i >= 0; i--) {
@@ -1544,16 +1698,21 @@ const State = (function() {
         const ex = workout.exercises[parseInt(idx)];
         const exResolved = resolveId(data.exId || (ex && ex.id));
         if (!exResolved) continue;
-        if (exResolved === targetId && entryHasGenuineData(data)) {
-          const exDef = workout.exercises.find(e => resolveId(e.id) === targetId) || ex;
-          results.push({ date: s.date, workoutId: s.workoutId, data, exercise: exDef });
+        const m = historyMatch(exResolved, data, targetId, null, twins);
+        if (m && entryHasGenuineData(data)) {
+          // The entry's OWN exercise definition (a twin renders with its own def; an ad-hoc slot's
+          // exercise may live in another workout entirely — resolve across the whole programme).
+          const exDef = workout.exercises.find(e => resolveId(e.id) === exResolved) || ex || findExerciseDef(exResolved);
+          const row = { date: s.date, workoutId: s.workoutId, data, exercise: exDef };
+          if (m.asVariant) { row.linkedVariant = m.asVariant; row.linkedFromId = exResolved; }
+          results.push(row);
         }
       }
     }
     return results;
   }
 
-  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, setIsClaimed, sledRowIsReal, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked, touchActivity, stampExerciseFirstInput, stampExerciseCompleted };
+  return { init, startSession, startTimer, endTimer, getWIP, hasWIP, logExercise, addAdhocExercise, removeAdhocExercise, updateSessionNotes, getExerciseData, isExerciseLogged, getExerciseCompletionStatus, finishSession, abandonSession, getLastEntry, getExerciseHistory, entryHasGenuineData, setIsGenuine, setIsClaimed, sledRowIsReal, sessionRichness, importCollisionVerdict, mergeSessionFields, setSoundChecked, touchActivity, stampExerciseFirstInput, stampExerciseCompleted };
 })();
 
 // =====================================================
@@ -1816,8 +1975,13 @@ const Markdown = (function() {
     if (session.injuries) md += `**Injuries:** ${session.injuries}\n`;
     if (session.gym || session.startedAt || session.overall || session.injuries) md += '\n';
 
-    for (const [idx, data] of Object.entries(session.exercises)) {
-      const ex = (data.exId && workout.exercises.find(e => e.id === data.exId)) || workout.exercises[parseInt(idx)];
+    // v1.34.0: slots in display order — an ad-hoc exercise (slot >= ADHOC_BASE, borrowed from
+    // another workout) is written right after the programme exercise it was inserted behind, under
+    // its own name, so the log reads in the order the session happened. sessionSlots() returns
+    // plain ascending programme order when there are no ad-hoc slots, so every old session's
+    // export is byte-identical to before.
+    for (const [idx, data] of sessionSlots(session)) {
+      const ex = exerciseForSlot(workout, idx, data);
       if (!ex || ex.isFence) continue;
 
       const displayName = resolveDisplayName(ex, data);
@@ -2182,6 +2346,20 @@ const Markdown = (function() {
 
       const session = { workoutId, date, startedAt: '', exercises: {}, overall: '', injuries: '', gym: '' };
       const placedNames = {};   // exIdx → source name of the line that filled it (for collision reporting)
+      // Ad-hoc placement state (v1.34.0): a line naming an exercise that exists in the programme but
+      // NOT in this workout is a session-time insert (e.g. ham curls swapped in for RDLs). It lands
+      // in the next ad-hoc slot, anchored after the last programme exercise placed so far — which is
+      // exactly where exportSession wrote it, so the round-trip is order-stable. Only an EXACT
+      // (normalised) exercise name / variant label / old-name alias qualifies — never the fuzzy
+      // partial match — so an unrecognisable line is still reported, not quietly filed somewhere.
+      let lastProgIdx = -1, nextAdhoc = ADHOC_BASE;
+      const exactGlobalMatch = name => {
+        const n = norm(name);
+        for (const w of PROGRAMME) for (const ex of w.exercises) {
+          if (!ex.isFence && norm(ex.name) === n) return { id: ex.id, name: ex.name };
+        }
+        return LOOKUP[n] || null;
+      };
 
       // --- Metadata (everything above the first exercise bullet) ---
       // Gym single-line; Time → startedAt/completedAt (local wall-clock); Overall/Injuries may span lines.
@@ -2451,11 +2629,19 @@ const Markdown = (function() {
 
         if (parsed && exName) {
           // Workout-local slot wins over the global first-writer-wins LOOKUP (fixes cross-workout name clashes).
-          const matched_ = localLookup[norm(exName)] || matchExercise(exName);
+          const localHit = localLookup[norm(exName)];
+          let matched_ = localHit || matchExercise(exName);
+          let adhocSlot = null;
+          if (matched_ && !localHit && workout.exercises.findIndex(e => e.id === matched_.id) < 0) {
+            const g = exactGlobalMatch(exName);   // ad-hoc only on an exact name, never a partial match
+            if (g) { matched_ = g; adhocSlot = nextAdhoc; }
+          }
           if (matched_) {
-            const exIdx = workout.exercises.findIndex(e => e.id === matched_.id);
+            const exIdx = adhocSlot !== null ? adhocSlot : workout.exercises.findIndex(e => e.id === matched_.id);
             if (exIdx >= 0) {
               parsed.notes = '';
+              if (adhocSlot !== null) { parsed.adhocAfter = lastProgIdx; nextAdhoc++; }
+              else lastProgIdx = exIdx;
               if (parsed.sets) parsed.sets.forEach(s => {
                 s.touched = true;   // imported sets are genuine (v1.9 invariant)
                 // Equipment suffix → per-set variant stamp (mixed-equipment sessions)
@@ -3520,16 +3706,30 @@ const Views = (function() {
       State.startSession(workoutId);
     }
 
+    // Ad-hoc slots in this session (v1.34.0), grouped by the programme index they follow
+    // (-1 = before everything). Each renders as a normal row right after its anchor.
+    const adhocBy = {};
+    for (const [k, d] of Object.entries(State.getWIP()?.exercises || {})) {
+      if (!isAdhocSlot(k)) continue;
+      const aex = exerciseForSlot(workout, k, d);
+      if (!aex) continue;
+      const after = (typeof d.adhocAfter === 'number') ? Math.min(d.adhocAfter, workout.exercises.length - 1) : workout.exercises.length - 1;
+      (adhocBy[after] = adhocBy[after] || []).push({ slot: parseInt(k), ex: aex });
+    }
+
     // Build exercise rows grouped by supersets
     let rows = '';
     let exNum = 0;
     let i = 0;
+    const adhocRows = after => (adhocBy[after] || []).map(a => { exNum++; return renderExRow(a.ex, a.slot, exNum, workoutId); }).join('');
+    rows += adhocRows(-1);
 
     while (i < workout.exercises.length) {
       const ex = workout.exercises[i];
 
       if (ex.isFence) {
         rows += `<div class="malto-fence">🥤 MALTO FENCE — ${ex.fenceNote}</div>`;
+        rows += adhocRows(i);
         i++;
         continue;
       }
@@ -3550,14 +3750,43 @@ const Views = (function() {
               ${renderExRow(partner, partnerIdx, exNum2, workoutId)}
             </div>`;
           exNum++;
+          for (let j = i; j <= partnerIdx; j++) rows += adhocRows(j);   // never split a superset pair
           i = partnerIdx + 1;
           continue;
         }
       }
 
       rows += renderExRow(ex, i, exNum, workoutId);
+      rows += adhocRows(i);
       i++;
     }
+
+    // "+ Add exercise" (v1.34.0): borrow any programme exercise not in this workout, for this
+    // session only — e.g. ham curls instead of RDLs on an injury day. Two native selects (iOS
+    // picker wheels): which exercise, and which programme exercise to slot it after.
+    const presentIds = new Set(workout.exercises.map(e => e.id));
+    const seen = new Set();
+    let exOptions = '';
+    for (const w of PROGRAMME) {
+      const opts = w.exercises.filter(e => !e.isFence && !presentIds.has(e.id) && !seen.has(e.id));
+      if (!opts.length) continue;
+      opts.forEach(e => seen.add(e.id));
+      exOptions += `<optgroup label="W${w.id} — ${esc(w.name)}">${opts.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</optgroup>`;
+    }
+    let afterOptions = '';
+    const lastReal = workout.exercises.reduce((last, e, idx) => e.isFence ? last : idx, -1);
+    { let n = 0; workout.exercises.forEach((e, idx) => { if (e.isFence) return; n++; afterOptions += `<option value="${idx}"${idx === lastReal ? ' selected' : ''}>After ${n}. ${esc(e.name)}</option>`; }); }
+    const adhocAddHtml = `
+      <div class="adhoc-add">
+        <button class="adhoc-toggle" onclick="const p=document.getElementById('adhoc-panel');p.hidden=!p.hidden;">＋ Add an exercise to this session</button>
+        <div class="adhoc-panel" id="adhoc-panel" hidden>
+          <label for="adhoc-ex">Exercise (from another workout)</label>
+          <select id="adhoc-ex">${exOptions}</select>
+          <label for="adhoc-after">Where</label>
+          <select id="adhoc-after"><option value="-1">At the start</option>${afterOptions}</select>
+          <button class="btn btn-primary" onclick="Views.addAdhocExercise(${workoutId})">Add to this session</button>
+        </div>
+      </div>`;
 
     const wipData = State.getWIP();
 
@@ -3582,6 +3811,7 @@ const Views = (function() {
       <div class="content">
         <div style="text-align:center;margin:0 0 12px;"><button style="padding:8px 16px;font-size:0.85rem;background:var(--bg-input);color:var(--text2);border:1px solid var(--border);border-radius:8px;cursor:pointer;min-height:44px;" onclick="Views.testSound();State.setSoundChecked(true);">🔊 Test sound</button><div id="test-sound-status" style="font-size:0.7rem;color:var(--text3);margin-top:3px;min-height:1em;"></div></div>
         <div class="exercise-list">${rows}</div>
+        ${adhocAddHtml}
         ${endSessionBtn}
         <div class="workout-notes">
           <label>How did it feel overall?</label>
@@ -3704,15 +3934,59 @@ const Views = (function() {
 
     const showArea = ex.gymArea && Data.gymHasAreas(State.getWIP()?.gym || Data.getLastGym());
 
+    // Ad-hoc row (v1.34.0): amber "added" badge + a ✕ that removes it from this session.
+    const adhocBadge = ex.isAdhoc ? ' <span class="badge badge-adhoc">added</span>' : '';
+    const removeBtn = ex.isAdhoc ? `<button class="adhoc-remove" title="Remove from this session" onclick="event.stopPropagation();Views.removeAdhocExercise(${workoutId}, ${index})">✕</button>` : '';
+
     return `
-      <div class="ex-row" onclick="Views.openExercise(${workoutId}, ${index})">
+      <div class="ex-row${ex.isAdhoc ? ' adhoc' : ''}" onclick="Views.openExercise(${workoutId}, ${index})">
         <span class="ex-num">${num}</span>
         <div class="ex-info">
-          <span class="ex-name">${ex.name}${showArea ? ' <span class="badge badge-location">' + ex.gymArea + '</span>' : ''}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
+          <span class="ex-name">${ex.name}${adhocBadge}${showArea ? ' <span class="badge badge-location">' + ex.gymArea + '</span>' : ''}${ex.isNew ? ' <span class="badge badge-new">NEW</span>' : ''}${(EQUIPMENT[ex.id] || []).map(e => ' <span class="badge badge-equip">' + e + '</span>').join('')}${ex.id === 'cable-chop' ? ` <span style="font-size:0.75rem;font-weight:400;">${Data.getChopDirection() === 'hi_lo' ? '🔄Hi→Lo' : '🔄Lo→Hi'}</span>` : ''}</span>
           <span class="ex-meta">${metaStr}${ex.flow === 'SS' ? ' <span class="badge badge-ss">SS</span>' : ''}${workoutMembershipBadges(ex.id, workoutId)}${lastStr ? ' · ' + lastStr : ''}</span>
         </div>
-        <span class="ex-status">${statusIcon}</span>
+        <span class="ex-status">${statusIcon}</span>${removeBtn}
       </div>`;
+  }
+
+  // ---- Ad-hoc exercises (v1.34.0) ----
+  function addAdhocExercise(workoutId) {
+    const exSel = document.getElementById('adhoc-ex');
+    const afterSel = document.getElementById('adhoc-after');
+    if (!exSel || !exSel.value) return;
+    const after = afterSel ? parseInt(afterSel.value) : -1;
+    if (!State.hasWIP()) State.startSession(workoutId);
+    const slot = State.addAdhocExercise(exSel.value, isNaN(after) ? -1 : after);
+    if (slot === null) return;
+    renderWorkout(workoutId);
+  }
+  function removeAdhocExercise(workoutId, slot) {
+    const data = State.getExerciseData(slot);
+    if (data && State.entryHasGenuineData(data) && !confirm('This exercise has logged sets. Remove it from this session anyway?')) return;
+    State.removeAdhocExercise(slot);
+    renderWorkout(workoutId);
+  }
+
+  // The live session's exercise order (v1.34.0): every non-fence programme exercise plus any ad-hoc
+  // slot from the WIP, each placed right after the programme index it was inserted behind (-1 =
+  // first). Returns [{ index, ex }] — `index` is the slot key (programme index or >= ADHOC_BASE).
+  // Drives "N out of M" on the exercise screen and the Up-next peek; renderWorkout draws the same
+  // order itself because it also has to keep superset pairs together.
+  function sessionOrder(workout) {
+    const adhocBy = {};
+    for (const [k, d] of Object.entries(State.getWIP()?.exercises || {})) {
+      if (!isAdhocSlot(k)) continue;
+      const aex = exerciseForSlot(workout, k, d);
+      if (!aex) continue;
+      const after = (typeof d.adhocAfter === 'number') ? Math.min(d.adhocAfter, workout.exercises.length - 1) : workout.exercises.length - 1;
+      (adhocBy[after] = adhocBy[after] || []).push({ index: parseInt(k), ex: aex });
+    }
+    const out = [...(adhocBy[-1] || [])];
+    workout.exercises.forEach((ex, i) => {
+      if (!ex.isFence) out.push({ index: i, ex });
+      out.push(...(adhocBy[i] || []));
+    });
+    return out;
   }
 
   // Every workout ID this exercise appears in (shared IDs are the cross-workout history contract).
@@ -4597,25 +4871,28 @@ const Views = (function() {
   // ---- Peek view: upcoming exercises ----
   function renderPeekView(workout, currentExIndex) {
     const remaining = [];
-    let exNum = 0;
-    for (let i = 0; i < workout.exercises.length; i++) {
-      const ex = workout.exercises[i];
-      if (ex.isFence) {
-        if (i > currentExIndex) remaining.push({ isFence: true, note: ex.fenceNote });
-        continue;
+    // v1.34.0: walk the session's live order (programme + ad-hoc slots), so an added exercise shows
+    // up next in its place and an ad-hoc screen still lists what follows it.
+    const order = sessionOrder(workout);
+    const curPos = order.findIndex(o => o.index === currentExIndex);
+    // Fences stay: a fence belongs after the programme exercise that precedes it.
+    const fenceAfter = {};
+    workout.exercises.forEach((ex, i) => { if (ex.isFence) { const prev = workout.exercises.slice(0, i).reduce((last, e, j) => e.isFence ? last : j, -1); (fenceAfter[prev] = fenceAfter[prev] || []).push(ex.fenceNote); } });
+    order.forEach((o, pos) => {
+      const ex = o.ex, i = o.index;
+      if (pos > curPos) {
+        const effEx = getEffectiveExercise(ex);
+        const tt = getEffectiveTrackingType(ex);
+        let meta = '';
+        if (tt === 'duration' || tt === 'completion' || tt === 'multi_timer') meta = ex.reps;
+        else if (tt === 'sled') meta = 'Sled';
+        else meta = `${effEx.sets}×${effEx.reps}`;
+        const completion = State.getExerciseCompletionStatus(i, ex.sets);
+        const done = completion.status === 'complete' ? ' ✅' : '';
+        remaining.push({ index: i, id: ex.id, num: pos + 1, name: ex.name, meta, flow: ex.flow, done });
       }
-      exNum++;
-      if (i <= currentExIndex) continue;
-      const effEx = getEffectiveExercise(ex);
-      const tt = getEffectiveTrackingType(ex);
-      let meta = '';
-      if (tt === 'duration' || tt === 'completion' || tt === 'multi_timer') meta = ex.reps;
-      else if (tt === 'sled') meta = 'Sled';
-      else meta = `${effEx.sets}×${effEx.reps}`;
-      const completion = State.getExerciseCompletionStatus(i, ex.sets);
-      const done = completion.status === 'complete' ? ' ✅' : '';
-      remaining.push({ index: i, id: ex.id, num: exNum, name: ex.name, meta, flow: ex.flow, done });
-    }
+      if (!isAdhocSlot(i) && pos >= curPos) (fenceAfter[i] || []).forEach(note => remaining.push({ isFence: true, note }));
+    });
     if (remaining.length === 0) return '';
     const rows = remaining.map(r => {
       if (r.isFence) return `<div class="peek-fence">🥤 ${r.note}</div>`;
@@ -4636,7 +4913,8 @@ const Views = (function() {
   function renderExercise(workoutId, exIndex) {
     const workout = PROGRAMME.find(w => w.id === workoutId);
     if (!workout) { renderHome(); return; }
-    const ex = workout.exercises[exIndex];
+    // Programme slot, or an ad-hoc slot (>= ADHOC_BASE) resolved through the session entry (v1.34.0)
+    const ex = isAdhocSlot(exIndex) ? exerciseForSlot(workout, exIndex, State.getExerciseData(exIndex)) : workout.exercises[exIndex];
     if (!ex || ex.isFence) { renderWorkout(workoutId); return; }
 
     const ns = 'w' + workoutId + 'e' + exIndex + '-';   // namespace for this exercise's timer ids
@@ -4647,8 +4925,10 @@ const Views = (function() {
     // clear the unused countdowns + sled stopwatches.
     Timer.detachOnNav();
 
-    const totalEx = workout.exercises.filter(e => !e.isFence).length;
-    const exNum = workout.exercises.slice(0, exIndex + 1).filter(e => !e.isFence).length;
+    // "N out of M" counts the session's live order: programme exercises + any ad-hoc ones.
+    const order = sessionOrder(workout);
+    const totalEx = order.length;
+    const exNum = order.findIndex(o => o.index === exIndex) + 1;
     const effEx = getEffectiveExercise(ex);
     const trackingType = getEffectiveTrackingType(ex);
     // Variant-aware history: the "Last session" line, the prefill, and the last-session notes must
@@ -4664,7 +4944,10 @@ const Views = (function() {
     // back to the most recent entry across ALL variants, tagged with its variant label; prefill,
     // standards and sled ghosts keep the strict filter (nordic numbers must never prefill a ham curl).
     const lastEntryAnyVariant = (!lastEntry && variantFilter) ? State.getLastEntry(ex.id, null) : null;
-    const lastEntryDisplayVi = lastEntryAnyVariant ? variantInfoFor(ex, lastEntryAnyVariant, activeVar) : null;
+    // A linked-twin last entry (v1.34.0, e.g. W4's ham curl shown under nordic-curl's seated pill)
+    // also gets its variant tag, so the "W4" in the title isn't a puzzle.
+    const lastEntryDisplayVi = lastEntryAnyVariant ? variantInfoFor(ex, lastEntryAnyVariant, activeVar)
+      : (lastEntry && lastEntry.linkedVariant ? variantInfoFor(ex, lastEntry, activeVar) : null);
     const existingData = State.getExerciseData(exIndex);
     const preFill = Progression.getPreFill(ex.id, effEx, variantFilter);
 
@@ -4683,7 +4966,7 @@ const Views = (function() {
     let lastHistoryNotesVi = null;
     if (!lastHistoryNotes && activeVar && allHistory.length > 0 && allHistory[0].data.notes) {
       lastHistoryNotes = allHistory[0];
-      lastHistoryNotesVi = variantInfoFor(ex, allHistory[0].data, activeVar);
+      lastHistoryNotesVi = variantInfoFor(ex, allHistory[0].linkedVariant ? { ...allHistory[0].data, linkedVariant: allHistory[0].linkedVariant } : allHistory[0].data, activeVar);
     }
 
     if (hasAnyCues || lastHistoryNotes) {
@@ -4952,7 +5235,7 @@ const Views = (function() {
   function autoSaveExercise(workoutId, exIndex) {
     const workout = PROGRAMME.find(w => w.id === workoutId);
     if (!workout) return;
-    const ex = workout.exercises[exIndex];
+    const ex = isAdhocSlot(exIndex) ? exerciseForSlot(workout, exIndex, State.getExerciseData(exIndex)) : workout.exercises[exIndex];
     if (!ex) return;
     const effEx = getEffectiveExercise(ex);
     const trackingType = getEffectiveTrackingType(ex);
@@ -5333,7 +5616,7 @@ const Views = (function() {
 
     for (const [idx, data] of Object.entries(wip.exercises)) {
       const exIndex = parseInt(idx);
-      const ex = workout.exercises[exIndex];
+      const ex = exerciseForSlot(workout, exIndex, data);
       if (!ex || ex.isFence) continue;
       if (!Array.isArray(data.sets) || data.sets.length === 0) continue;
 
@@ -5692,8 +5975,8 @@ const Views = (function() {
     const md = Markdown.exportSession(session);
 
     let exerciseItems = '';
-    for (const [idx, data] of Object.entries(session.exercises)) {
-      const ex = workout.exercises[parseInt(idx)];
+    for (const [idx, data] of sessionSlots(session)) {
+      const ex = exerciseForSlot(workout, idx, data);
       if (!ex || ex.isFence) continue;
 
       let setsStr = '';
@@ -5728,7 +6011,7 @@ const Views = (function() {
 
       exerciseItems += `
         <div class="summary-item">
-          <div class="summary-name">${ex.name}${variantLabel}</div>
+          <div class="summary-name">${ex.name}${variantLabel}${ex.isAdhoc ? ' <span class="badge badge-adhoc">added</span>' : ''}</div>
           <div class="summary-sets">${setsStr}</div>
           ${data.notes ? `<div class="summary-notes">${esc(data.notes)}</div>` : ''}
         </div>`;
@@ -5965,9 +6248,9 @@ const Views = (function() {
   function sessionKgSummary(s, workout) {
     if (!workout || !s.exercises) return '';
     const parts = [];
-    for (const [idx, data] of Object.entries(s.exercises)) {
+    for (const [idx, data] of sessionSlots(s)) {
       if (!State.entryHasGenuineData(data) || !Array.isArray(data.sets) || data.sets.length === 0) continue;
-      const ex = (data.exId && workout.exercises.find(e => e.id === data.exId)) || workout.exercises[parseInt(idx)];
+      const ex = exerciseForSlot(workout, idx, data);
       if (!ex) continue;
       const top = data.sets[data.sets.length - 1];
       const w = (top.weight != null && top.weight !== '') ? parseFloat(top.weight)
@@ -6266,14 +6549,14 @@ const Views = (function() {
     if (!workout) { Router.go('/settings'); return; }
 
     let rows = '';
-    for (const [idx, data] of Object.entries(session.exercises)) {
-      const ex = (data.exId && workout.exercises.find(e => e.id === data.exId)) || workout.exercises[parseInt(idx)];
+    for (const [idx, data] of sessionSlots(session)) {
+      const ex = exerciseForSlot(workout, idx, data);
       if (!ex || ex.isFence) continue;
       const displayName = Markdown.resolveDisplayName(ex, data);
       const setsHtml = formatSetsReadable(data, ex);
       rows += `
         <div class="session-detail-item">
-          <div class="session-detail-name">${displayName}</div>
+          <div class="session-detail-name">${displayName}${ex.isAdhoc ? ' <span class="badge badge-adhoc">added</span>' : ''}</div>
           ${setsHtml}
           ${data.notes ? `<div class="session-detail-notes">${esc(data.notes)}</div>` : ''}
         </div>`;
@@ -6299,20 +6582,25 @@ const Views = (function() {
   // Narrow an exercise's history to the currently-selected variant, so e.g. the seated ham-curl
   // variant of nordic-curl shows only seated-ham-curl sessions. Untagged legacy entries are shown
   // only under the default variant. Returns all entries when the exercise has no variants.
+  // v1.34.0: a linked-twin row (State stamps `linkedVariant`, e.g. a W4 ham-curl entry viewed from
+  // nordic-curl) is matched on that stamp — it's already expressed in THIS exercise's namespace.
   function filterHistoryByVariant(all, exDef, activeVar) {
     if (!exDef || !exDef.variants || !activeVar) return all;
     const defId = (exDef.variants.find(v => v.isDefault) || exDef.variants[0]).id;
-    return all.filter(h => h.data.variant === activeVar.id || (activeVar.id === defId && !h.data.variant));
+    return all.filter(h => h.linkedVariant ? h.linkedVariant === activeVar.id
+      : (h.data.variant === activeVar.id || (activeVar.id === defId && !h.data.variant)));
   }
 
   // Which variant an entry was logged as (v1.27.0). An UNTAGGED entry is the default variant —
   // the same rule `filterHistoryByVariant` and the exporter already use, so legacy rows logged
   // before a variant existed stay attributed correctly instead of reading as "unknown".
   // Returns null for exercises that have no variants at all — those get no tag.
+  // `data` may be a history row ({data, linkedVariant}) or a bare entry / last-entry object, which
+  // carries `linkedVariant` directly when it came from a linked twin (v1.34.0).
   function variantInfoFor(exDef, data, activeVar) {
     if (!exDef || !exDef.variants) return null;
     const def = exDef.variants.find(v => v.isDefault) || exDef.variants[0];
-    const id = data.variant || def.id;
+    const id = data.linkedVariant || data.variant || def.id;
     const v = exDef.variants.find(x => x.id === id);
     if (!v) return null;   // a variant that no longer exists in the programme — don't invent a label
     return { label: v.label, isCurrent: !!activeVar && v.id === activeVar.id };
@@ -6353,7 +6641,7 @@ const Views = (function() {
     } else {
       for (const h of history.slice(0, 15)) {
         const dataStr = formatExerciseDataCompact(h.data, h.exercise);
-        const vi = variantInfoFor(exDef, h.data, activeVar);
+        const vi = variantInfoFor(exDef, h.linkedVariant ? { ...h.data, linkedVariant: h.linkedVariant } : h.data, activeVar);
         const tag = vi ? `<span class="history-variant-tag${vi.isCurrent ? ' current' : ''}">${esc(vi.label)}</span>` : '';
         entriesHtml += `
           <div class="history-entry">
@@ -6367,6 +6655,11 @@ const Views = (function() {
     // Collect all notes for copy button
     const allNotes = history.filter(h => h.data.notes).map(h => `${Markdown.formatDate(h.date)}: ${h.data.notes}`).join('\n\n');
 
+    // v1.34.0: say so when rows borrowed from a linked exercise are in the list (e.g. W4's ham curls
+    // inside nordic-curl's history), naming the exercise they were logged under.
+    const linkedNames = [...new Set(history.filter(h => h.linkedFromId).map(h => (findExerciseDef(h.linkedFromId) || {}).name).filter(Boolean))];
+    const linkedNote = linkedNames.length ? ` · incl. ${linkedNames.map(esc).join(', ')}` : '';
+
     app.innerHTML = `
       <div class="header">
         <button class="back-btn" onclick="history.back()">← Back</button>
@@ -6379,7 +6672,7 @@ const Views = (function() {
         </div>` : ''}
 
         <div class="summary-section">
-          <h3>Recent Sessions (${history.length})${exDef.variants ? ' · all variants' : ''}</h3>
+          <h3>Recent Sessions (${history.length})${exDef.variants ? ' · all variants' : ''}${linkedNote}</h3>
           ${entriesHtml}
         </div>
 
@@ -6404,7 +6697,7 @@ const Views = (function() {
     const history = State.getExerciseHistory(exerciseId);
     const text = `# ${exName} — Notes History\n\n` +
       history.filter(h => h.data.notes).map(h => {
-        const vi = variantInfoFor(exDef, h.data, activeVar);
+        const vi = variantInfoFor(exDef, h.linkedVariant ? { ...h.data, linkedVariant: h.linkedVariant } : h.data, activeVar);
         return `**${Markdown.formatDate(h.date)}** (W${h.workoutId})${vi ? ` — ${vi.label}` : ''}:\n${h.data.notes}`;
       }).join('\n\n');
 
@@ -6439,7 +6732,7 @@ const Views = (function() {
     }
   }
 
-  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, completeExercise, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, _triggerAutoSave, _updateSledDerived, _updateSlmDerived, setSledMode, sledGoToSet, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
+  return { renderHome, renderWorkout, renderExercise, autoSaveExercise, saveExercise, saveAndBack, completeExercise, updateBanner, finishWorkout, skipGapsAndFinish, fillGapsAndFinish, setUntouchedChoice, renderSummary, copyMarkdown, shareMarkdown, exportAll, showImportModal, doImport, renderSettings, exportSingleSession, deleteSession, clearAllHistory, switchVariant, toggleChopDirection, adjustTime, setTimeManual, handleTimerTap, addSet, addAdhocExercise, removeAdhocExercise, _triggerAutoSave, _updateSledDerived, _updateSlmDerived, setSledMode, sledGoToSet, _mtAction, renderSessionDetail, renderExerciseHistory, copyNotesHistory, _syncSessionNotes, _addNewGym, peekTo, testSound, startSessionGuarded, openExercise, saveBackupSettings, backupAllNow, clearBackupToken, retryBackupNow };
 })();
 
 // =====================================================
@@ -6503,7 +6796,7 @@ const Router = (function() {
 // =====================================================
 // APP VERSION + AUTO-UPDATE CHECK
 // =====================================================
-const APP_VERSION = '1.33.1';
+const APP_VERSION = '1.34.0';
 
 // =====================================================
 // APP INIT
